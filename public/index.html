@@ -307,9 +307,12 @@ async function logout() {
   renderAuth();
 }
 
+const _prompts = [];
 function promptChip(text) {
-  return `<button onclick="navigator.clipboard.writeText(${JSON.stringify(text)}).then(()=>toast('Copied — paste into Claude'))" style="font:inherit;font-size:12px;padding:6px 12px;border:1px solid #e0e0e0;border-radius:20px;background:#fafafa;cursor:pointer;color:#555;text-align:left;white-space:nowrap" title="Click to copy">${esc(text)}</button>`;
+  const i = _prompts.push(text) - 1;
+  return `<button onclick="copyPrompt(${i})" style="font:inherit;font-size:12px;padding:6px 12px;border:1px solid #e0e0e0;border-radius:20px;background:#fafafa;cursor:pointer;color:#555;text-align:left;white-space:nowrap" title="Click to copy">${esc(text)}</button>`;
 }
+window.copyPrompt = i => navigator.clipboard.writeText(_prompts[i]).then(() => toast('Copied — paste into Claude'));
 
 function renderProjects() {
   state.view = "projects";
