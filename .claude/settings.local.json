@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/premacharya/Desktop/**)",
+      "Bash(python3 -c ' *)",
+      "Bash(pip3 install *)",
+      "Bash(npm start *)",
+      "Bash(curl -s http://localhost:3000/api/groups)",
+      "Bash(ps -p 11106 -o args=)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(kill 11106)",
+      "Bash(npm install *)",
+      "Bash(sqlite3 /Users/premacharya/Desktop/groupwisdom-v1/groupwisdom.db \"ALTER TABLE members ADD COLUMN access_token TEXT;\")",
+      "Bash(sqlite3 /Users/premacharya/Desktop/groupwisdom-v1/groupwisdom.db \"SELECT name FROM pragma_table_info\\('members'\\);\")",
+      "Bash(python3 -c \"import secrets; print\\(secrets.token_hex\\(24\\)\\)\")",
+      "Bash(sqlite3 /Users/premacharya/Desktop/groupwisdom-v1/groupwisdom.db ' *)",
+      "Bash(sqlite3 /Users/premacharya/Desktop/groupwisdom-v1/groupwisdom.db \"SELECT id FROM members WHERE name='Prem' LIMIT 1;\")",
+      "Bash(sqlite3 /Users/premacharya/Desktop/groupwisdom-v1/groupwisdom.db \"ALTER TABLE members ADD COLUMN api_key TEXT;\")",
+      "Bash(sqlite3 /Users/premacharya/Desktop/groupwisdom-v1/groupwisdom.db \"UPDATE members SET api_key = 'gw_350c2e009daeb94bb4ec32cfe2b4ca97f8c3' WHERE name = 'Prem';\")",
+      "Bash(sqlite3 /Users/premacharya/Desktop/groupwisdom-v1/groupwisdom.db \"SELECT name, api_key FROM members WHERE name='Prem' LIMIT 1;\")",
+      "Bash(pkill -f \"node dist/index.js\")",
+      "Bash(node dist/index.js)",
+      "Bash(curl -s http://localhost:3000/api/me)",
+      "Bash(lsof -ti:3000)",
+      "Bash(xargs kill -9)",
+      "Bash(node /Users/premacharya/Desktop/groupwisdom-v1/dist/index.js)",
+      "Bash(ngrok version *)",
+      "Bash(lsof -i:3000)",
+      "Bash(gh auth *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}
