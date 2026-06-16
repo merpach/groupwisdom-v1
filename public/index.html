@@ -307,8 +307,24 @@ async function logout() {
   renderAuth();
 }
 
+function promptChip(text) {
+  return `<button onclick="navigator.clipboard.writeText(${JSON.stringify(text)}).then(()=>toast('Copied — paste into Claude'))" style="font:inherit;font-size:12px;padding:6px 12px;border:1px solid #e0e0e0;border-radius:20px;background:#fafafa;cursor:pointer;color:#555;text-align:left;white-space:nowrap" title="Click to copy">${esc(text)}</button>`;
+}
+
 function renderProjects() {
   state.view = "projects";
+  const firstName = (state.user?.name || "").split(" ")[0];
+  const firstProject = state.groups[0]?.name || "Palo Alto trip";
+
+  const generalPrompts = [
+    `List my GroupWisdom projects`,
+    `What's in my ${firstProject} project?`,
+    `Summarise everything my group has shared about ${firstProject}`,
+    `What insights has GroupWisdom found for ${firstProject}?`,
+    `Search my GroupWisdom for anything about budgets`,
+    `Run a fresh analysis on my ${firstProject} project`,
+  ];
+
   const cards = state.groups.map(g => `
     <div class="project-card" onclick="openGroup('${g.id}')">
       <button class="delete-btn" onclick="deleteGroup(event,'${g.id}','${esc(g.name)}')">×</button>
@@ -326,6 +342,13 @@ function renderProjects() {
     <div class="projects-grid">
       ${cards}
       <div class="new-project-card" onclick="createGroup()">+ New project</div>
+    </div>
+    <div style="margin-top:40px;padding-top:32px;border-top:1px solid #f0f0f0">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:14px">Try saying this to Claude →</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${generalPrompts.map(p => promptChip(p)).join("")}
+      </div>
+      <div style="font-size:12px;color:#ccc;margin-top:10px">Click any prompt to copy it, then paste into Claude Desktop</div>
     </div>`;
 }
 
@@ -442,7 +465,24 @@ function render() {
     </div>
 
     <div class="feed-label">${state.insights.length ? `${state.insights.length} insight${state.insights.length === 1 ? "" : "s"} · ` : ""}${state.items.length} item${state.items.length === 1 ? "" : "s"}</div>
-    ${feed}`;
+    ${feed}
+
+    <div style="margin-top:40px;padding-top:28px;border-top:1px solid #f0f0f0">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:14px">Try saying this to Claude →</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${[
+          `What's in my ${g.name} project?`,
+          `Summarise everything my group has shared about ${g.name}`,
+          `What connections has GroupWisdom found in ${g.name}?`,
+          `Search my ${g.name} project for anything about budgets`,
+          `Add a note to my ${g.name} GroupWisdom project: [your note here]`,
+          `Run a fresh analysis on my ${g.name} project and tell me what's new`,
+          `What are the open questions in my ${g.name} project?`,
+          `What decisions has the group made in ${g.name}?`,
+        ].map(p => promptChip(p)).join("")}
+      </div>
+      <div style="font-size:12px;color:#ccc;margin-top:10px">Click any prompt to copy it, then paste into Claude Desktop</div>
+    </div>`;
 }
 
 window.addItem = async () => {
