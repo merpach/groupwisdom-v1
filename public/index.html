@@ -202,7 +202,74 @@ async function doSignup() {
   if (!res.ok) return document.getElementById("authErr").textContent = data.error;
   state.user = data;
   state.groups = [];
-  renderProjects();
+  renderOnboarding();
+}
+
+function renderOnboarding() {
+  const key = state.user?.api_key || "";
+  const appUrl = window.location.origin;
+  const mcpConfig = JSON.stringify({
+    mcpServers: {
+      groupwisdom: {
+        command: "node",
+        args: ["REPLACE_WITH_YOUR_PATH/groupwisdom-v1/dist/mcp.js"],
+        env: { GW_API_KEY: key, GW_API_URL: appUrl }
+      }
+    }
+  }, null, 2);
+
+  $("#app").innerHTML = `
+    <div style="max-width:560px;margin:0 auto;padding:48px 0 80px">
+      <div style="font-size:22px;font-weight:600;margin-bottom:6px">Welcome to GroupWisdom 👋</div>
+      <div style="color:#888;font-size:14px;margin-bottom:36px">You're all set. Here's how to connect Claude so it can read and write to your projects.</div>
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>Download the connector</strong>
+          <p>Open Terminal and run:</p>
+          <div style="position:relative">
+            <pre style="padding-right:70px">git clone https://github.com/merpach/groupwisdom-v1.git
+cd groupwisdom-v1 && npm install && npm run build</pre>
+            <button onclick="navigator.clipboard.writeText('git clone https://github.com/merpach/groupwisdom-v1.git\\ncd groupwisdom-v1 && npm install && npm run build').then(()=>toast('Copied'))" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
+          </div>
+          <p style="margin-top:6px;color:#888;font-size:12px">Note the path where you cloned it — you'll need it in the next step.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong>Open Claude Desktop config</strong>
+          <p>In Claude Desktop: <b>Claude</b> menu → <b>Settings</b> → <b>Developer</b> → <b>Edit Config</b>.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>Paste your personal config</strong>
+          <p>Replace the file with this — your key and server URL are pre-filled. Change <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">REPLACE_WITH_YOUR_PATH</code> to where you cloned the repo.</p>
+          <div style="position:relative">
+            <pre style="padding-right:70px">${esc(mcpConfig)}</pre>
+            <button onclick="navigator.clipboard.writeText(${JSON.stringify(mcpConfig)}).then(()=>toast('Config copied'))" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <strong>Restart Claude and test it</strong>
+          <p>Quit Claude (<b>Cmd+Q</b>) and reopen. You'll see a 🔨 icon in the chat — that means it's connected.</p>
+        </div>
+      </div>
+
+      <div style="margin-top:8px">
+        <button class="primary" style="padding:10px 24px" onclick="renderProjects()">Go to my projects →</button>
+        <p style="font-size:12px;color:#bbb;margin-top:10px">You can always find these instructions again in Settings → Claude Setup inside any project.</p>
+      </div>
+    </div>`;
 }
 
 async function logout() {
@@ -380,6 +447,7 @@ window.renderAuth = renderAuth;
 window.doLogin = doLogin;
 window.doSignup = doSignup;
 window.logout = logout;
+window.renderOnboarding = renderOnboarding;
 window.deleteGroup = async (e, id, name) => {
   e.stopPropagation();
   if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
@@ -414,21 +482,35 @@ function settingsContent(tab, g, personalKey, mcpConfig) {
       </div>`).join("")}`;
 
   if (tab === 'Claude Setup') return `
-    <p style="font-size:13px;color:#555;margin-bottom:20px;line-height:1.6">Follow these steps to connect GroupWisdom to Claude Desktop. Once connected, Claude will automatically read your projects and write discoveries back.</p>
+    <p style="font-size:13px;color:#555;margin-bottom:20px;line-height:1.6">Connect GroupWisdom to Claude Desktop so Claude can read and write to your projects automatically. Your personal key is unique to you — don't share it.</p>
 
     <div class="step">
       <div class="step-num">1</div>
       <div class="step-body">
-        <strong>Open Claude Desktop settings</strong>
-        <p>In the Claude Desktop app, click <b>Claude</b> in the top menu bar → <b>Settings</b> → <b>Developer</b> → <b>Edit Config</b>. This opens a file called <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">claude_desktop_config.json</code>.</p>
+        <strong>Download the GroupWisdom connector</strong>
+        <p>Open Terminal and run these two commands:</p>
+        <div style="position:relative">
+          <pre style="padding-right:70px">git clone https://github.com/merpach/groupwisdom-v1.git
+cd groupwisdom-v1 && npm install && npm run build</pre>
+          <button onclick="navigator.clipboard.writeText('git clone https://github.com/merpach/groupwisdom-v1.git\\ncd groupwisdom-v1 && npm install && npm run build').then(()=>toast('Copied'))" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
+        </div>
+        <p style="margin-top:6px">This downloads the connector to your <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">groupwisdom-v1</code> folder. Note the full path — you'll need it below (e.g. <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">/Users/yourname/groupwisdom-v1</code>).</p>
       </div>
     </div>
 
     <div class="step">
       <div class="step-num">2</div>
       <div class="step-body">
-        <strong>Replace the file contents with this</strong>
-        <p>Select everything in the file and replace it with the following. Your personal key is already filled in.</p>
+        <strong>Open Claude Desktop config</strong>
+        <p>In Claude Desktop: <b>Claude</b> menu → <b>Settings</b> → <b>Developer</b> → <b>Edit Config</b>.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <strong>Paste your config</strong>
+        <p>Replace the file contents with this. Then change <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">REPLACE_WITH_YOUR_PATH</code> to the actual path where you cloned the repo (e.g. <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">/Users/yourname</code>). Your personal key and server URL are already filled in.</p>
         <div style="position:relative">
           <pre style="padding-right:70px">${esc(mcpConfig)}</pre>
           <button onclick="navigator.clipboard.writeText(${JSON.stringify(mcpConfig)}).then(()=>toast('Config copied'))" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
@@ -437,18 +519,10 @@ function settingsContent(tab, g, personalKey, mcpConfig) {
     </div>
 
     <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-body">
-        <strong>Save the file and restart Claude</strong>
-        <p>Save the file, then fully quit Claude Desktop (<b>Cmd+Q</b>) and reopen it. You should see a hammer icon 🔨 in the chat input — that means GroupWisdom is connected.</p>
-      </div>
-    </div>
-
-    <div class="step">
       <div class="step-num">4</div>
       <div class="step-body">
-        <strong>Try it</strong>
-        <p>In Claude, type: <b>"Check my GroupWisdom and tell me what's in the ${esc(g.name)} project."</b><br>Claude will pull your group's knowledge automatically.</p>
+        <strong>Restart Claude and test</strong>
+        <p>Fully quit Claude (<b>Cmd+Q</b>) and reopen it. You should see a 🔨 hammer icon in the chat input. Then type:<br><b>"Check my GroupWisdom and summarise what's in the ${esc(g.name)} project."</b></p>
       </div>
     </div>`;
 
@@ -478,13 +552,14 @@ function settingsContent(tab, g, personalKey, mcpConfig) {
 
 window.openSettings = (tab = 'General') => {
   const g = state.group;
-  const personalKey = state.personalApiKey || g.api_key;
+  const personalKey = state.user?.api_key || g.api_key;
+  const appUrl = window.location.origin;
   const mcpConfig = JSON.stringify({
     mcpServers: {
       groupwisdom: {
         command: "node",
-        args: ["/Users/premacharya/Desktop/groupwisdom-v1/dist/mcp.js"],
-        env: { GW_API_KEY: personalKey, GW_DB: "/Users/premacharya/Desktop/groupwisdom-v1/groupwisdom.db" }
+        args: ["REPLACE_WITH_YOUR_PATH/groupwisdom-v1/dist/mcp.js"],
+        env: { GW_API_KEY: personalKey, GW_API_URL: appUrl }
       }
     }
   }, null, 2);

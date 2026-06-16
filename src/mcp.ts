@@ -1,30 +1,33 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import {
-  getGroupByKey, getGroup, listGroups,
-  getUserByApiKey, getGroupsForUser,
-  addItem, searchItems, listItems, listInsights, getKnowledgeDoc, touchConnector,
-} from "./db.js";
-import { analyzeGroup } from "./engine.js";
 
-function getPersonGroups() {
-  const key = process.env.GW_API_KEY;
-  if (!key) return listGroups();
-  // personal user API key → all their groups
-  const user = getUserByApiKey(key);
-  if (user) return getGroupsForUser(user.id);
-  // fallback: old group-level key
-  const byGroup = getGroupByKey(key);
-  return byGroup ? [byGroup] : [];
+const BASE_URL = (process.env.GW_API_URL || "http://localhost:3000").replace(/\/$/, "");
+const API_KEY = process.env.GW_API_KEY || "";
+
+async function gw(path: string, method = "GET", body?: object) {
+  const res = await fetch(BASE_URL + "/api" + path, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": API_KEY,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`GroupWisdom API error ${res.status}: ${await res.text()}`);
+  return res.json();
 }
 
-function resolveGroup(name?: string) {
-  const groups = getPersonGroups();
+async function listProjects(): Promise<any[]> {
+  try { return await gw("/groups"); } catch { return []; }
+}
+
+async function resolveGroup(name?: string): Promise<any | undefined> {
+  const groups = await listProjects();
   if (!groups.length) return undefined;
   if (name) {
     const q = name.toLowerCase();
-    return groups.find(g => g.name.toLowerCase().includes(q)) ?? groups[0];
+    return groups.find((g: any) => g.name.toLowerCase().includes(q)) ?? groups[0];
   }
   return groups[0];
 }
@@ -42,9 +45,9 @@ server.tool(
   "List all GroupWisdom projects this person has access to. Call this first when the user mentions a project or trip by name.",
   {},
   async () => {
-    const groups = getPersonGroups();
-    if (!groups.length) return text("No projects yet. Create one at http://localhost:3000");
-    return text(groups.map(g => `- ${g.name} (id: ${g.id})`).join("\n"));
+    const groups = await listProjects();
+    if (!groups.length) return text(`No projects yet. Create one at ${BASE_URL}`);
+    return text(groups.map((g: any) => `- ${g.name} (id: ${g.id})`).join("\n"));
   },
 );
 
@@ -54,12 +57,14 @@ server.tool(
   "Always pass the project param when the user mentions a specific project by name.",
   { project: projectParam },
   async ({ project }) => {
-    const g = resolveGroup(project);
-    if (!g) return text("No projects found. Create one at http://localhost:3000");
-    touchConnector(g.id, "Claude");
-    const doc = getKnowledgeDoc(g.id);
-    const insights = listInsights(g.id).slice(0, 10)
-      .map(i => `- [${i.kind}] ${i.title}: ${i.body}`).join("\n") || "(none yet)";
+    const g = await resolveGroup(project);
+    if (!g) return text(`No projects found. Create one at ${BASE_URL}`);
+    const [doc, insightsRaw] = await Promise.all([
+      gw(`/groups/${g.id}/knowledge`),
+      gw(`/groups/${g.id}/insights`),
+    ]);
+    const insights = (insightsRaw as any[]).slice(0, 10)
+      .map((i: any) => `- [${i.kind}] ${i.title}: ${i.body}`).join("\n") || "(none yet)";
     return text(`# Project: ${g.name}\n\n## Knowledge base\n${doc.markdown}\n\n## Recent insights\n${insights}`);
   },
 );
@@ -72,11 +77,10 @@ server.tool(
     project: projectParam,
   },
   async ({ query, project }) => {
-    const g = resolveGroup(project);
+    const g = await resolveGroup(project);
     if (!g) return text("No projects found.");
-    touchConnector(g.id, "Claude");
-    const hits = searchItems(g.id, query);
-    if (hits.length === 0) return text(`No items match "${query}" in project "${g.name}".`);
+    const hits: any[] = await gw(`/groups/${g.id}/items?q=${encodeURIComponent(query)}`);
+    if (!hits.length) return text(`No items match "${query}" in project "${g.name}".`);
     return text(hits.map(h =>
       `- [${h.type}] ${h.title}${h.url ? ` (${h.url})` : ""}\n  ${h.content}`).join("\n"));
   },
@@ -93,16 +97,12 @@ server.tool(
     project: projectParam,
   },
   async ({ title, content, url, type, project }) => {
-    const g = resolveGroup(project);
+    const g = await resolveGroup(project);
     if (!g) return text("No projects found.");
-    const item = addItem(g.id, { title, content, url: url ?? "", type: type ?? (url ? "link" : "note"), source: "mcp" });
-    touchConnector(g.id, "Claude");
-    const created = await analyzeGroup(g.id).catch(() => []);
-    return text(
-      `Saved "${item.title}" to "${g.name}".` +
-      (created.length ? `\n\nNew insights:\n` +
-        created.map(i => `- [${i.kind}] ${i.title}: ${i.body}`).join("\n") : ""),
-    );
+    const item = await gw(`/groups/${g.id}/items`, "POST", {
+      title, content, url, type: type ?? (url ? "link" : "note"), source: "mcp",
+    });
+    return text(`Saved "${item.title}" to "${g.name}".`);
   },
 );
 
@@ -114,11 +114,11 @@ server.tool(
     project: projectParam,
   },
   async ({ kind, project }) => {
-    const g = resolveGroup(project);
+    const g = await resolveGroup(project);
     if (!g) return text("No projects found.");
-    touchConnector(g.id, "Claude");
-    const ins = listInsights(g.id, kind);
-    if (ins.length === 0) return text(`No insights yet for "${g.name}".`);
+    const path = `/groups/${g.id}/insights${kind ? `?kind=${kind}` : ""}`;
+    const ins: any[] = await gw(path);
+    if (!ins.length) return text(`No insights yet for "${g.name}".`);
     return text(ins.map(i => `- [${i.kind}] ${i.title}\n  ${i.body}`).join("\n"));
   },
 );
@@ -128,11 +128,10 @@ server.tool(
   "List everything a project has shared, newest first.",
   { project: projectParam },
   async ({ project }) => {
-    const g = resolveGroup(project);
+    const g = await resolveGroup(project);
     if (!g) return text("No projects found.");
-    touchConnector(g.id, "Claude");
-    const items = listItems(g.id);
-    if (items.length === 0) return text(`Nothing shared yet in "${g.name}".`);
+    const items: any[] = await gw(`/groups/${g.id}/items`);
+    if (!items.length) return text(`Nothing shared yet in "${g.name}".`);
     return text(items.map(i =>
       `- [${i.type}] ${i.title}${i.url ? ` (${i.url})` : ""} — ${i.content}`).join("\n"));
   },
@@ -143,14 +142,13 @@ server.tool(
   "Ask the engine to re-analyze a project and surface new insights.",
   { project: projectParam },
   async ({ project }) => {
-    const g = resolveGroup(project);
+    const g = await resolveGroup(project);
     if (!g) return text("No projects found.");
-    touchConnector(g.id, "Claude");
-    const created = await analyzeGroup(g.id).catch(() => []);
-    if (!created.length) return text(`Engine is up to date for "${g.name}" — no new insights.`);
+    const result: any = await gw(`/groups/${g.id}/analyze`, "POST");
+    if (!result.created) return text(`Engine is up to date for "${g.name}" — no new insights.`);
     return text(
       `New insights for "${g.name}":\n\n` +
-      created.map(i => `[${i.kind}] ${i.title}\n${i.body}`).join("\n\n")
+      result.insights.map((i: any) => `[${i.kind}] ${i.title}\n${i.body}`).join("\n\n")
     );
   },
 );
