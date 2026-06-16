@@ -207,16 +207,18 @@ async function doSignup() {
 
 function claudeSetupSteps(key, appUrl, projectName) {
   const cloneCmd = 'cd ~ && git clone https://github.com/merpach/groupwisdom-v1.git && cd groupwisdom-v1 && npm install && npm run build';
-  const mcpBlock = `  "mcpServers": {
-    "groupwisdom": {
-      "command": "node",
-      "args": ["/Users/YOURUSERNAME/groupwisdom-v1/dist/mcp.js"],
-      "env": {
-        "GW_API_KEY": "${key}",
-        "GW_API_URL": "${appUrl}"
+  const fullConfig = JSON.stringify({
+    mcpServers: {
+      groupwisdom: {
+        command: "node",
+        args: ["/Users/YOURUSERNAME/groupwisdom-v1/dist/mcp.js"],
+        env: {
+          GW_API_KEY: key,
+          GW_API_URL: appUrl
+        }
       }
     }
-  }`;
+  }, null, 2);
 
   return `
     <div class="step">
@@ -236,29 +238,28 @@ function claudeSetupSteps(key, appUrl, projectName) {
       <div class="step-num">2</div>
       <div class="step-body">
         <strong>Find your Mac username</strong>
-        <p>In Terminal, type <code style="background:#f5f5f5;padding:1px 6px;border-radius:4px">whoami</code> and press Enter. It will print your username (e.g. <b>johnsmith</b>). Copy it — you'll need it in the next step.</p>
+        <p>In Terminal, type <code style="background:#f5f5f5;padding:1px 6px;border-radius:4px">whoami</code> and press Enter. It prints your username (e.g. <b>johnsmith</b>). Remember it — you'll need it in Step 4.</p>
       </div>
     </div>
 
     <div class="step">
       <div class="step-num">3</div>
       <div class="step-body">
-        <strong>Open Claude Desktop settings</strong>
-        <p>Open the Claude Desktop app. In the top menu bar click <b>Claude</b> → <b>Settings</b> → <b>Developer</b> → <b>Edit Config</b>. A file will open in a text editor.</p>
+        <strong>Open Claude Desktop config</strong>
+        <p>Open the Claude Desktop app. In the top menu bar click <b>Claude</b> → <b>Settings</b> → <b>Developer</b> → <b>Edit Config</b>. A file opens in a text editor.</p>
       </div>
     </div>
 
     <div class="step">
       <div class="step-num">4</div>
       <div class="step-body">
-        <strong>Add your GroupWisdom block</strong>
-        <p>The file already has content — <b>don't delete it</b>. Look for a line that says <code style="background:#f5f5f5;padding:1px 6px;border-radius:4px">"mcpServers"</code>. If it exists, add the groupwisdom section inside it. If it doesn't exist, add it after the opening <code style="background:#f5f5f5;padding:1px 6px;border-radius:4px">{</code>.</p>
-        <p style="margin:8px 0 4px">Copy this block — your personal key is already filled in:</p>
+        <strong>Select all and replace with this</strong>
+        <p>Press <b>Cmd+A</b> to select everything in the file, then delete it. Paste the block below. Your personal key and server are already filled in.</p>
         <div style="position:relative">
-          <pre style="padding-right:56px">${esc(mcpBlock)}</pre>
-          <button onclick="navigator.clipboard.writeText(${JSON.stringify(mcpBlock)}).then(()=>toast('Copied!'))" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
+          <pre style="padding-right:56px">${esc(fullConfig)}</pre>
+          <button onclick="navigator.clipboard.writeText(${JSON.stringify(fullConfig)}).then(()=>toast('Copied!'))" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
         </div>
-        <p style="margin-top:10px;color:#e8a13c;font-size:13px;font-weight:500">⚠️ Replace <b>YOURUSERNAME</b> in the path with your actual Mac username from Step 2.</p>
+        <p style="margin-top:10px;background:#fff8e6;border:1px solid #f5d87a;border-radius:6px;padding:10px 12px;font-size:13px">⚠️ <b>Important:</b> In the pasted text, find <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">YOURUSERNAME</code> and replace it with your actual Mac username from Step 2.<br>For example if your username is <b>johnsmith</b>, the path should read <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">/Users/johnsmith/groupwisdom-v1/dist/mcp.js</code></p>
       </div>
     </div>
 
@@ -266,7 +267,7 @@ function claudeSetupSteps(key, appUrl, projectName) {
       <div class="step-num">5</div>
       <div class="step-body">
         <strong>Save and restart Claude</strong>
-        <p>Save the file (<b>Cmd+S</b>), then fully quit Claude Desktop (<b>Cmd+Q</b>) and reopen it. You should see a small 🔨 hammer icon appear in the chat input box — that means GroupWisdom is connected.</p>
+        <p>Save the file (<b>Cmd+S</b>), then fully quit Claude Desktop (<b>Cmd+Q</b>) and reopen it. You should see a 🔨 hammer icon in the chat input — that means GroupWisdom is connected.</p>
       </div>
     </div>
 
@@ -274,7 +275,7 @@ function claudeSetupSteps(key, appUrl, projectName) {
       <div class="step-num">6</div>
       <div class="step-body">
         <strong>Test it</strong>
-        <p>In Claude, type: <b>"List my GroupWisdom projects"</b> — Claude will connect and show your projects. ${projectName ? `You can also try: <b>"Check my GroupWisdom for the ${esc(projectName)} project."</b>` : ''}</p>
+        <p>In Claude, type: <b>"List my GroupWisdom projects"</b> and Claude will show your projects.${projectName ? ` Or try: <b>"What's in my ${esc(projectName)} project?"</b>` : ''}</p>
       </div>
     </div>`;
 }
