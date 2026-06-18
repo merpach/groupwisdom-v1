@@ -1,14 +1,21 @@
 {
-  "name": "groupwisdom",
+  "name": "groupwisdom-mcp",
   "version": "1.0.0",
-  "description": "The intelligence layer for groups",
+  "description": "Claude MCP connector for GroupWisdom — the intelligence layer for groups",
   "type": "module",
+  "bin": {
+    "groupwisdom-mcp": "dist/mcp.js"
+  },
+  "files": [
+    "dist/mcp.js"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node --env-file-if-exists=.env dist/index.js",
     "dev": "tsx src/index.ts",
     "mcp": "node --env-file-if-exists=.env dist/mcp.js",
-    "seed": "node dist/seed.js"
+    "seed": "node dist/seed.js",
+    "giftswipe": "cd ../giftswipe && PORT=3001 node_modules/.bin/tsx src/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

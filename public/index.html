@@ -206,51 +206,21 @@ async function doSignup() {
 }
 
 function claudeSetupSteps(key, appUrl, projectName) {
-  const cloneCmd = 'cd ~ && git clone https://github.com/merpach/groupwisdom-v1.git && cd groupwisdom-v1 && npm install && npm run build';
-  const pathCmd = 'echo "/Users/$(whoami)/groupwisdom-v1/dist/mcp.js"';
   const fullConfig = JSON.stringify({
     mcpServers: {
       groupwisdom: {
-        command: "node",
-        args: ["/Users/YOURUSERNAME/groupwisdom-v1/dist/mcp.js"],
+        command: "npx",
+        args: ["-y", "groupwisdom-mcp"],
         env: { GW_API_KEY: key, GW_API_URL: appUrl }
       }
     }
   }, null, 2);
 
-  const cloneIdx = _prompts.push(cloneCmd) - 1;
-  const pathIdx = _prompts.push(pathCmd) - 1;
   const configIdx = _prompts.push(fullConfig) - 1;
 
   return `
     <div class="step">
       <div class="step-num">1</div>
-      <div class="step-body">
-        <strong>Open Terminal on your Mac</strong>
-        <p>Press <b>Cmd + Space</b>, type <b>Terminal</b>, and hit Enter. Paste the command below and press Enter — this downloads the GroupWisdom connector to your Mac.</p>
-        <div style="position:relative">
-          <pre style="padding-right:56px;white-space:pre-wrap;word-break:break-all">${esc(cloneCmd)}</pre>
-          <button onclick="copyPrompt(${cloneIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
-        </div>
-        <p style="margin-top:8px;color:#888;font-size:12px">Wait for it to finish — you'll see a blinking cursor when it's done.</p>
-      </div>
-    </div>
-
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-body">
-        <strong>Get your exact file path</strong>
-        <p>Still in Terminal, paste this and press Enter:</p>
-        <div style="position:relative">
-          <pre style="padding-right:56px">${esc(pathCmd)}</pre>
-          <button onclick="copyPrompt(${pathIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
-        </div>
-        <p style="margin-top:8px;color:#555;font-size:13px">It will print something like <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">/Users/johnsmith/groupwisdom-v1/dist/mcp.js</code> — copy that output, you'll need it in Step 4.</p>
-      </div>
-    </div>
-
-    <div class="step">
-      <div class="step-num">3</div>
       <div class="step-body">
         <strong>Open Claude Desktop config</strong>
         <p>Open the Claude Desktop app. In the top menu bar click <b>Claude</b> → <b>Settings</b> → <b>Developer</b> → <b>Edit Config</b>. A file opens in a text editor.</p>
@@ -258,20 +228,19 @@ function claudeSetupSteps(key, appUrl, projectName) {
     </div>
 
     <div class="step">
-      <div class="step-num">4</div>
+      <div class="step-num">2</div>
       <div class="step-body">
         <strong>Select all and replace with this</strong>
-        <p>Press <b>Cmd+A</b> to select everything, delete it, then paste the block below. Your personal key and server are already filled in.</p>
+        <p>Press <b>Cmd+A</b> to select everything in the file, delete it, then paste the block below. Your personal key and server are already filled in — nothing else to change.</p>
         <div style="position:relative">
           <pre style="padding-right:56px">${esc(fullConfig)}</pre>
           <button onclick="copyPrompt(${configIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
         </div>
-        <p style="margin-top:10px;background:#fff8e6;border:1px solid #f5d87a;border-radius:6px;padding:10px 12px;font-size:13px">⚠️ Find <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">YOURUSERNAME</code> in the pasted text and replace it with the path you got from Step 2. The full line should look like:<br><code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">"args": ["/Users/johnsmith/groupwisdom-v1/dist/mcp.js"]</code></p>
       </div>
     </div>
 
     <div class="step">
-      <div class="step-num">5</div>
+      <div class="step-num">3</div>
       <div class="step-body">
         <strong>Save and restart Claude</strong>
         <p>Save the file (<b>Cmd+S</b>), then fully quit Claude Desktop (<b>Cmd+Q</b>) and reopen it. You should see a 🔨 hammer icon in the chat input — that means GroupWisdom is connected.</p>
@@ -279,7 +248,7 @@ function claudeSetupSteps(key, appUrl, projectName) {
     </div>
 
     <div class="step">
-      <div class="step-num">6</div>
+      <div class="step-num">4</div>
       <div class="step-body">
         <strong>Test it</strong>
         <p>In Claude, type: <b>"List my GroupWisdom projects"</b> — Claude will connect and show your projects.${projectName ? ` Or: <b>"What's in my ${esc(projectName)} project?"</b>` : ''}</p>

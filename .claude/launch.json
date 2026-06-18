@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
       "port": 3000
+    },
+    {
+      "name": "giftswipe",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "giftswipe"],
+      "port": 3001
     }
   ]
 }
