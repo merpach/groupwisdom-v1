@@ -230,12 +230,19 @@ function claudeSetupSteps(key, appUrl, projectName) {
     <div class="step">
       <div class="step-num">2</div>
       <div class="step-body">
-        <strong>Select all and replace with this</strong>
-        <p>Press <b>Cmd+A</b> to select everything in the file, delete it, then paste the block below. Your personal key and server are already filled in — nothing else to change.</p>
+        <strong>Add the GroupWisdom block to the file</strong>
+        <p>The file will have existing content — <b>don't delete it</b>. Find the very first line which looks like <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">{</code> and click right after it. Press <b>Enter</b> to make a new line, then paste the block below. Then type a <b>comma</b> <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">,</code> at the end of the closing <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">}</code> so it connects to the rest of the file.</p>
+        <p style="margin-bottom:6px">Your result should look like this:</p>
+        <pre style="font-size:11px;margin-bottom:12px">{
+  "mcpServers": { ... },   ← paste this part, add comma at end
+  "coworkUserFilesPath": ...  ← existing content stays
+}</pre>
+        <p style="margin-bottom:6px">Here's the block to paste — your key is already filled in:</p>
         <div style="position:relative">
-          <pre style="padding-right:56px">${esc(fullConfig)}</pre>
+          <pre style="padding-right:56px">${esc(JSON.stringify({mcpServers:{groupwisdom:{command:"npx",args:["-y","groupwisdom-mcp"],env:{GW_API_KEY:key,GW_API_URL:appUrl}}}},null,2))}</pre>
           <button onclick="copyPrompt(${configIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
         </div>
+        <p style="margin-top:10px;background:#f0f7ff;border:1px solid #c8e0ff;border-radius:6px;padding:10px 12px;font-size:13px">💡 <b>If the file is completely empty</b> (just <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">{}</code> or blank), you can select all and paste the whole block above without worrying about commas.</p>
       </div>
     </div>
 
