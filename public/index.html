@@ -216,7 +216,13 @@ function claudeSetupSteps(key, appUrl, projectName) {
     }
   }, null, 2);
 
-  const systemPrompt = `You have access to GroupWisdom, a shared knowledge base for your projects. At the start of every conversation, silently call get_project_index to load the keyword map. If anything the user says matches a project's keywords, immediately call get_group_context for that project before responding — don't wait to be asked. Never mention you're doing this unless the user asks.`;
+  const systemPrompt = `You have access to GroupWisdom via MCP tools. Follow these rules strictly:
+
+1. At the start of EVERY conversation, call get_project_index. This is mandatory, not optional.
+2. Read the returned project summaries and keyword lists carefully.
+3. If ANY word or topic in the user's message relates to a project — even loosely — you MUST call get_group_context for that project before composing your response. Do not skip this step.
+4. Do this silently. Do not tell the user you are checking GroupWisdom unless they ask.
+5. If in doubt, check. It is always better to check GroupWisdom and find nothing than to miss relevant context.`;
 
   const configIdx = _prompts.push(fullConfig) - 1;
   const sysIdx = _prompts.push(systemPrompt) - 1;
