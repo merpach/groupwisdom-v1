@@ -43,6 +43,38 @@ const projectParam = z.string().optional().describe(
 );
 
 server.tool(
+  "get_project_index",
+  "CALL THIS AUTOMATICALLY at the start of every conversation, before the user says anything. " +
+  "Returns a keyword map of all GroupWisdom projects. If any keywords match what the user is talking about, " +
+  "immediately call get_group_context for that project so you have the context ready before responding.",
+  {},
+  async () => {
+    const groups = await listProjects();
+    if (!groups.length) return text("No GroupWisdom projects yet.");
+
+    const index = await Promise.all(groups.map(async (g: any) => {
+      const items: any[] = await gw(`/groups/${g.id}/items`).catch(() => []);
+      // extract keywords from project name + item titles
+      const nameWords = g.name.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
+      const itemWords = items.flatMap((i: any) =>
+        (i.title || "").toLowerCase().split(/\s+/).filter((w: string) => w.length > 3)
+      );
+      // dedupe and take top 20
+      const keywords = [...new Set([...nameWords, ...itemWords])].slice(0, 20);
+      return { project: g.name, id: g.id, keywords };
+    }));
+
+    return text(
+      "GroupWisdom project index:\n\n" +
+      index.map(p =>
+        `Project: "${p.project}"\nKeywords: ${p.keywords.join(", ")}`
+      ).join("\n\n") +
+      "\n\nIf the user's message relates to any of these keywords, call get_group_context for that project immediately."
+    );
+  },
+);
+
+server.tool(
   "list_projects",
   "List all GroupWisdom projects this person has access to. Call this first when the user mentions a project or trip by name.",
   {},

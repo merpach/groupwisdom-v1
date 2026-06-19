@@ -216,7 +216,10 @@ function claudeSetupSteps(key, appUrl, projectName) {
     }
   }, null, 2);
 
+  const systemPrompt = `You have access to GroupWisdom, a shared knowledge base for your projects. At the start of every conversation, silently call get_project_index to load the keyword map. If anything the user says matches a project's keywords, immediately call get_group_context for that project before responding — don't wait to be asked. Never mention you're doing this unless the user asks.`;
+
   const configIdx = _prompts.push(fullConfig) - 1;
+  const sysIdx = _prompts.push(systemPrompt) - 1;
 
   return `
     <div class="step">
@@ -231,34 +234,47 @@ function claudeSetupSteps(key, appUrl, projectName) {
       <div class="step-num">2</div>
       <div class="step-body">
         <strong>Add the GroupWisdom block to the file</strong>
-        <p>The file will have existing content — <b>don't delete it</b>. Find the very first line which looks like <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">{</code> and click right after it. Press <b>Enter</b> to make a new line, then paste the block below. Then type a <b>comma</b> <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">,</code> at the end of the closing <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">}</code> so it connects to the rest of the file.</p>
-        <p style="margin-bottom:6px">Your result should look like this:</p>
-        <pre style="font-size:11px;margin-bottom:12px">{
-  "mcpServers": { ... },   ← paste this part, add comma at end
+        <p>The file will have existing content — <b>don't delete it</b>. Find the very first line which looks like <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">{</code> and click right after it. Press <b>Enter</b> to make a new line, then paste the block below. Then add a <b>comma</b> <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">,</code> after the closing <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">}</code> so it connects to the rest of the file.</p>
+        <p style="margin-bottom:6px">Your result should look like:</p>
+        <pre style="font-size:11px;margin-bottom:12px;background:#f7f7f7;border:1px solid #eee;border-radius:6px;padding:10px">{
+  "mcpServers": { ... },    ← paste this, comma at end
   "coworkUserFilesPath": ...  ← existing content stays
 }</pre>
-        <p style="margin-bottom:6px">Here's the block to paste — your key is already filled in:</p>
+        <p style="margin-bottom:6px">Block to paste (your key is pre-filled):</p>
         <div style="position:relative">
-          <pre style="padding-right:56px">${esc(JSON.stringify({mcpServers:{groupwisdom:{command:"npx",args:["-y","groupwisdom-mcp"],env:{GW_API_KEY:key,GW_API_URL:appUrl}}}},null,2))}</pre>
+          <pre style="padding-right:56px">${esc(fullConfig)}</pre>
           <button onclick="copyPrompt(${configIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
         </div>
-        <p style="margin-top:10px;background:#f0f7ff;border:1px solid #c8e0ff;border-radius:6px;padding:10px 12px;font-size:13px">💡 <b>If the file is completely empty</b> (just <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">{}</code> or blank), you can select all and paste the whole block above without worrying about commas.</p>
+        <p style="margin-top:10px;background:#f0f7ff;border:1px solid #c8e0ff;border-radius:6px;padding:10px 12px;font-size:13px">💡 <b>If the file is empty</b> (just <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">{}</code>), select all and replace with the block above — no comma needed.</p>
       </div>
     </div>
 
     <div class="step">
       <div class="step-num">3</div>
       <div class="step-body">
-        <strong>Save and restart Claude</strong>
-        <p>Save the file (<b>Cmd+S</b>), then fully quit Claude Desktop (<b>Cmd+Q</b>) and reopen it. You should see a 🔨 hammer icon in the chat input — that means GroupWisdom is connected.</p>
+        <strong>Add a system prompt so Claude checks automatically</strong>
+        <p>In Claude Desktop, click <b>Claude</b> → <b>Settings</b> → <b>Profile</b> → scroll to <b>What would you like Claude to know?</b> Paste this:</p>
+        <div style="position:relative">
+          <pre style="padding-right:56px;white-space:pre-wrap">${esc(systemPrompt)}</pre>
+          <button onclick="copyPrompt(${sysIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
+        </div>
+        <p style="margin-top:8px;color:#555;font-size:13px">This makes Claude automatically check your GroupWisdom projects whenever you mention a relevant topic — without you having to ask.</p>
       </div>
     </div>
 
     <div class="step">
       <div class="step-num">4</div>
       <div class="step-body">
+        <strong>Save and restart Claude</strong>
+        <p>Save the config file (<b>Cmd+S</b>), then fully quit Claude Desktop (<b>Cmd+Q</b>) and reopen it. You should see a 🔨 hammer icon in the chat input.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
         <strong>Test it</strong>
-        <p>In Claude, type: <b>"List my GroupWisdom projects"</b> — Claude will connect and show your projects.${projectName ? ` Or: <b>"What's in my ${esc(projectName)} project?"</b>` : ''}</p>
+        <p>Just mention a topic related to one of your projects — Claude should automatically pull the relevant GroupWisdom context without you asking. ${projectName ? `Try: <b>"I'm thinking about ${esc(projectName)}"</b> and see if Claude pulls it up.` : 'Try mentioning one of your project topics naturally.'}</p>
       </div>
     </div>`;
 }

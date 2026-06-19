@@ -76,7 +76,8 @@
       "Bash(curl -s http://localhost:3001/api/sessions -X POST -H \"Content-Type: application/json\" -d '{\"occasion\":\"christmas\"}')",
       "Bash(python3 -m json.tool)",
       "Bash(curl -s http://localhost:3001/api/sessions/4718a656-316f-4b12-92a0-4a213f82c99b/products)",
-      "Bash(python3 -c \"import json,sys; prods=json.load\\(sys.stdin\\); [print\\(p['title'],'→', p.get\\('image_url','NO IMAGE'\\)[:60] if p.get\\('image_url'\\) else 'NO IMAGE'\\) for p in prods]\")"
+      "Bash(python3 -c \"import json,sys; prods=json.load\\(sys.stdin\\); [print\\(p['title'],'→', p.get\\('image_url','NO IMAGE'\\)[:60] if p.get\\('image_url'\\) else 'NO IMAGE'\\) for p in prods]\")",
+      "Bash(npm publish *)"
     ]
   }
 }
