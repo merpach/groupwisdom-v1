@@ -13,8 +13,9 @@ import {
   listConnectors, setConnectorStatus, touchConnector,
   getKnowledgeDoc,
   createInvite, getInviteByToken, acceptInvite,
+  getProjectSummary,
 } from "./db.js";
-import { analyzeGroup, previewAnalysis, acceptInsight } from "./engine.js";
+import { analyzeGroup, previewAnalysis, acceptInsight, updateProjectSummary } from "./engine.js";
 
 export const api = Router();
 
@@ -116,6 +117,7 @@ api.get("/groups/:id", (req, res) => {
     members: listMembers(g.id),
     connectors: listConnectors(g.id),
     counts: { items: listItems(g.id).length, insights: listInsights(g.id).length },
+    summary: getProjectSummary(g.id),
   });
 });
 
@@ -153,6 +155,7 @@ api.post("/groups/:id/items", async (req, res) => {
   if (source === "mcp") touchConnector(g.id, "Claude");
   notify(g.id, "update");
   analyzeGroup(g.id).catch(err => console.error("[engine]", err.message));
+  updateProjectSummary(g.id).catch(err => console.error("[summary]", err.message));
   res.status(201).json(item);
 });
 

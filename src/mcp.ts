@@ -53,23 +53,27 @@ server.tool(
     if (!groups.length) return text("No GroupWisdom projects yet.");
 
     const index = await Promise.all(groups.map(async (g: any) => {
-      const items: any[] = await gw(`/groups/${g.id}/items`).catch(() => []);
-      // extract keywords from project name + item titles
+      const [items, detail]: [any[], any] = await Promise.all([
+        gw(`/groups/${g.id}/items`).catch(() => []),
+        gw(`/groups/${g.id}`).catch(() => ({})),
+      ]);
+      const summary: string = detail?.summary ?? "";
       const nameWords = g.name.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
       const itemWords = items.flatMap((i: any) =>
         (i.title || "").toLowerCase().split(/\s+/).filter((w: string) => w.length > 3)
       );
-      // dedupe and take top 20
       const keywords = [...new Set([...nameWords, ...itemWords])].slice(0, 20);
-      return { project: g.name, id: g.id, keywords };
+      return { project: g.name, id: g.id, keywords, summary };
     }));
 
     return text(
       "GroupWisdom project index:\n\n" +
       index.map(p =>
-        `Project: "${p.project}"\nKeywords: ${p.keywords.join(", ")}`
+        `Project: "${p.project}"\n` +
+        (p.summary ? `Summary: ${p.summary}\n` : "") +
+        `Keywords: ${p.keywords.join(", ")}`
       ).join("\n\n") +
-      "\n\nIf the user's message relates to any of these keywords, call get_group_context for that project immediately."
+      "\n\nIf the user's message relates to any project's summary or keywords, immediately call get_group_context for that project."
     );
   },
 );

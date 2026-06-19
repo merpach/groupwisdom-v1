@@ -74,6 +74,11 @@ CREATE TABLE IF NOT EXISTS invites (
   status TEXT NOT NULL DEFAULT 'pending',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS project_summaries (
+  group_id TEXT PRIMARY KEY REFERENCES groups(id),
+  summary TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 export type User = { id: string; email: string; password_hash: string; name: string; api_key: string; created_at: string };
@@ -202,6 +207,15 @@ export const setKnowledgeDoc = (groupId: string, markdown: string) =>
     "INSERT INTO knowledge_docs (group_id, markdown, updated_at) VALUES (?, ?, datetime('now')) " +
     "ON CONFLICT(group_id) DO UPDATE SET markdown = excluded.markdown, updated_at = datetime('now')"
   ).run(groupId, markdown);
+
+export const getProjectSummary = (groupId: string): string =>
+  ((db.prepare("SELECT summary FROM project_summaries WHERE group_id = ?").get(groupId) as { summary: string } | undefined)?.summary ?? "");
+
+export const setProjectSummary = (groupId: string, summary: string) =>
+  db.prepare(
+    "INSERT INTO project_summaries (group_id, summary, updated_at) VALUES (?, ?, datetime('now')) " +
+    "ON CONFLICT(group_id) DO UPDATE SET summary = excluded.summary, updated_at = datetime('now')"
+  ).run(groupId, summary);
 
 export type Invite = { id: string; group_id: string; email: string; token: string; status: string; created_at: string };
 

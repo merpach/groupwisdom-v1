@@ -10,10 +10,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   listItems, listMembers, listInsights, addInsight,
-  setKnowledgeDoc, getGroup, type Item, type Insight,
+  setKnowledgeDoc, getGroup, setProjectSummary, type Item, type Insight,
 } from "./db.js";
 
 const MODEL = process.env.GW_MODEL || "claude-sonnet-4-6";
+const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
 const KINDS = ["connection", "blind_spot", "conflict", "pattern", "question", "decision"];
 
 const running = new Set<string>();
@@ -192,4 +193,48 @@ function analyzeMock(groupName: string, items: Item[], existing: Insight[]): Eng
     `\n## Open questions\n\n- What has the group decided so far?\n`;
 
   return { insights, knowledge_markdown };
+}
+
+/**
+ * Generates a short hidden summary of a project using Haiku (cheap).
+ * Called async after every item add — never blocks the user.
+ * Used by get_project_index in the MCP to give Claude a semantic trigger map.
+ */
+export async function updateProjectSummary(groupId: string): Promise<void> {
+  const group = getGroup(groupId);
+  if (!group) return;
+  const items = listItems(groupId);
+  if (items.length === 0) return;
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    // mock: just use item titles as the summary
+    const summary = `Project about: ${items.slice(0, 5).map(i => i.title).join(", ")}.`;
+    setProjectSummary(groupId, summary);
+    return;
+  }
+
+  const client = new Anthropic({ apiKey });
+  const itemList = items.slice(0, 40)
+    .map(i => `- ${i.title}${i.content ? `: ${i.content.slice(0, 80)}` : ""}`)
+    .join("\n");
+
+  const msg = await client.messages.create({
+    model: SUMMARY_MODEL,
+    max_tokens: 200,
+    messages: [{
+      role: "user",
+      content: `You are indexing a shared knowledge project called "${group.name}" for semantic search.
+Write a 2-3 sentence summary that captures the key topics, people, places, dates, and decisions in this project.
+Be specific — include proper nouns, locations, names. This will be used to detect when someone mentions this project in conversation.
+
+Items shared so far:
+${itemList}
+
+Reply with only the summary, no preamble.`,
+    }],
+  });
+
+  const summary = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("").trim();
+  if (summary) setProjectSummary(groupId, summary);
 }
