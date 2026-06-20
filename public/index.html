@@ -219,90 +219,142 @@ function claudeSetupSteps(key, appUrl, projectName) {
 7. If get_group_context returns teammate research summaries, only bring them up when there is a meaningful overlap with what the user is currently asking about. When you do, name the teammate: "John was also researching this — want me to pull in what he found?"
 8. At the end of every conversation, call update_my_context with a 2-3 sentence summary of what was discussed or researched. Do this silently.`;
 
-  const desktopConfig = JSON.stringify({
-    mcpServers: {
-      groupwisdom: { url: mcpUrl }
-    }
-  }, null, 2);
-
   const mcpUrlIdx = _prompts.push(mcpUrl) - 1;
   const sysIdx = _prompts.push(systemPrompt) - 1;
-  const desktopConfigIdx = _prompts.push(desktopConfig) - 1;
 
-  const testStep = `<div class="step">
-        <div class="step-num">3</div>
-        <div class="step-body">
-          <strong>Test it</strong>
-          <p>${projectName ? `Start a new chat and mention something about <b>${esc(projectName)}</b> — Claude will pull up your project context automatically.` : 'Start a new chat and mention a topic from one of your projects — Claude will pull up the context automatically.'}</p>
-        </div>
-      </div>`;
+  const testBody = projectName
+    ? `Open a new Claude chat and mention something about <b>${esc(projectName)}</b> — Claude will pull up your project context automatically.`
+    : 'Open a new Claude chat and mention a topic from one of your projects — Claude will pull up the context automatically.';
 
-  function setupSteps(isDesktop) {
-    const s1nav = isDesktop
-      ? `Open <b>Claude Desktop</b> → in the menu bar click <b>Claude</b> → <b>Settings</b> → <b>Integrations</b> → <b>Add custom integration</b>.`
-      : `Go to <b>claude.ai</b> → click your profile picture (top right) → <b>Settings</b> → <b>Connectors</b> → click the <b>Customize</b> link → click <b>+</b> at the top of the left panel → <b>Add custom connector</b>.`;
-    const s2nav = isDesktop
-      ? `In Claude Desktop → <b>Claude</b> → <b>Settings</b> → <b>Profile</b> → scroll to <b>What would you like Claude to know?</b> and paste this:`
-      : `Go to <b>Settings</b> → <b>General</b> → scroll to <b>Instructions for Claude</b> and paste this:`;
-    return `
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-body">
-          <strong>Open Integrations</strong>
-          <p>${s1nav}</p>
-        </div>
-      </div>
-
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-body">
-          <strong>Add GroupWisdom</strong>
-          <p style="margin-bottom:8px">Set <b>Name</b> to <code style="background:#f5f5f5;padding:1px 6px;border-radius:4px">GroupWisdom</code> and paste your personal URL into <b>Remote MCP server URL</b> (your key is already included). Then click <b>Add</b>.</p>
-          <div style="position:relative">
-            <pre style="padding-right:56px;word-break:break-all;white-space:pre-wrap">${esc(mcpUrl)}</pre>
-            <button onclick="copyPrompt(${mcpUrlIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-body">
-          <strong>Add instructions so Claude checks automatically</strong>
-          <p style="margin-bottom:8px">${s2nav}</p>
-          <div style="position:relative">
-            <pre style="padding-right:56px;white-space:pre-wrap">${esc(systemPrompt)}</pre>
-            <button onclick="copyPrompt(${sysIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
-          </div>
-          <p style="margin-top:8px;color:#555;font-size:13px">This makes Claude check your GroupWisdom projects automatically without you having to ask.</p>
-        </div>
-      </div>
-
-      <div class="step">
-        <div class="step-num">4</div>
-        <div class="step-body">
-          <strong>Test it</strong>
-          <p>${projectName ? `Start a new chat and mention something about <b>${esc(projectName)}</b> — Claude will pull up your project context automatically.` : 'Start a new chat and mention a topic from one of your projects — Claude will pull up the context automatically.'}</p>
-        </div>
-      </div>`;
-  }
+  window._wiz = {
+    web: [
+      {
+        title: 'Open Claude Connectors',
+        body: `Click below — it opens Claude's connector settings in a new tab. Once there, click the <b>+</b> button at the top of the left panel, then <b>Add custom connector</b>.`,
+        openUrl: 'https://claude.ai/settings/connectors',
+        openLabel: 'Open Claude Connectors ↗',
+        copyIdx: null,
+        copyNote: null,
+      },
+      {
+        title: 'Add GroupWisdom',
+        body: `Your personal URL has been <b>copied to your clipboard</b>. In the form:<br><br>• <b>Name:</b> <code style="background:#f5f5f5;padding:1px 5px;border-radius:3px">GroupWisdom</code><br>• <b>Remote MCP server URL:</b> paste here<br><br>Then click <b>Add</b>.`,
+        openUrl: null,
+        openLabel: null,
+        copyIdx: mcpUrlIdx,
+        copyNote: 'URL copied to clipboard',
+      },
+      {
+        title: 'Add instructions',
+        body: `Your instructions have been <b>copied to your clipboard</b>. Click below to open Claude Settings, then scroll to <b>Instructions for Claude</b> under the General tab — paste and save.<br><br>This makes Claude check GroupWisdom automatically without you having to ask.`,
+        openUrl: 'https://claude.ai/settings',
+        openLabel: 'Open Claude Settings ↗',
+        copyIdx: sysIdx,
+        copyNote: 'Instructions copied to clipboard',
+      },
+      {
+        title: 'Test it',
+        body: testBody,
+        openUrl: 'https://claude.ai/new',
+        openLabel: 'Open a new Claude chat ↗',
+        copyIdx: null,
+        copyNote: null,
+      },
+    ],
+    desktop: [
+      {
+        title: 'Add the connector',
+        body: `Your personal URL has been <b>copied to your clipboard</b>. Open Claude Desktop, then in the menu bar go to <b>Claude → Settings → Integrations → Add custom integration</b>.<br><br>• <b>Name:</b> <code style="background:#f5f5f5;padding:1px 5px;border-radius:3px">GroupWisdom</code><br>• <b>Remote MCP server URL:</b> paste here<br><br>Then click <b>Add</b>.`,
+        openUrl: null,
+        openLabel: null,
+        copyIdx: mcpUrlIdx,
+        copyNote: 'URL copied to clipboard',
+      },
+      {
+        title: 'Add instructions',
+        body: `Your instructions have been <b>copied to your clipboard</b>. In Claude Desktop go to <b>Claude → Settings → Profile</b> and scroll to <b>What would you like Claude to know?</b> — paste and save.`,
+        openUrl: null,
+        openLabel: null,
+        copyIdx: sysIdx,
+        copyNote: 'Instructions copied to clipboard',
+      },
+      {
+        title: 'Restart & test',
+        body: `Quit Claude Desktop (<b>Cmd+Q</b>) and reopen it. You should see a 🔨 hammer icon in the chat input — that means it's connected.<br><br>${testBody}`,
+        openUrl: null,
+        openLabel: null,
+        copyIdx: null,
+        copyNote: null,
+      },
+    ],
+  };
+  window._wizPos = { web: 0, desktop: 0 };
 
   return `
     <div style="display:flex;gap:0;margin-bottom:24px;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden">
       <button id="tab-web" onclick="showSetupTab('web')" style="flex:1;font:inherit;font-size:13px;font-weight:500;padding:10px;border:none;background:#111;color:#fff;cursor:pointer">Claude.ai (web)</button>
       <button id="tab-desktop" onclick="showSetupTab('desktop')" style="flex:1;font:inherit;font-size:13px;font-weight:500;padding:10px;border:none;background:#f5f5f5;color:#555;cursor:pointer">Claude Desktop</button>
     </div>
-    <div id="setup-web">${setupSteps(false)}</div>
-    <div id="setup-desktop" style="display:none">${setupSteps(true)}</div>`;
+    <div id="wiz-web"></div>
+    <div id="wiz-desktop" style="display:none"></div>`;
 }
 
+function wizDots(steps, pos) {
+  return steps.map((_, i) => {
+    const done = i < pos, active = i === pos;
+    const bg = done ? '#111' : active ? '#111' : '#e0e0e0';
+    const color = (done || active) ? '#fff' : '#999';
+    const label = done ? '✓' : i + 1;
+    return `<div style="width:28px;height:28px;border-radius:50%;background:${bg};color:${color};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0">${label}</div>` +
+      (i < steps.length - 1 ? `<div style="flex:1;height:2px;background:${i < pos ? '#111' : '#e0e0e0'};margin:0 6px"></div>` : '');
+  }).join('');
+}
+
+function renderWizStep(tab) {
+  const steps = window._wiz[tab];
+  const pos = window._wizPos[tab];
+  const step = steps[pos];
+  const isLast = pos === steps.length - 1;
+
+  if (step.copyIdx !== null && step.copyIdx !== undefined) {
+    navigator.clipboard.writeText(_prompts[step.copyIdx]).catch(() => {});
+  }
+
+  const el = document.getElementById('wiz-' + tab);
+  if (!el) return;
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;margin-bottom:28px">${wizDots(steps, pos)}</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:10px">${esc(step.title)}</div>
+    <div style="font-size:14px;color:#333;line-height:1.7;margin-bottom:16px">${step.body}</div>
+    ${step.copyNote ? `<div style="display:flex;align-items:center;gap:6px;background:#f0faf0;border:1px solid #b7ddb7;border-radius:6px;padding:8px 12px;font-size:13px;color:#1a7a1a;margin-bottom:16px">✓ ${esc(step.copyNote)} — just paste</div>` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+      ${step.openUrl ? `<button onclick="window.open('${step.openUrl}','_blank')" style="font:inherit;font-size:13px;padding:9px 16px;border-radius:8px;border:1px solid #e0e0e0;background:#fff;cursor:pointer">${esc(step.openLabel)}</button>` : ''}
+      ${isLast
+        ? `<div style="font-size:13px;color:#888;padding:9px 4px">You're all set ✓</div>`
+        : `<button class="primary" style="font-size:13px;padding:9px 20px" onclick="advanceWizard('${tab}')">Done — next step →</button>`}
+    </div>`;
+}
+
+window.advanceWizard = function(tab) {
+  const steps = window._wiz[tab];
+  if (window._wizPos[tab] < steps.length - 1) {
+    window._wizPos[tab]++;
+    renderWizStep(tab);
+  }
+};
+
 window.showSetupTab = function(tab) {
-  document.getElementById('setup-web').style.display = tab === 'web' ? '' : 'none';
-  document.getElementById('setup-desktop').style.display = tab === 'desktop' ? '' : 'none';
-  document.getElementById('tab-web').style.background = tab === 'web' ? '#111' : '#f5f5f5';
-  document.getElementById('tab-web').style.color = tab === 'web' ? '#fff' : '#555';
-  document.getElementById('tab-desktop').style.background = tab === 'desktop' ? '#111' : '#f5f5f5';
-  document.getElementById('tab-desktop').style.color = tab === 'desktop' ? '#fff' : '#555';
+  ['web','desktop'].forEach(t => {
+    document.getElementById('wiz-' + t).style.display = t === tab ? '' : 'none';
+    document.getElementById('tab-' + t).style.background = t === tab ? '#111' : '#f5f5f5';
+    document.getElementById('tab-' + t).style.color = t === tab ? '#fff' : '#555';
+  });
+  renderWizStep(tab);
+};
+
+// Init wizard after HTML is in DOM
+window._initWizard = function() {
+  if (window._wiz) { renderWizStep('web'); }
 };
 
 function renderOnboarding() {
@@ -322,6 +374,7 @@ function renderOnboarding() {
         <p style="font-size:12px;color:#bbb;margin-top:10px">These instructions are always available in Settings → Claude Setup inside any project.</p>
       </div>
     </div>`;
+  setTimeout(() => window._initWizard?.(), 0);
 }
 
 async function logout() {
@@ -631,6 +684,7 @@ window.openSettings = (tab = 'General') => {
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  if (tab === 'Claude Setup') setTimeout(() => window._initWizard?.(), 0);
 
   window._settingsState = { g, personalKey, appUrl };
 };
@@ -639,6 +693,7 @@ window.switchSettingsTab = (tab) => {
   const { g, personalKey, appUrl } = window._settingsState;
   document.querySelectorAll('.modal-tab').forEach(t => t.classList.toggle('active', t.textContent === tab));
   document.getElementById('settingsBody').innerHTML = settingsContent(tab, g, personalKey, appUrl);
+  if (tab === 'Claude Setup') setTimeout(() => window._initWizard?.(), 0);
 };
 
 window.generateInvite = async () => {
