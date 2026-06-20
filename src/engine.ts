@@ -10,7 +10,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   listItems, listMembers, listInsights, addInsight,
-  setKnowledgeDoc, getGroup, setProjectSummary, type Item, type Insight,
+  setKnowledgeDoc, getGroup, setProjectSummary, setUserContext,
+  getMemberByUserId, listItemsByMember, type Item, type Insight,
 } from "./db.js";
 
 const MODEL = process.env.GW_MODEL || "claude-sonnet-4-6";
@@ -237,4 +238,49 @@ Reply with only the summary, no preamble.`,
 
   const summary = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("").trim();
   if (summary) setProjectSummary(groupId, summary);
+}
+
+/**
+ * Generates a hidden per-user research summary using Haiku.
+ * Triggered automatically whenever a user saves something via MCP.
+ * Stored in user_context and shared with teammates only when relevant.
+ */
+export async function updateUserContext(userId: string, groupId: string): Promise<void> {
+  const group = getGroup(groupId);
+  if (!group) return;
+  const member = getMemberByUserId(groupId, userId);
+  if (!member) return;
+  const items = listItemsByMember(groupId, member.id);
+  if (!items.length) return;
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    const summary = `${member.name} has been researching: ${items.slice(0, 5).map(i => i.title).join(", ")}.`;
+    setUserContext(userId, groupId, summary);
+    return;
+  }
+
+  const client = new Anthropic({ apiKey });
+  const itemList = items.slice(0, 20)
+    .map(i => `- ${i.title}${i.content ? `: ${i.content.slice(0, 100)}` : ""}`)
+    .join("\n");
+
+  const msg = await client.messages.create({
+    model: SUMMARY_MODEL,
+    max_tokens: 150,
+    messages: [{
+      role: "user",
+      content: `Summarize what "${member.name}" has been contributing to a shared project called "${group.name}".
+Write 2-3 sentences describing the topics, themes, or areas they have been researching or saving.
+Be specific. This summary will be shared with teammates to help them see if their research overlaps.
+
+Their contributions:
+${itemList}
+
+Reply with only the summary, no preamble.`,
+    }],
+  });
+
+  const summary = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("").trim();
+  if (summary) setUserContext(userId, groupId, summary);
 }

@@ -636,11 +636,19 @@ function settingsContent(tab, g, personalKey, appUrl) {
     ${claudeSetupSteps(personalKey, appUrl, g.name)}`;
 
   if (tab === 'Members') return `
-    ${g.members.map(m => `
+    ${g.members.map(m => {
+      const hasContext = !!m.context_updated_at;
+      const contextDate = hasContext ? new Date(m.context_updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
+      return `
       <div class="member-row">
         <div class="avatar">${esc(m.name.split(/\s+/).map(w => w[0]).join("").slice(0,2).toUpperCase())}</div>
-        <div style="flex:1"><div style="font-weight:500">${esc(m.name)}</div><div style="font-size:12px;color:#888">${esc(m.role) || "—"}</div></div>
-      </div>`).join("") || `<div style="color:#bbb;font-size:13px;padding:8px 0">No members yet.</div>`}
+        <div style="flex:1">
+          <div style="font-weight:500">${esc(m.name)}</div>
+          <div style="font-size:12px;color:#888">${esc(m.role) || "—"}</div>
+        </div>
+        ${hasContext ? `<div title="Claude has context from this member's research" style="display:flex;align-items:center;gap:5px;font-size:11px;color:#888"><div style="width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0"></div>Active ${contextDate}</div>` : ''}
+      </div>`;
+    }).join("") || `<div style="color:#bbb;font-size:13px;padding:8px 0">No members yet.</div>`}
 
     <div class="field-label">Invite someone</div>
     <p style="font-size:13px;color:#555;margin-bottom:8px">Send them a link to join this project. They'll be able to add content and use all features.</p>

@@ -164,6 +164,10 @@ export function addMember(groupId: string, name: string, role = "", email = "", 
 }
 export const listMembers = (groupId: string) =>
   db.prepare("SELECT * FROM members WHERE group_id = ? ORDER BY created_at").all(groupId) as Member[];
+export const getMemberByUserId = (groupId: string, userId: string) =>
+  db.prepare("SELECT * FROM members WHERE group_id = ? AND user_id = ?").get(groupId, userId) as Member | undefined;
+export const listItemsByMember = (groupId: string, memberId: string) =>
+  db.prepare("SELECT * FROM items WHERE group_id = ? AND member_id = ? ORDER BY created_at DESC").all(groupId, memberId) as Item[];
 export const getMemberByToken = (token: string) =>
   db.prepare("SELECT * FROM members WHERE access_token = ?").get(token) as Member | undefined;
 export const getGroupsForMember = (memberId: string) =>

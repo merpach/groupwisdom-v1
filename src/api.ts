@@ -14,6 +14,7 @@ import {
   getKnowledgeDoc,
   createInvite, getInviteByToken, acceptInvite,
   getProjectSummary,
+  listUserContexts,
 } from "./db.js";
 import { analyzeGroup, previewAnalysis, acceptInsight, updateProjectSummary } from "./engine.js";
 
@@ -112,9 +113,16 @@ api.post("/groups", (req, res) => {
 api.get("/groups/:id", (req, res) => {
   const g = resolveGroup(req);
   if (!g) return res.status(404).json({ error: "group not found" });
+  const contextByUser = Object.fromEntries(
+    listUserContexts(g.id).map(c => [c.user_id, c.updated_at])
+  );
+  const members = listMembers(g.id).map(m => ({
+    ...m,
+    context_updated_at: m.user_id ? (contextByUser[m.user_id] ?? null) : null,
+  }));
   res.json({
     ...g,
-    members: listMembers(g.id),
+    members,
     connectors: listConnectors(g.id),
     counts: { items: listItems(g.id).length, insights: listInsights(g.id).length },
     summary: getProjectSummary(g.id),

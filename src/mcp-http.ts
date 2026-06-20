@@ -22,7 +22,7 @@ import {
   setUserContext,
   listUserContexts,
 } from "./db.js";
-import { analyzeGroup, updateProjectSummary } from "./engine.js";
+import { analyzeGroup, updateProjectSummary, updateUserContext } from "./engine.js";
 
 const projectParam = z.string().optional().describe(
   "Project name (or partial name). If omitted, uses your first project."
@@ -157,6 +157,7 @@ function buildMcpServer(userId: string) {
       touchConnector(g.id, "Claude");
       analyzeGroup(g.id).catch(() => {});
       updateProjectSummary(g.id).catch(() => {});
+      updateUserContext(userId, g.id).catch(() => {});
       const by = member ? ` (saved as ${member.name})` : "";
       return text(`Saved "${item.title}" to "${g.name}"${by}.`);
     }
