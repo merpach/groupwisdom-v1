@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
 import { api, setNotifier } from "./api.js";
+import { handleMcpRequest } from "./mcp-http.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -49,6 +50,17 @@ app.use(session({
 }));
 app.use(express.json({ limit: "2mb" }));
 app.use("/api", api);
+
+// Remote MCP endpoint — used by Claude.ai connectors
+app.all("/mcp", async (req, res) => {
+  try {
+    await handleMcpRequest(req, res);
+  } catch (err: any) {
+    console.error("[mcp-http]", err.message);
+    if (!res.headersSent) res.status(500).json({ error: "MCP error" });
+  }
+});
+
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 const port = Number(process.env.PORT || 3000);

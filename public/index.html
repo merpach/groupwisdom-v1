@@ -206,6 +206,16 @@ async function doSignup() {
 }
 
 function claudeSetupSteps(key, appUrl, projectName) {
+  const mcpUrl = appUrl + "/mcp?key=" + encodeURIComponent(key);
+
+  const systemPrompt = `You have access to GroupWisdom via MCP tools. Follow these rules strictly:
+
+1. At the start of EVERY conversation, call get_project_index. This is mandatory, not optional.
+2. Read the returned project summaries and keyword lists carefully.
+3. If ANY word or topic in the user's message relates to a project — even loosely — you MUST call get_group_context for that project before composing your response. Do not skip this step.
+4. Do this silently. Do not tell the user you are checking GroupWisdom unless they ask.
+5. If in doubt, check. It is always better to check GroupWisdom and find nothing than to miss relevant context.`;
+
   const fullConfig = JSON.stringify({
     mcpServers: {
       groupwisdom: {
@@ -216,74 +226,116 @@ function claudeSetupSteps(key, appUrl, projectName) {
     }
   }, null, 2);
 
-  const systemPrompt = `You have access to GroupWisdom via MCP tools. Follow these rules strictly:
-
-1. At the start of EVERY conversation, call get_project_index. This is mandatory, not optional.
-2. Read the returned project summaries and keyword lists carefully.
-3. If ANY word or topic in the user's message relates to a project — even loosely — you MUST call get_group_context for that project before composing your response. Do not skip this step.
-4. Do this silently. Do not tell the user you are checking GroupWisdom unless they ask.
-5. If in doubt, check. It is always better to check GroupWisdom and find nothing than to miss relevant context.`;
-
-  const configIdx = _prompts.push(fullConfig) - 1;
+  const mcpUrlIdx = _prompts.push(mcpUrl) - 1;
   const sysIdx = _prompts.push(systemPrompt) - 1;
+  const configIdx = _prompts.push(fullConfig) - 1;
 
   return `
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body">
-        <strong>Open Claude Desktop config</strong>
-        <p>Open the Claude Desktop app. In the top menu bar click <b>Claude</b> → <b>Settings</b> → <b>Developer</b> → <b>Edit Config</b>. A file opens in a text editor.</p>
-      </div>
+    <div style="display:flex;gap:0;margin-bottom:24px;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden">
+      <button id="tab-web" onclick="showSetupTab('web')" style="flex:1;font:inherit;font-size:13px;font-weight:500;padding:10px;border:none;background:#111;color:#fff;cursor:pointer">Claude.ai (web) — Recommended</button>
+      <button id="tab-desktop" onclick="showSetupTab('desktop')" style="flex:1;font:inherit;font-size:13px;font-weight:500;padding:10px;border:none;background:#f5f5f5;color:#555;cursor:pointer">Claude Desktop</button>
     </div>
 
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-body">
-        <strong>Add the GroupWisdom block to the file</strong>
-        <p>The file will have existing content — <b>don't delete it</b>. Find the very first line which looks like <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">{</code> and click right after it. Press <b>Enter</b> to make a new line, then paste the block below. Then add a <b>comma</b> <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">,</code> after the closing <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">}</code> so it connects to the rest of the file.</p>
-        <p style="margin-bottom:6px">Your result should look like:</p>
-        <pre style="font-size:11px;margin-bottom:12px;background:#f7f7f7;border:1px solid #eee;border-radius:6px;padding:10px">{
-  "mcpServers": { ... },    ← paste this, comma at end
-  "coworkUserFilesPath": ...  ← existing content stays
-}</pre>
-        <p style="margin-bottom:6px">Block to paste (your key is pre-filled):</p>
-        <div style="position:relative">
-          <pre style="padding-right:56px">${esc(fullConfig)}</pre>
-          <button onclick="copyPrompt(${configIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
+    <div id="setup-web">
+      <p style="font-size:13px;color:#555;margin-bottom:20px;line-height:1.6">Connect GroupWisdom to Claude.ai in 3 steps — no Terminal, no config files.</p>
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>Open Claude.ai connectors</strong>
+          <p>Go to <b>claude.ai</b> → click your profile picture (top right) → <b>Settings</b> → <b>Integrations</b> → <b>Add custom integration</b>.</p>
         </div>
-        <p style="margin-top:10px;background:#f0f7ff;border:1px solid #c8e0ff;border-radius:6px;padding:10px 12px;font-size:13px">💡 <b>If the file is empty</b> (just <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">{}</code>), select all and replace with the block above — no comma needed.</p>
       </div>
-    </div>
 
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-body">
-        <strong>Add a system prompt so Claude checks automatically</strong>
-        <p>In Claude Desktop, click <b>Claude</b> → <b>Settings</b> → <b>Profile</b> → scroll to <b>What would you like Claude to know?</b> Paste this:</p>
-        <div style="position:relative">
-          <pre style="padding-right:56px;white-space:pre-wrap">${esc(systemPrompt)}</pre>
-          <button onclick="copyPrompt(${sysIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong>Paste your personal MCP URL</strong>
+          <p style="margin-bottom:8px">In the <b>Name</b> field type <b>GroupWisdom</b>. In the <b>Remote MCP server URL</b> field paste this URL (your key is already included):</p>
+          <div style="position:relative">
+            <pre style="padding-right:56px;word-break:break-all;white-space:pre-wrap">${esc(mcpUrl)}</pre>
+            <button onclick="copyPrompt(${mcpUrlIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
+          </div>
+          <p style="margin-top:8px;font-size:13px;color:#555">Click <b>Add</b>. Claude will connect to GroupWisdom instantly.</p>
         </div>
-        <p style="margin-top:8px;color:#555;font-size:13px">This makes Claude automatically check your GroupWisdom projects whenever you mention a relevant topic — without you having to ask.</p>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>Add a system prompt so Claude checks automatically</strong>
+          <p style="margin-bottom:8px">In claude.ai, go to <b>Settings</b> → <b>Profile</b> → scroll to <b>What would you like Claude to know?</b> and paste this:</p>
+          <div style="position:relative">
+            <pre style="padding-right:56px;white-space:pre-wrap">${esc(systemPrompt)}</pre>
+            <button onclick="copyPrompt(${sysIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
+          </div>
+          <p style="margin-top:8px;color:#555;font-size:13px">This makes Claude automatically check your GroupWisdom projects whenever you mention a relevant topic.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <strong>Test it</strong>
+          <p>${projectName ? `Start a new chat and mention something about <b>${esc(projectName)}</b> — Claude should pull up the project context automatically.` : 'Start a new chat and mention a topic from one of your projects — Claude should pull up the context automatically.'}</p>
+        </div>
       </div>
     </div>
 
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-body">
-        <strong>Save and restart Claude</strong>
-        <p>Save the config file (<b>Cmd+S</b>), then fully quit Claude Desktop (<b>Cmd+Q</b>) and reopen it. You should see a 🔨 hammer icon in the chat input.</p>
-      </div>
-    </div>
+    <div id="setup-desktop" style="display:none">
+      <p style="font-size:13px;color:#555;margin-bottom:20px;line-height:1.6">Use this if you prefer Claude Desktop over the web app.</p>
 
-    <div class="step">
-      <div class="step-num">5</div>
-      <div class="step-body">
-        <strong>Test it</strong>
-        <p>Just mention a topic related to one of your projects — Claude should automatically pull the relevant GroupWisdom context without you asking. ${projectName ? `Try: <b>"I'm thinking about ${esc(projectName)}"</b> and see if Claude pulls it up.` : 'Try mentioning one of your project topics naturally.'}</p>
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>Open Claude Desktop config</strong>
+          <p>Open the Claude Desktop app. In the top menu bar click <b>Claude</b> → <b>Settings</b> → <b>Developer</b> → <b>Edit Config</b>. A file opens in a text editor.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong>Add the GroupWisdom block to the file</strong>
+          <p>The file will have existing content — <b>don't delete it</b>. Find the very first <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">{</code> and click right after it. Press <b>Enter</b>, paste the block below, then add a comma after the closing <code style="background:#f5f5f5;padding:1px 5px;border-radius:4px">}</code>.</p>
+          <p style="margin-top:8px;margin-bottom:6px">Block to paste (your key is pre-filled):</p>
+          <div style="position:relative">
+            <pre style="padding-right:56px">${esc(fullConfig)}</pre>
+            <button onclick="copyPrompt(${configIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>Add a system prompt</strong>
+          <p style="margin-bottom:8px">In Claude Desktop → <b>Settings</b> → <b>Profile</b> → <b>What would you like Claude to know?</b> Paste this:</p>
+          <div style="position:relative">
+            <pre style="padding-right:56px;white-space:pre-wrap">${esc(systemPrompt)}</pre>
+            <button onclick="copyPrompt(${sysIdx})" style="position:absolute;top:8px;right:8px;font-size:11px;padding:4px 8px">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <strong>Save and restart Claude Desktop</strong>
+          <p>Save the config file (<b>Cmd+S</b>), quit Claude Desktop (<b>Cmd+Q</b>) and reopen it. You should see a 🔨 hammer icon in the chat input.</p>
+        </div>
       </div>
     </div>`;
 }
+
+window.showSetupTab = function(tab) {
+  document.getElementById('setup-web').style.display = tab === 'web' ? '' : 'none';
+  document.getElementById('setup-desktop').style.display = tab === 'desktop' ? '' : 'none';
+  document.getElementById('tab-web').style.background = tab === 'web' ? '#111' : '#f5f5f5';
+  document.getElementById('tab-web').style.color = tab === 'web' ? '#fff' : '#555';
+  document.getElementById('tab-desktop').style.background = tab === 'desktop' ? '#111' : '#f5f5f5';
+  document.getElementById('tab-desktop').style.color = tab === 'desktop' ? '#fff' : '#555';
+};
 
 function renderOnboarding() {
   const key = state.user?.api_key || "";
