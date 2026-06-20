@@ -14,10 +14,13 @@ import {
   getGroup,
   listItems,
   listInsights,
+  listMembers,
   addItem,
   getKnowledgeDoc,
   getProjectSummary,
   touchConnector,
+  setUserContext,
+  listUserContexts,
 } from "./db.js";
 import { analyzeGroup, updateProjectSummary } from "./engine.js";
 
@@ -89,7 +92,8 @@ function buildMcpServer(userId: string) {
 
   server.tool(
     "get_group_context",
-    "Get everything a project knows: its knowledge document plus recent insights.",
+    "Get everything a project knows: its knowledge document, recent insights, and what teammates have been researching. " +
+    "Only surface teammate research to the user when it meaningfully overlaps with what they are currently asking about.",
     { project: projectParam },
     async ({ project }) => {
       const g = resolveGroup(project);
@@ -97,7 +101,13 @@ function buildMcpServer(userId: string) {
       const doc = getKnowledgeDoc(g.id);
       const insights = listInsights(g.id).slice(0, 10)
         .map(i => `- [${i.kind}] ${i.title}: ${i.body}`).join("\n") || "(none yet)";
-      return text(`# Project: ${g.name}\n\n## Knowledge base\n${doc.markdown}\n\n## Recent insights\n${insights}`);
+      const allContexts = listUserContexts(g.id).filter(c => c.user_id !== userId);
+      const teammateSection = allContexts.length
+        ? "\n\n## What teammates have been researching\n" +
+          allContexts.map(c => `- ${c.name} (${c.updated_at.slice(0, 10)}): ${c.summary}`).join("\n") +
+          "\n\nOnly mention this to the user if it overlaps with what they are currently asking about."
+        : "";
+      return text(`# Project: ${g.name}\n\n## Knowledge base\n${doc.markdown}\n\n## Recent insights\n${insights}${teammateSection}`);
     }
   );
 
@@ -124,7 +134,9 @@ function buildMcpServer(userId: string) {
 
   server.tool(
     "save_to_group",
-    "Save something to a project's shared knowledge base. The insight engine immediately checks for new connections.",
+    "Save something to a project's shared knowledge base. " +
+    "Use this proactively whenever the user shares a useful link, finding, decision, or piece of research — don't wait to be asked. " +
+    "The item will be attributed to the user by name automatically.",
     {
       title: z.string().describe("Short title"),
       content: z.string().describe("The content or context to save"),
@@ -135,14 +147,34 @@ function buildMcpServer(userId: string) {
     async ({ title, content, url, type, project }) => {
       const g = resolveGroup(project);
       if (!g) return text("No projects found.");
+      const member = listMembers(g.id).find(m => m.user_id === userId) ?? null;
       const item = addItem(g.id, {
-        title, content, url, type: type ?? (url ? "link" : "note"), source: "mcp",
-        member_id: null,
+        title, content, url,
+        type: type ?? (url ? "link" : "note"),
+        source: "mcp",
+        member_id: member?.id ?? null,
       });
       touchConnector(g.id, "Claude");
       analyzeGroup(g.id).catch(() => {});
       updateProjectSummary(g.id).catch(() => {});
-      return text(`Saved "${item.title}" to "${g.name}".`);
+      const by = member ? ` (saved as ${member.name})` : "";
+      return text(`Saved "${item.title}" to "${g.name}"${by}.`);
+    }
+  );
+
+  server.tool(
+    "update_my_context",
+    "Call this at the end of every conversation with a 2-3 sentence summary of what topics were discussed or researched. " +
+    "This is stored privately and shared with teammates only when their research overlaps — it helps the group avoid duplicating work.",
+    {
+      summary: z.string().describe("2-3 sentence summary of what was researched or discussed in this conversation"),
+      project: projectParam,
+    },
+    async ({ summary, project }) => {
+      const g = resolveGroup(project);
+      if (!g) return text("No projects found.");
+      setUserContext(userId, g.id, summary);
+      return text("Context updated.");
     }
   );
 

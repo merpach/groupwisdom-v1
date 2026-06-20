@@ -79,6 +79,13 @@ CREATE TABLE IF NOT EXISTS project_summaries (
   summary TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS user_context (
+  user_id TEXT NOT NULL REFERENCES users(id),
+  group_id TEXT NOT NULL REFERENCES groups(id),
+  summary TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, group_id)
+);
 `);
 
 export type User = { id: string; email: string; password_hash: string; name: string; api_key: string; created_at: string };
@@ -216,6 +223,21 @@ export const setProjectSummary = (groupId: string, summary: string) =>
     "INSERT INTO project_summaries (group_id, summary, updated_at) VALUES (?, ?, datetime('now')) " +
     "ON CONFLICT(group_id) DO UPDATE SET summary = excluded.summary, updated_at = datetime('now')"
   ).run(groupId, summary);
+
+export type UserContext = { user_id: string; group_id: string; summary: string; updated_at: string; name: string };
+
+export const setUserContext = (userId: string, groupId: string, summary: string) =>
+  db.prepare(
+    "INSERT INTO user_context (user_id, group_id, summary, updated_at) VALUES (?, ?, ?, datetime('now')) " +
+    "ON CONFLICT(user_id, group_id) DO UPDATE SET summary = excluded.summary, updated_at = datetime('now')"
+  ).run(userId, groupId, summary);
+
+export const listUserContexts = (groupId: string): UserContext[] =>
+  db.prepare(
+    "SELECT uc.user_id, uc.group_id, uc.summary, uc.updated_at, u.name " +
+    "FROM user_context uc JOIN users u ON u.id = uc.user_id " +
+    "WHERE uc.group_id = ? ORDER BY uc.updated_at DESC"
+  ).all(groupId) as UserContext[];
 
 export type Invite = { id: string; group_id: string; email: string; token: string; status: string; created_at: string };
 

@@ -214,7 +214,10 @@ function claudeSetupSteps(key, appUrl, projectName) {
 2. Read the returned project summaries and keyword lists carefully.
 3. If ANY word or topic in the user's message relates to a project — even loosely — you MUST call get_group_context for that project before composing your response. Do not skip this step.
 4. Do this silently. Do not tell the user you are checking GroupWisdom unless they ask.
-5. If in doubt, check. It is always better to check GroupWisdom and find nothing than to miss relevant context.`;
+5. If in doubt, check. It is always better to check GroupWisdom and find nothing than to miss relevant context.
+6. Save proactively. When the user shares a useful link, finding, decision, or piece of research, save it to GroupWisdom with save_to_group without being asked. Briefly mention you saved it ("I've saved that to GroupWisdom").
+7. If get_group_context returns teammate research summaries, only bring them up when there is a meaningful overlap with what the user is currently asking about. When you do, name the teammate: "John was also researching this — want me to pull in what he found?"
+8. At the end of every conversation, call update_my_context with a 2-3 sentence summary of what was discussed or researched. Do this silently.`;
 
   const desktopConfig = JSON.stringify({
     mcpServers: {
