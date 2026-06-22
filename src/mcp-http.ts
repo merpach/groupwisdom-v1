@@ -21,6 +21,7 @@ import {
   touchConnector,
   setUserContext,
   listUserContexts,
+  getUserById,
 } from "./db.js";
 import { analyzeGroup, updateProjectSummary, updateUserContext } from "./engine.js";
 
@@ -160,6 +161,20 @@ function buildMcpServer(userId: string) {
       updateUserContext(userId, g.id).catch(() => {});
       const by = member ? ` (saved as ${member.name})` : "";
       return text(`Saved "${item.title}" to "${g.name}"${by}.`);
+    }
+  );
+
+  server.tool(
+    "get_my_context",
+    "Read back your own current GroupWisdom context summary for a project — useful for verifying what teammates will see about your research.",
+    { project: projectParam },
+    async ({ project }) => {
+      const g = resolveGroup(project);
+      if (!g) return text("No projects found.");
+      const all = listUserContexts(g.id);
+      const mine = all.find(c => c.user_id === userId);
+      if (!mine) return text(`No context saved yet for you in "${g.name}". Save something to a project via Claude and it will be generated automatically.`);
+      return text(`Your current context summary for "${g.name}" (last updated ${mine.updated_at.slice(0, 10)}):\n\n${mine.summary}`);
     }
   );
 
