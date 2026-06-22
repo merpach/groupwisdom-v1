@@ -754,18 +754,21 @@ window.dismissProposal = (i) => {
 let _ws = null;
 function connectLive(groupId) {
   if (_ws) _ws.close();
-  const ws = new WebSocket(`ws://${location.host}`);
+  const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${wsProto}//${location.host}`);
   _ws = ws;
   ws.onopen = () => ws.send(JSON.stringify({ subscribe: groupId }));
   ws.onmessage = async ({ data }) => {
     try {
       const { event, groupId: gid } = JSON.parse(data);
       if (event === "update" && gid === state.group?.id) {
-        const [items, group] = await Promise.all([
+        const [items, insights, group] = await Promise.all([
           api.get("/groups/" + gid + "/items"),
+          api.get("/groups/" + gid + "/insights"),
           api.get("/groups/" + gid),
         ]);
         state.items = items;
+        state.insights = insights;
         state.group = { ...state.group, ...group };
         render();
       }
