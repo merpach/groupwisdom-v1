@@ -493,7 +493,7 @@ function render() {
       <div class="logo">${esc(g.name)}</div>
       <div class="spacer"></div>
       <button onclick="runAnalysis()" ${state.analyzing ? "disabled" : ""}>
-        ${state.analyzing ? '<span class="spinning">◌</span> Analyzing…' : 'Analyze'}
+        ${state.analyzing ? '<span class="spinning">◌</span> Thinking…' : 'Deep Analysis'}
       </button>
       <button class="icon-btn" onclick="openSettings()" title="Settings" style="margin-left:4px">⚙</button>
     </header>
@@ -522,7 +522,7 @@ function render() {
     ${state.proposals !== null ? `
     <div class="insight-panel">
       <div class="panel-header">
-        <h2>Engine findings — ${state.proposals.length === 0 ? "nothing new" : `${state.proposals.length} new insight${state.proposals.length === 1 ? "" : "s"}`}</h2>
+        <h2>Wisdom found — ${state.proposals.length === 0 ? "nothing new" : `${state.proposals.length} new finding${state.proposals.length === 1 ? "" : "s"}`}</h2>
         <button onclick="state.proposals=null;render()">Done</button>
       </div>
       ${state.proposals.length === 0
@@ -545,7 +545,7 @@ function render() {
       Drop files here — PDFs, docs, text files
     </div>
 
-    <div class="feed-label">${state.insights.length ? `${state.insights.length} insight${state.insights.length === 1 ? "" : "s"} · ` : ""}${state.items.length} item${state.items.length === 1 ? "" : "s"}</div>
+    <div class="feed-label">${state.insights.length ? `${state.insights.length} wisdom · ` : ""}${state.items.length} item${state.items.length === 1 ? "" : "s"}</div>
     ${feed}
 
     <div style="margin-top:40px;padding-top:28px;border-top:1px solid #f0f0f0">

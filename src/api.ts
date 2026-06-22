@@ -16,7 +16,7 @@ import {
   getProjectSummary,
   listUserContexts,
 } from "./db.js";
-import { analyzeGroup, previewAnalysis, acceptInsight, updateProjectSummary } from "./engine.js";
+import { analyzeGroup, previewAnalysis, acceptInsight, updateProjectSummary, queueIncrementalAnalysis } from "./engine.js";
 
 export const api = Router();
 
@@ -162,7 +162,7 @@ api.post("/groups/:id/items", async (req, res) => {
   });
   if (source === "mcp") touchConnector(g.id, "Claude");
   notify(g.id, "update");
-  analyzeGroup(g.id).catch(err => console.error("[engine]", err.message));
+  queueIncrementalAnalysis(g.id, item, () => notify(g.id, "update"));
   updateProjectSummary(g.id).catch(err => console.error("[summary]", err.message));
   res.status(201).json(item);
 });

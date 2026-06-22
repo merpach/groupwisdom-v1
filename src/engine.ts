@@ -9,7 +9,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import {
-  listItems, listMembers, listInsights, addInsight,
+  listItems, listMembers, listInsights, addInsight, setInsightStatus,
   setKnowledgeDoc, getGroup, setProjectSummary, setUserContext,
   getMemberByUserId, listItemsByMember, type Item, type Insight,
 } from "./db.js";
@@ -19,6 +19,91 @@ const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
 const KINDS = ["connection", "blind_spot", "conflict", "pattern", "question", "decision"];
 
 const running = new Set<string>();
+
+// ── Incremental Wisdom (Haiku, runs on every item add) ───────────────────────
+
+const pendingAnalysis = new Map<string, { items: Item[]; timer: ReturnType<typeof setTimeout> }>();
+
+/** Queue an incremental Wisdom pass. Debounces 3s so burst adds are batched. */
+export function queueIncrementalAnalysis(groupId: string, item: Item, onComplete?: () => void) {
+  const existing = pendingAnalysis.get(groupId);
+  if (existing) {
+    clearTimeout(existing.timer);
+    existing.items.push(item);
+  } else {
+    pendingAnalysis.set(groupId, { items: [item], timer: null! });
+  }
+  const pending = pendingAnalysis.get(groupId)!;
+  pending.timer = setTimeout(async () => {
+    const items = pending.items;
+    pendingAnalysis.delete(groupId);
+    await runIncrementalWisdom(groupId, items).catch(err => console.error("[wisdom]", err.message));
+    onComplete?.();
+  }, 3000);
+}
+
+async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<void> {
+  const group = getGroup(groupId);
+  if (!group) return;
+  const existing = listInsights(groupId);
+  const recent = listItems(groupId).filter(i => !newItems.some(n => n.id === i.id)).slice(0, 10);
+
+  const newText = newItems
+    .map(i => `[${i.type}] "${i.title}"${i.url ? ` (${i.url})` : ""} — ${i.content?.slice(0, 120) || ""}`)
+    .join("\n");
+  const recentText = recent
+    .map(i => `[${i.type}] "${i.title}" — ${i.content?.slice(0, 60) || ""}`)
+    .join("\n") || "(none)";
+  const existingText = existing
+    .map(i => `[${i.id}] [${i.kind}] ${i.title}: ${i.body}`)
+    .join("\n") || "(none)";
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return; // no mock for incremental — just skip
+  }
+
+  const client = new Anthropic();
+  const msg = await client.messages.create({
+    model: SUMMARY_MODEL,
+    max_tokens: 600,
+    messages: [{
+      role: "user",
+      content: `You are the Wisdom engine for a shared project called "${group.name}".
+Members: ${listMembers(groupId).map(m => m.name).join(", ") || "unknown"}
+
+New item${newItems.length > 1 ? "s" : ""} just added:
+${newText}
+
+Recent project items (context):
+${recentText}
+
+Current wisdom (do not repeat; flag any now outdated):
+${existingText}
+
+Generate 0-2 NEW insights only where there is genuine signal.
+Also list IDs of any existing insights now stale, resolved, or superseded.
+Be conservative — only dismiss if clearly no longer relevant.
+
+Respond ONLY with valid JSON:
+{"new":[{"kind":"...","title":"...","body":"..."}],"dismiss":["id1"]}`,
+    }],
+  });
+
+  const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
+  const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
+  let result: { new: Array<{ kind: string; title: string; body: string }>; dismiss: string[] };
+  try { result = JSON.parse(json); } catch { return; }
+
+  for (const ins of (result.new ?? [])) {
+    if (!KINDS.includes(ins.kind)) continue;
+    if (existing.some(e => e.title.toLowerCase() === ins.title.toLowerCase())) continue;
+    const saved = addInsight(groupId, ins.kind, ins.title, ins.body);
+    setInsightStatus(saved.id, "acknowledged"); // auto-accept live insights
+  }
+  for (const id of (result.dismiss ?? [])) {
+    if (existing.some(e => e.id === id)) setInsightStatus(id, "dismissed");
+  }
+}
 
 export type ProposedInsight = { kind: string; title: string; body: string };
 
