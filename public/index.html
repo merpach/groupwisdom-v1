@@ -230,17 +230,17 @@ function claudeSetupSteps(key, appUrl, projectName) {
     web: [
       {
         title: 'Open Claude Connectors',
-        body: `Click below — it opens Claude's connector settings in a new tab. Once there, click the <b>+</b> button at the top of the left panel, then <b>Add custom connector</b>.`,
+        body: `Click below — it opens Claude's connector settings. You'll see a message that connectors have moved to <b>Customize</b>. Click that link (or the button below will take you straight there).<br><br><img src="/setup/connectors-moved.png" style="width:100%;border-radius:8px;border:1px solid #e0e0e0;margin-top:8px">`,
         openUrl: 'https://claude.ai/settings/connectors',
-        openLabel: 'Open Claude Connectors ↗',
+        openLabel: 'Open Claude Settings → Connectors ↗',
         copyIdx: null,
         copyNote: null,
       },
       {
         title: 'Add GroupWisdom',
-        body: `Your personal URL has been <b>copied to your clipboard</b>. In the form:<br><br>• <b>Name:</b> <code style="background:#f5f5f5;padding:1px 5px;border-radius:3px">GroupWisdom</code><br>• <b>Remote MCP server URL:</b> paste here<br><br>Then click <b>Add</b>.`,
-        openUrl: null,
-        openLabel: null,
+        body: `In <b>Customize → Connectors</b>, click the <b>+</b> button at the top of the left panel to add a custom connector.<br><br><img src="/setup/customize-connectors.png" style="width:100%;border-radius:8px;border:1px solid #e0e0e0;margin:8px 0"><br>Your personal URL has been <b>copied to your clipboard</b>. In the dialog:<br><br>• <b>Name:</b> <code style="background:#f5f5f5;padding:1px 5px;border-radius:3px">GroupWisdom</code><br>• <b>Remote MCP server URL:</b> paste here<br><br><img src="/setup/add-connector.png" style="width:100%;border-radius:8px;border:1px solid #e0e0e0;margin-top:8px"><br><br>Then click <b>Add</b>.`,
+        openUrl: 'https://claude.ai/customize',
+        openLabel: 'Open Customize → Connectors ↗',
         copyIdx: mcpUrlIdx,
         copyNote: 'URL copied to clipboard',
       },
@@ -493,7 +493,7 @@ function render() {
       <div class="logo">${esc(g.name)}</div>
       <div class="spacer"></div>
       <button onclick="runAnalysis()" ${state.analyzing ? "disabled" : ""}>
-        ${state.analyzing ? '<span class="spinning">◌</span> Thinking…' : 'Deep Analysis'}
+        ${state.analyzing ? '<span class="spinning">◌</span> Thinking…' : 'Deep Wisdom'}
       </button>
       <button class="icon-btn" onclick="openSettings()" title="Settings" style="margin-left:4px">⚙</button>
     </header>
