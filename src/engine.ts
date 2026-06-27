@@ -11,7 +11,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import {
   listItems, listMembers, listInsights, addInsight, setInsightStatus,
   setKnowledgeDoc, getGroup, setProjectSummary, setUserContext,
-  getMemberByUserId, listItemsByMember, type Item, type Insight,
+  getMemberByUserId, listItemsByMember, getGroupWebhook, type Item, type Insight,
 } from "./db.js";
 
 const MODEL = process.env.GW_MODEL || "claude-sonnet-4-6";
@@ -94,14 +94,30 @@ Respond ONLY with valid JSON:
   let result: { new: Array<{ kind: string; title: string; body: string }>; dismiss: string[] };
   try { result = JSON.parse(json); } catch { return; }
 
+  const created: Insight[] = [];
   for (const ins of (result.new ?? [])) {
     if (!KINDS.includes(ins.kind)) continue;
     if (existing.some(e => e.title.toLowerCase() === ins.title.toLowerCase())) continue;
     const saved = addInsight(groupId, ins.kind, ins.title, ins.body);
     setInsightStatus(saved.id, "acknowledged"); // auto-accept live insights
+    created.push({ ...saved, status: "acknowledged" });
   }
   for (const id of (result.dismiss ?? [])) {
     if (existing.some(e => e.id === id)) setInsightStatus(id, "dismissed");
+  }
+
+  // Fire webhook if configured
+  const webhookUrl = getGroupWebhook(groupId);
+  if (webhookUrl && created.length > 0) {
+    fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "insights.created",
+        group_id: groupId,
+        insights: created.map(i => ({ id: i.id, kind: i.kind, title: i.title, body: i.body })),
+      }),
+    }).catch(err => console.error("[webhook]", err.message));
   }
 }
 

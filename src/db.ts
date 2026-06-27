@@ -86,6 +86,11 @@ CREATE TABLE IF NOT EXISTS user_context (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, group_id)
 );
+CREATE TABLE IF NOT EXISTS group_settings (
+  group_id TEXT PRIMARY KEY REFERENCES groups(id),
+  webhook_url TEXT DEFAULT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 export type User = { id: string; email: string; password_hash: string; name: string; api_key: string; created_at: string };
@@ -255,3 +260,12 @@ export const getInviteByToken = (token: string) =>
   db.prepare("SELECT * FROM invites WHERE token = ?").get(token) as Invite | undefined;
 export const acceptInvite = (token: string) =>
   db.prepare("UPDATE invites SET status = 'accepted' WHERE token = ?").run(token);
+
+export const getGroupWebhook = (groupId: string): string | null =>
+  ((db.prepare("SELECT webhook_url FROM group_settings WHERE group_id = ?").get(groupId) as { webhook_url: string | null } | undefined)?.webhook_url ?? null);
+
+export const setGroupWebhook = (groupId: string, webhookUrl: string | null) =>
+  db.prepare(
+    "INSERT INTO group_settings (group_id, webhook_url, updated_at) VALUES (?, ?, datetime('now')) " +
+    "ON CONFLICT(group_id) DO UPDATE SET webhook_url = excluded.webhook_url, updated_at = datetime('now')"
+  ).run(groupId, webhookUrl);

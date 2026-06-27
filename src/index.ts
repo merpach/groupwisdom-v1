@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
 import { api, setNotifier } from "./api.js";
+import { apiv1, setV1Notifier } from "./api-v1.js";
 import { handleMcpRequest } from "./mcp-http.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,6 +33,16 @@ wss.on("connection", (ws) => {
   });
 });
 
+// Wire both routers to the same WebSocket notifier
+setV1Notifier((groupId: string, event: string) => {
+  const sockets = subscribers.get(groupId);
+  if (!sockets?.size) return;
+  const msg = JSON.stringify({ event, groupId });
+  for (const ws of sockets) {
+    if (ws.readyState === 1) ws.send(msg);
+  }
+});
+
 // Called by the API whenever something changes in a group
 setNotifier((groupId: string, event: string) => {
   const sockets = subscribers.get(groupId);
@@ -50,6 +61,7 @@ app.use(session({
 }));
 app.use(express.json({ limit: "2mb" }));
 app.use("/api", api);
+app.use("/v1", apiv1);
 
 // Remote MCP endpoint — used by Claude.ai connectors
 app.all("/mcp", async (req, res) => {
