@@ -114,11 +114,30 @@ apiv1.post("/projects/:id/ingest", (req, res) => {
 
   if (!payloads.length) return res.status(400).json({ error: "Provide one item or an items array." });
 
-  const member = listMembers(g.id).find(m => m.user_id === user.id) ?? null;
+  // Cache of name → member so we only look up / create once per ingest call
+  const memberCache = new Map<string, ReturnType<typeof listMembers>[0]>();
+  const existingMembers = listMembers(g.id);
+  const ownerMember = existingMembers.find(m => m.user_id === user.id) ?? null;
+
+  function resolveMember(contributedBy?: string) {
+    if (!contributedBy) return ownerMember;
+    const key = contributedBy.trim().toLowerCase();
+    if (memberCache.has(key)) return memberCache.get(key)!;
+    // Find existing member by name (case-insensitive)
+    const existing = existingMembers.find(m => m.name.toLowerCase() === key);
+    if (existing) { memberCache.set(key, existing); return existing; }
+    // Auto-create — no login, no invite needed, just a name on the data
+    const created = addMember(g!.id, contributedBy.trim(), "", "");
+    existingMembers.push(created);
+    memberCache.set(key, created);
+    return created;
+  }
+
   const created: Item[] = [];
 
   for (const p of payloads) {
     if (!p.title && !p.content && !p.url) continue;
+    const member = resolveMember(p.contributed_by);
     const item = addItem(g.id, {
       title: p.title || p.url || String(p.content ?? "").slice(0, 60),
       content: p.content ?? "",
