@@ -809,134 +809,265 @@ window.uploadFiles = async files => {
   }
 };
 
-// ── Developer dashboard ───────────────────────────────────────────────────────
+// ── Developer portal ──────────────────────────────────────────────────────────
 
-async function renderDeveloper(tab = 'dashboard') {
-  const projects = await fetch('/v1/projects', {
+const KIND_COLOR_DEV = { connection:'#2255cc', pattern:'#6622cc', blind_spot:'#996600', conflict:'#cc3333', question:'#1d7a46', decision:'#555' };
+const KIND_BG_DEV    = { connection:'#e8f0ff', pattern:'#f5e8ff', blind_spot:'#fff5e0', conflict:'#ffe8e8', question:'#e8f5ee', decision:'#f0f0f0' };
+
+let _devProjects = [];
+let _devSelected = null; // project id
+let _devProjectTab = 'insights'; // insights | add | settings
+
+async function renderDeveloper() {
+  _devProjects = await fetch('/v1/projects', {
     headers: { 'Authorization': 'Bearer ' + state.user.api_key }
   }).then(r => r.json()).catch(() => []);
 
-  const key = state.user.api_key;
-  const origin = window.location.origin;
-
-  function projectCards() {
-    if (!projects.length) return `<div style="color:#bbb;font-size:14px;padding:24px 0;text-align:center">No projects yet. <a href="/" onclick="renderProjects();return false" style="color:#111">Create one →</a></div>`;
-    return projects.map(p => `
-      <div style="border:1px solid #e8e8e8;border-radius:10px;padding:18px 20px;margin-bottom:12px">
-        <div style="display:flex;align-items:flex-start;gap:12px">
-          <div style="flex:1">
-            <div style="font-weight:600;font-size:15px;margin-bottom:4px">${esc(p.name)}</div>
-            <div style="font-size:13px;color:#888">${p.counts.items} items · ${p.counts.insights} insights</div>
-          </div>
-          <div style="font-size:11px;font-weight:600;color:#bbb;text-transform:uppercase;letter-spacing:.07em;padding-top:3px">ID: <code style="background:#f5f5f5;padding:2px 6px;border-radius:4px;font-size:11px;color:#555">${p.id}</code></div>
-        </div>
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f0f0f0">
-          <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Webhook URL</div>
-          <div style="display:flex;gap:8px">
-            <input id="wh-${p.id}" value="${esc(p.webhook_url || '')}" placeholder="https://your-server.com/webhook" style="flex:1;font-size:13px;padding:7px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa">
-            <button onclick="saveWebhook('${p.id}')" style="font-size:13px;white-space:nowrap">Save</button>
-          </div>
-          <div id="wh-msg-${p.id}" style="font-size:12px;color:#1d7a46;margin-top:4px;display:none">✓ Saved</div>
-        </div>
-      </div>`).join('');
-  }
-
-  const dashboardContent = `
-    <div style="margin-bottom:28px">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:10px">Your API key</div>
-      <div style="display:flex;align-items:center;gap:8px;background:#f5f5f5;border:1px solid #e8e8e8;border-radius:8px;padding:12px 14px">
-        <code style="flex:1;font-size:13px;color:#111;word-break:break-all">${esc(key)}</code>
-        <button onclick="navigator.clipboard.writeText('${esc(key)}').then(()=>toast('Copied'))" style="font-size:12px;white-space:nowrap;flex-shrink:0">Copy</button>
-      </div>
-      <p style="font-size:12px;color:#aaa;margin-top:6px">Pass this as <code style="background:#f5f5f5;padding:1px 5px;border-radius:3px">Authorization: Bearer &lt;key&gt;</code> on all /v1 requests.</p>
-    </div>
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:10px">Projects</div>
-    ${projectCards()}`;
-
-  const quickstartContent = `
-    <p style="color:#555;font-size:14px;line-height:1.7;margin-bottom:24px">Everything below uses your real API key. Copy and run these in your terminal or code.</p>
-
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px">1 — Create a project</div>
-    <pre style="margin-bottom:20px">curl -X POST ${origin}/v1/projects \\
-  -H "Authorization: Bearer ${esc(key)}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"name":"My project","webhook_url":"https://your-server.com/hook"}'</pre>
-
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px">2 — Push data</div>
-    <pre style="margin-bottom:20px">curl -X POST ${origin}/v1/projects/PROJECT_ID/ingest \\
-  -H "Authorization: Bearer ${esc(key)}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"items":[
-    {"title":"Users drop off at checkout","type":"note"},
-    {"title":"Competitor launched same feature","type":"note"},
-    {"url":"https://example.com/report","type":"link"}
-  ]}'</pre>
-
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px">3 — Receive insights via webhook</div>
-    <pre style="margin-bottom:6px">POST https://your-server.com/hook
-{
-  "event": "insights.created",
-  "group_id": "...",
-  "insights": [
-    {
-      "id": "...",
-      "kind": "pattern",
-      "title": "Checkout friction is a recurring theme",
-      "body": "Three separate notes point to the same drop-off point."
-    }
-  ]
-}</pre>
-    <p style="font-size:12px;color:#aaa;margin-bottom:20px">Use <a href="https://webhook.site" target="_blank" style="color:#555">webhook.site</a> to test without a server.</p>
-
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px">4 — Poll for insights anytime</div>
-    <pre>curl ${origin}/v1/projects/PROJECT_ID/insights \\
-  -H "Authorization: Bearer ${esc(key)}"</pre>
-
-    <div style="margin-top:28px;padding-top:24px;border-top:1px solid #eee">
-      <a href="/docs" target="_blank" style="font-size:14px;color:#111;font-weight:500">Full API reference →</a>
-    </div>`;
-
-  $("#app").innerHTML = `
-    <div style="max-width:660px;margin:0 auto;padding:32px 0 80px">
-      <div style="display:flex;align-items:center;margin-bottom:32px;padding-bottom:20px;border-bottom:1px solid #eee">
-        <button onclick="renderProjects()" style="background:none;border:none;cursor:pointer;color:#888;font-size:13px;padding:0;margin-right:16px">← Projects</button>
-        <div style="font-size:18px;font-weight:700;flex:1">Developer API</div>
-        <a href="/docs" target="_blank" style="font-size:13px;color:#555;text-decoration:none;border:1px solid #e0e0e0;padding:6px 14px;border-radius:6px">API Docs ↗</a>
-      </div>
-      <div style="display:flex;gap:0;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;margin-bottom:28px">
-        <button id="devtab-dashboard" onclick="switchDevTab('dashboard')" style="flex:1;font:inherit;font-size:13px;font-weight:500;padding:9px;border:none;cursor:pointer;background:${tab==='dashboard'?'#111':'#f5f5f5'};color:${tab==='dashboard'?'#fff':'#555'}">Dashboard</button>
-        <button id="devtab-quickstart" onclick="switchDevTab('quickstart')" style="flex:1;font:inherit;font-size:13px;font-weight:500;padding:9px;border:none;cursor:pointer;background:${tab==='quickstart'?'#111':'#f5f5f5'};color:${tab==='quickstart'?'#fff':'#555'}">Quick start</button>
-      </div>
-      <div id="devtab-body">
-        ${tab === 'dashboard' ? dashboardContent : quickstartContent}
-      </div>
-    </div>`;
-
-  window._devTabContent = { dashboard: dashboardContent, quickstart: quickstartContent };
+  if (!_devSelected && _devProjects.length) _devSelected = _devProjects[0].id;
+  _renderDevShell();
+  if (_devSelected) await _loadDevDetail(_devSelected, _devProjectTab);
 }
 
-window.switchDevTab = function(tab) {
-  ['dashboard','quickstart'].forEach(t => {
-    const btn = document.getElementById('devtab-' + t);
-    if (!btn) return;
-    btn.style.background = t === tab ? '#111' : '#f5f5f5';
-    btn.style.color = t === tab ? '#fff' : '#555';
+function _renderDevShell() {
+  const key = state.user.api_key;
+  const mcpUrl = window.location.origin + '/mcp?key=' + encodeURIComponent(key);
+
+  const projectList = _devProjects.map(p => `
+    <div onclick="devSelectProject('${p.id}')" style="padding:10px 14px;border-radius:8px;cursor:pointer;margin-bottom:4px;background:${_devSelected===p.id?'#111':'transparent'};color:${_devSelected===p.id?'#fff':'#111'}">
+      <div style="font-weight:500;font-size:14px;margin-bottom:2px">${esc(p.name)}</div>
+      <div style="font-size:12px;opacity:.6">${p.counts.items} items · ${p.counts.insights} insights</div>
+    </div>`).join('');
+
+  $("#app").innerHTML = `
+    <div style="display:flex;min-height:100vh;max-width:1100px;margin:0 auto">
+
+      <!-- Sidebar -->
+      <div style="width:240px;flex-shrink:0;border-right:1px solid #eee;padding:28px 16px;display:flex;flex-direction:column;gap:0">
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px;padding:0 4px">GroupWisdom</div>
+        <div style="font-size:11px;color:#888;margin-bottom:24px;padding:0 4px">Developer Portal</div>
+
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;padding:0 4px;margin-bottom:8px">Projects</div>
+        <div id="dev-project-list">${projectList}</div>
+        <button onclick="devNewProject()" style="font:inherit;font-size:13px;padding:8px 14px;border:1px dashed #ddd;border-radius:8px;background:none;cursor:pointer;color:#888;margin-top:8px;text-align:left">+ New project</button>
+
+        <div style="flex:1"></div>
+
+        <div style="border-top:1px solid #eee;padding-top:16px;margin-top:16px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:8px;padding:0 4px">Your MCP URL</div>
+          <div style="background:#f5f5f5;border-radius:6px;padding:8px 10px;font-size:11px;font-family:monospace;color:#555;word-break:break-all;margin-bottom:6px">${esc(mcpUrl)}</div>
+          <button onclick="navigator.clipboard.writeText('${esc(mcpUrl)}').then(()=>toast('MCP URL copied'))" style="font:inherit;font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer;width:100%">Copy MCP URL</button>
+          <p style="font-size:11px;color:#bbb;margin-top:6px;padding:0 2px;line-height:1.5">Paste into Claude → Settings → Connectors → + Custom</p>
+        </div>
+
+        <div style="border-top:1px solid #eee;padding-top:16px;margin-top:16px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:8px;padding:0 4px">API Key</div>
+          <div style="background:#f5f5f5;border-radius:6px;padding:8px 10px;font-size:11px;font-family:monospace;color:#555;word-break:break-all;margin-bottom:6px">${esc(key)}</div>
+          <button onclick="navigator.clipboard.writeText('${esc(key)}').then(()=>toast('API key copied'))" style="font:inherit;font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer;width:100%">Copy API key</button>
+        </div>
+
+        <div style="border-top:1px solid #eee;padding-top:16px;margin-top:16px;display:flex;flex-direction:column;gap:4px">
+          <a href="/docs" target="_blank" style="font-size:13px;color:#555;text-decoration:none;padding:6px 4px;display:block">API Docs ↗</a>
+          <button onclick="renderProjects()" style="font:inherit;font-size:13px;padding:6px 4px;border:none;background:none;cursor:pointer;color:#888;text-align:left">← Web app</button>
+          <button onclick="logout()" style="font:inherit;font-size:13px;padding:6px 4px;border:none;background:none;cursor:pointer;color:#bbb;text-align:left">Sign out</button>
+        </div>
+      </div>
+
+      <!-- Detail panel -->
+      <div style="flex:1;padding:36px 48px 80px;overflow-y:auto">
+        <div id="dev-detail">
+          ${_devSelected ? '<div style="color:#bbb;font-size:14px">Loading…</div>' : _devEmptyState()}
+        </div>
+      </div>
+    </div>`;
+}
+
+function _devEmptyState() {
+  return `<div style="padding:60px 0;text-align:center;color:#bbb">
+    <div style="font-size:32px;margin-bottom:12px">⚡</div>
+    <div style="font-size:16px;font-weight:600;color:#888;margin-bottom:8px">No projects yet</div>
+    <div style="font-size:14px;margin-bottom:20px">Create a project to start ingesting data and receiving insights.</div>
+    <button onclick="devNewProject()" class="primary" style="font-size:14px;padding:10px 24px">Create first project</button>
+  </div>`;
+}
+
+async function _loadDevDetail(projectId, tab = 'insights') {
+  _devProjectTab = tab;
+  const project = _devProjects.find(p => p.id === projectId);
+  if (!project) return;
+
+  let insights = [];
+  let items = [];
+  if (tab === 'insights') {
+    insights = await fetch('/v1/projects/' + projectId + '/insights', {
+      headers: { 'Authorization': 'Bearer ' + state.user.api_key }
+    }).then(r => r.json()).catch(() => []);
+  }
+  if (tab === 'add') {
+    items = await fetch('/v1/projects/' + projectId + '/items', {
+      headers: { 'Authorization': 'Bearer ' + state.user.api_key }
+    }).then(r => r.json()).catch(() => []);
+  }
+
+  const tabs = ['insights','add','settings'].map(t => `
+    <button onclick="devSwitchTab('${t}')" style="font:inherit;font-size:13px;padding:8px 16px;border:none;background:none;cursor:pointer;color:${_devProjectTab===t?'#111':'#aaa'};border-bottom:2px solid ${_devProjectTab===t?'#111':'transparent'};margin-bottom:-1px">${{insights:'Insights',add:'Add Data',settings:'Settings'}[t]}</button>`).join('');
+
+  let body = '';
+
+  if (tab === 'insights') {
+    const kindBadge = i => `<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:4px;background:${KIND_BG_DEV[i.kind]||'#f0f0f0'};color:${KIND_COLOR_DEV[i.kind]||'#555'}">${i.kind.replace('_',' ')}</span>`;
+    body = insights.length
+      ? insights.map(i => `
+          <div style="padding:14px 0;border-bottom:1px solid #f0f0f0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">${kindBadge(i)}<span style="font-size:12px;color:#bbb">${ago(i.created_at)}</span></div>
+            <div style="font-weight:600;font-size:14px;margin-bottom:4px">${esc(i.title)}</div>
+            <div style="font-size:13px;color:#555;line-height:1.5">${esc(i.body)}</div>
+          </div>`).join('')
+      : `<div style="color:#bbb;font-size:14px;padding:32px 0;text-align:center">No insights yet — add data or connect Claude to start generating insights.</div>`;
+  }
+
+  if (tab === 'add') {
+    const recentItems = items.slice(0, 8).map(i => `
+      <div style="padding:8px 0;border-bottom:1px solid #f5f5f5;display:flex;gap:10px;align-items:flex-start">
+        <span style="font-size:11px;font-weight:600;color:#aaa;padding-top:2px;flex-shrink:0;text-transform:uppercase">${i.type}</span>
+        <div>
+          <div style="font-size:13px;font-weight:500">${esc(i.title)}</div>
+          ${i.content ? `<div style="font-size:12px;color:#888;margin-top:2px">${esc(i.content.slice(0,100))}${i.content.length>100?'…':''}</div>` : ''}
+        </div>
+        <div style="font-size:11px;color:#ccc;margin-left:auto;flex-shrink:0;padding-top:2px">${ago(i.created_at)}</div>
+      </div>`).join('') || `<div style="color:#bbb;font-size:13px;padding:12px 0">Nothing added yet.</div>`;
+
+    body = `
+      <div style="background:#fafafa;border:1px solid #e8e8e8;border-radius:10px;padding:20px;margin-bottom:28px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:14px">Add item to project</div>
+        <input id="dev-title" placeholder="Title or headline" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;width:100%;margin-bottom:8px">
+        <textarea id="dev-content" placeholder="Content, notes, or context (optional)" rows="3" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;width:100%;resize:none;margin-bottom:8px"></textarea>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input id="dev-url" placeholder="URL (optional)" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;flex:1">
+          <input id="dev-from" placeholder="From (optional)" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;width:140px">
+          <select id="dev-type" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;width:110px">
+            <option value="note">Note</option>
+            <option value="link">Link</option>
+            <option value="thought">Thought</option>
+            <option value="file">File</option>
+          </select>
+        </div>
+        <button onclick="devAddItem('${projectId}')" class="primary" style="font-size:13px;padding:9px 20px">Add to project</button>
+      </div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:10px">Recent items (${items.length})</div>
+      ${recentItems}`;
+  }
+
+  if (tab === 'settings') {
+    const mcpUrl = window.location.origin + '/mcp?key=' + encodeURIComponent(state.user.api_key);
+    body = `
+      <div style="margin-bottom:28px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">Project ID</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <code style="font-size:13px;background:#f5f5f5;padding:8px 12px;border-radius:6px;flex:1">${esc(project.id)}</code>
+          <button onclick="navigator.clipboard.writeText('${esc(project.id)}').then(()=>toast('Copied'))" style="font-size:13px;padding:8px 14px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer">Copy</button>
+        </div>
+      </div>
+      <div style="margin-bottom:28px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">Webhook URL</div>
+        <p style="font-size:13px;color:#888;margin-bottom:8px">GroupWisdom will POST new insights here automatically after each analysis.</p>
+        <div style="display:flex;gap:8px">
+          <input id="dev-wh" value="${esc(project.webhook_url || '')}" placeholder="https://your-server.com/hook" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fafafa;flex:1">
+          <button onclick="devSaveWebhook('${project.id}')" style="font-size:13px;padding:9px 16px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer">Save</button>
+        </div>
+        <div id="dev-wh-msg" style="font-size:12px;color:#1d7a46;margin-top:6px;display:none">✓ Saved</div>
+        <p style="font-size:12px;color:#bbb;margin-top:6px">Use <a href="https://webhook.site" target="_blank" style="color:#888">webhook.site</a> to test without a real server.</p>
+      </div>
+      <div style="margin-bottom:28px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">Claude Connector (MCP)</div>
+        <p style="font-size:13px;color:#888;margin-bottom:8px">Add this URL as a custom connector in Claude to let your team use Claude with this project automatically.</p>
+        <div style="display:flex;gap:8px">
+          <code style="font-size:12px;background:#f5f5f5;padding:9px 12px;border-radius:8px;flex:1;word-break:break-all">${esc(mcpUrl)}</code>
+          <button onclick="navigator.clipboard.writeText('${esc(mcpUrl)}').then(()=>toast('MCP URL copied'))" style="font-size:13px;padding:9px 16px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;flex-shrink:0">Copy</button>
+        </div>
+      </div>
+      <div style="padding-top:28px;border-top:1px solid #eee">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">Ingest endpoint</div>
+        <code style="font-size:12px;background:#f5f5f5;padding:9px 12px;border-radius:8px;display:block;word-break:break-all">${esc(window.location.origin)}/v1/projects/${esc(project.id)}/ingest</code>
+        <p style="font-size:12px;color:#bbb;margin-top:6px">POST items here from your backend. <a href="/docs" target="_blank" style="color:#888">See docs →</a></p>
+      </div>`;
+  }
+
+  document.getElementById('dev-detail').innerHTML = `
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:4px">
+      <div style="font-size:22px;font-weight:700">${esc(project.name)}</div>
+      <div style="font-size:13px;color:#bbb">${project.counts.items} items · ${project.counts.insights} insights</div>
+    </div>
+    <div style="border-bottom:1px solid #eee;margin-bottom:24px;display:flex;gap:0">${tabs}</div>
+    ${body}`;
+}
+
+window.devSelectProject = async function(id) {
+  _devSelected = id;
+  _devProjectTab = 'insights';
+  // update sidebar highlight
+  document.querySelectorAll('#dev-project-list > div').forEach(el => {
+    const isActive = el.getAttribute('onclick')?.includes(id);
+    el.style.background = isActive ? '#111' : 'transparent';
+    el.style.color = isActive ? '#fff' : '#111';
   });
-  const body = document.getElementById('devtab-body');
-  if (body && window._devTabContent) body.innerHTML = window._devTabContent[tab];
+  await _loadDevDetail(id, 'insights');
 };
 
-window.saveWebhook = async function(projectId) {
-  const url = document.getElementById('wh-' + projectId)?.value.trim() || null;
+window.devSwitchTab = async function(tab) {
+  await _loadDevDetail(_devSelected, tab);
+};
+
+window.devNewProject = async function() {
+  const name = prompt('Project name:');
+  if (!name?.trim()) return;
+  const p = await fetch('/v1/projects', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name.trim() }),
+  }).then(r => r.json());
+  _devProjects = [..._devProjects, p];
+  _devSelected = p.id;
+  _renderDevShell();
+  await _loadDevDetail(p.id, 'insights');
+  toast('Project created');
+};
+
+window.devAddItem = async function(projectId) {
+  const title = document.getElementById('dev-title')?.value.trim();
+  const content = document.getElementById('dev-content')?.value.trim();
+  const url = document.getElementById('dev-url')?.value.trim();
+  const from = document.getElementById('dev-from')?.value.trim();
+  const type = document.getElementById('dev-type')?.value;
+  if (!title && !content && !url) return toast('Add a title or content first');
+  const body = { title: title || url || content.slice(0,60), content, url, type };
+  if (from) body.contributed_by = from;
+  await fetch('/v1/projects/' + projectId + '/ingest', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  toast('Added — wisdom engine is running');
+  // refresh counts
+  _devProjects = await fetch('/v1/projects', {
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key }
+  }).then(r => r.json()).catch(() => _devProjects);
+  await _loadDevDetail(projectId, 'add');
+};
+
+window.devSaveWebhook = async function(projectId) {
+  const url = document.getElementById('dev-wh')?.value.trim() || null;
   await fetch('/v1/projects/' + projectId, {
     method: 'PATCH',
     headers: { 'Authorization': 'Bearer ' + state.user.api_key, 'Content-Type': 'application/json' },
     body: JSON.stringify({ webhook_url: url }),
   });
-  const msg = document.getElementById('wh-msg-' + projectId);
+  const p = _devProjects.find(p => p.id === projectId);
+  if (p) p.webhook_url = url;
+  const msg = document.getElementById('dev-wh-msg');
   if (msg) { msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 2000); }
 };
 
+window.saveWebhook = window.devSaveWebhook; // keep old alias working
 window.renderDeveloper = renderDeveloper;
 
 boot();
