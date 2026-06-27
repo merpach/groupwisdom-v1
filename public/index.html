@@ -417,6 +417,7 @@ function renderProjects() {
     <div class="projects-header">
       <div class="logo">GroupWisdom</div>
       <div class="spacer"></div>
+      <button onclick="renderDeveloper()" style="font-size:13px;padding:6px 12px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer;color:#555;margin-right:8px">Developer API</button>
       <span style="font-size:13px;color:#888;margin-right:12px">${esc(state.user?.name || "")}</span>
       <button onclick="logout()" style="font-size:13px;padding:6px 12px;color:#888">Sign out</button>
     </div>
@@ -937,21 +938,6 @@ window.saveWebhook = async function(projectId) {
 };
 
 window.renderDeveloper = renderDeveloper;
-
-// add Developer link to projects page
-const _origRenderProjects = renderProjects;
-function renderProjects() {
-  _origRenderProjects();
-  const header = document.querySelector('.projects-header');
-  if (header && !header.querySelector('.dev-link')) {
-    const link = document.createElement('button');
-    link.className = 'dev-link';
-    link.textContent = 'Developer API';
-    link.style.cssText = 'font:inherit;font-size:13px;padding:6px 12px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer;color:#555;margin-right:8px';
-    link.onclick = () => renderDeveloper();
-    header.insertBefore(link, header.querySelector('.spacer').nextSibling);
-  }
-}
 
 boot();
 </script>
