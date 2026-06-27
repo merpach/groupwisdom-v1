@@ -808,6 +808,151 @@ window.uploadFiles = async files => {
   }
 };
 
+// ── Developer dashboard ───────────────────────────────────────────────────────
+
+async function renderDeveloper(tab = 'dashboard') {
+  const projects = await fetch('/v1/projects', {
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key }
+  }).then(r => r.json()).catch(() => []);
+
+  const key = state.user.api_key;
+  const origin = window.location.origin;
+
+  function projectCards() {
+    if (!projects.length) return `<div style="color:#bbb;font-size:14px;padding:24px 0;text-align:center">No projects yet. <a href="/" onclick="renderProjects();return false" style="color:#111">Create one →</a></div>`;
+    return projects.map(p => `
+      <div style="border:1px solid #e8e8e8;border-radius:10px;padding:18px 20px;margin-bottom:12px">
+        <div style="display:flex;align-items:flex-start;gap:12px">
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:15px;margin-bottom:4px">${esc(p.name)}</div>
+            <div style="font-size:13px;color:#888">${p.counts.items} items · ${p.counts.insights} insights</div>
+          </div>
+          <div style="font-size:11px;font-weight:600;color:#bbb;text-transform:uppercase;letter-spacing:.07em;padding-top:3px">ID: <code style="background:#f5f5f5;padding:2px 6px;border-radius:4px;font-size:11px;color:#555">${p.id}</code></div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f0f0f0">
+          <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Webhook URL</div>
+          <div style="display:flex;gap:8px">
+            <input id="wh-${p.id}" value="${esc(p.webhook_url || '')}" placeholder="https://your-server.com/webhook" style="flex:1;font-size:13px;padding:7px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa">
+            <button onclick="saveWebhook('${p.id}')" style="font-size:13px;white-space:nowrap">Save</button>
+          </div>
+          <div id="wh-msg-${p.id}" style="font-size:12px;color:#1d7a46;margin-top:4px;display:none">✓ Saved</div>
+        </div>
+      </div>`).join('');
+  }
+
+  const dashboardContent = `
+    <div style="margin-bottom:28px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:10px">Your API key</div>
+      <div style="display:flex;align-items:center;gap:8px;background:#f5f5f5;border:1px solid #e8e8e8;border-radius:8px;padding:12px 14px">
+        <code style="flex:1;font-size:13px;color:#111;word-break:break-all">${esc(key)}</code>
+        <button onclick="navigator.clipboard.writeText('${esc(key)}').then(()=>toast('Copied'))" style="font-size:12px;white-space:nowrap;flex-shrink:0">Copy</button>
+      </div>
+      <p style="font-size:12px;color:#aaa;margin-top:6px">Pass this as <code style="background:#f5f5f5;padding:1px 5px;border-radius:3px">Authorization: Bearer &lt;key&gt;</code> on all /v1 requests.</p>
+    </div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:10px">Projects</div>
+    ${projectCards()}`;
+
+  const quickstartContent = `
+    <p style="color:#555;font-size:14px;line-height:1.7;margin-bottom:24px">Everything below uses your real API key. Copy and run these in your terminal or code.</p>
+
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">1 — Create a project</div>
+    <pre style="margin-bottom:20px">curl -X POST ${origin}/v1/projects \\
+  -H "Authorization: Bearer ${esc(key)}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"My project","webhook_url":"https://your-server.com/hook"}'</pre>
+
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">2 — Push data</div>
+    <pre style="margin-bottom:20px">curl -X POST ${origin}/v1/projects/PROJECT_ID/ingest \\
+  -H "Authorization: Bearer ${esc(key)}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"items":[
+    {"title":"Users drop off at checkout","type":"note"},
+    {"title":"Competitor launched same feature","type":"note"},
+    {"url":"https://example.com/report","type":"link"}
+  ]}'</pre>
+
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">3 — Receive insights via webhook</div>
+    <pre style="margin-bottom:6px">POST https://your-server.com/hook
+{
+  "event": "insights.created",
+  "group_id": "...",
+  "insights": [
+    {
+      "id": "...",
+      "kind": "pattern",
+      "title": "Checkout friction is a recurring theme",
+      "body": "Three separate notes point to the same drop-off point."
+    }
+  ]
+}</pre>
+    <p style="font-size:12px;color:#aaa;margin-bottom:20px">Use <a href="https://webhook.site" target="_blank" style="color:#555">webhook.site</a> to test without a server.</p>
+
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">4 — Poll for insights anytime</div>
+    <pre>curl ${origin}/v1/projects/PROJECT_ID/insights \\
+  -H "Authorization: Bearer ${esc(key)}"</pre>
+
+    <div style="margin-top:28px;padding-top:24px;border-top:1px solid #eee">
+      <a href="/docs" target="_blank" style="font-size:14px;color:#111;font-weight:500">Full API reference →</a>
+    </div>`;
+
+  $("#app").innerHTML = `
+    <div style="max-width:660px;margin:0 auto;padding:32px 0 80px">
+      <div style="display:flex;align-items:center;margin-bottom:32px;padding-bottom:20px;border-bottom:1px solid #eee">
+        <button onclick="renderProjects()" style="background:none;border:none;cursor:pointer;color:#888;font-size:13px;padding:0;margin-right:16px">← Projects</button>
+        <div style="font-size:18px;font-weight:700;flex:1">Developer API</div>
+        <a href="/docs" target="_blank" style="font-size:13px;color:#555;text-decoration:none;border:1px solid #e0e0e0;padding:6px 14px;border-radius:6px">API Docs ↗</a>
+      </div>
+      <div style="display:flex;gap:0;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;margin-bottom:28px">
+        <button id="devtab-dashboard" onclick="switchDevTab('dashboard')" style="flex:1;font:inherit;font-size:13px;font-weight:500;padding:9px;border:none;cursor:pointer;background:${tab==='dashboard'?'#111':'#f5f5f5'};color:${tab==='dashboard'?'#fff':'#555'}">Dashboard</button>
+        <button id="devtab-quickstart" onclick="switchDevTab('quickstart')" style="flex:1;font:inherit;font-size:13px;font-weight:500;padding:9px;border:none;cursor:pointer;background:${tab==='quickstart'?'#111':'#f5f5f5'};color:${tab==='quickstart'?'#fff':'#555'}">Quick start</button>
+      </div>
+      <div id="devtab-body">
+        ${tab === 'dashboard' ? dashboardContent : quickstartContent}
+      </div>
+    </div>`;
+
+  window._devTabContent = { dashboard: dashboardContent, quickstart: quickstartContent };
+}
+
+window.switchDevTab = function(tab) {
+  ['dashboard','quickstart'].forEach(t => {
+    const btn = document.getElementById('devtab-' + t);
+    if (!btn) return;
+    btn.style.background = t === tab ? '#111' : '#f5f5f5';
+    btn.style.color = t === tab ? '#fff' : '#555';
+  });
+  const body = document.getElementById('devtab-body');
+  if (body && window._devTabContent) body.innerHTML = window._devTabContent[tab];
+};
+
+window.saveWebhook = async function(projectId) {
+  const url = document.getElementById('wh-' + projectId)?.value.trim() || null;
+  await fetch('/v1/projects/' + projectId, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ webhook_url: url }),
+  });
+  const msg = document.getElementById('wh-msg-' + projectId);
+  if (msg) { msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 2000); }
+};
+
+window.renderDeveloper = renderDeveloper;
+
+// add Developer link to projects page
+const _origRenderProjects = renderProjects;
+function renderProjects() {
+  _origRenderProjects();
+  const header = document.querySelector('.projects-header');
+  if (header && !header.querySelector('.dev-link')) {
+    const link = document.createElement('button');
+    link.className = 'dev-link';
+    link.textContent = 'Developer API';
+    link.style.cssText = 'font:inherit;font-size:13px;padding:6px 12px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer;color:#555;margin-right:8px';
+    link.onclick = () => renderDeveloper();
+    header.insertBefore(link, header.querySelector('.spacer').nextSibling);
+  }
+}
+
 boot();
 </script>
 </body>

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GroupWisdom API Reference</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; font-size: 14px; color: #111; background: #fff; }
+  a { color: #111; }
+
+  /* Layout */
+  .layout { display: flex; min-height: 100vh; }
+  nav { width: 220px; flex-shrink: 0; border-right: 1px solid #eee; padding: 32px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  main { flex: 1; max-width: 780px; padding: 48px 48px 100px; }
+
+  /* Nav */
+  .nav-logo { font-size: 15px; font-weight: 700; padding: 0 24px 24px; border-bottom: 1px solid #eee; margin-bottom: 16px; }
+  .nav-logo span { color: #888; font-weight: 400; font-size: 13px; display: block; margin-top: 2px; }
+  .nav-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #bbb; padding: 12px 24px 6px; }
+  .nav-link { display: block; font-size: 13px; color: #555; padding: 5px 24px; text-decoration: none; border-left: 2px solid transparent; }
+  .nav-link:hover { color: #111; background: #fafafa; }
+  .nav-link.active { color: #111; font-weight: 500; border-left-color: #111; }
+  .nav-back { font-size: 13px; color: #888; padding: 0 24px 20px; display: block; text-decoration: none; }
+  .nav-back:hover { color: #111; }
+
+  /* Content */
+  h1 { font-size: 26px; font-weight: 700; margin-bottom: 10px; }
+  h2 { font-size: 18px; font-weight: 700; margin: 48px 0 12px; padding-top: 48px; border-top: 1px solid #eee; }
+  h2:first-of-type { border-top: none; padding-top: 0; margin-top: 32px; }
+  h3 { font-size: 14px; font-weight: 700; margin: 28px 0 8px; }
+  p { color: #444; line-height: 1.7; margin-bottom: 12px; }
+  ul { color: #444; line-height: 1.8; padding-left: 20px; margin-bottom: 12px; }
+
+  /* Endpoint */
+  .endpoint { display: flex; align-items: center; gap: 10px; background: #fafafa; border: 1px solid #e8e8e8; border-radius: 8px; padding: 12px 16px; margin: 16px 0 10px; font-family: monospace; }
+  .method { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 4px; flex-shrink: 0; }
+  .method.post { background: #e8f5ee; color: #1d7a46; }
+  .method.get { background: #e8f0ff; color: #2255cc; }
+  .method.patch { background: #fff5e0; color: #996600; }
+  .path { font-size: 13px; color: #111; }
+
+  /* Code */
+  pre { background: #111; color: #e8e8e8; border-radius: 8px; padding: 18px 20px; font-size: 12.5px; line-height: 1.65; overflow-x: auto; margin: 10px 0 16px; position: relative; }
+  pre .copy-btn { position: absolute; top: 10px; right: 12px; background: #333; border: none; color: #aaa; font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-family: inherit; }
+  pre .copy-btn:hover { background: #444; color: #fff; }
+  code { font-family: "SF Mono", "Fira Mono", monospace; font-size: 12.5px; background: #f5f5f5; padding: 2px 6px; border-radius: 4px; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 13px; }
+  th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #888; padding: 8px 12px; border-bottom: 2px solid #eee; }
+  td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: top; color: #444; line-height: 1.5; }
+  td:first-child { font-family: monospace; font-size: 12.5px; color: #111; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+
+  /* Badges */
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
+  .badge.required { background: #fff0f0; color: #cc3333; }
+  .badge.optional { background: #f0f0f0; color: #888; }
+
+  /* Intro card */
+  .intro-card { background: #f7f9ff; border: 1px solid #dce8ff; border-radius: 10px; padding: 20px 24px; margin: 24px 0 8px; }
+  .intro-card p { margin: 0; }
+
+  /* Kind pills */
+  .kind { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin: 2px; background: #f0f0f0; color: #555; }
+  .kind.connection { background: #e8f0ff; color: #2255cc; }
+  .kind.pattern { background: #f5e8ff; color: #6622cc; }
+  .kind.blind_spot { background: #fff5e0; color: #996600; }
+  .kind.conflict { background: #ffe8e8; color: #cc3333; }
+  .kind.question { background: #e8f5ee; color: #1d7a46; }
+  .kind.decision { background: #f0f0f0; color: #555; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav>
+  <a href="/" class="nav-back">← Back to app</a>
+  <div class="nav-logo">GroupWisdom<span>API Reference</span></div>
+  <div class="nav-section">Overview</div>
+  <a class="nav-link" href="#authentication">Authentication</a>
+  <a class="nav-link" href="#base-url">Base URL</a>
+  <a class="nav-link" href="#errors">Errors</a>
+  <div class="nav-section">Projects</div>
+  <a class="nav-link" href="#create-project">Create project</a>
+  <a class="nav-link" href="#list-projects">List projects</a>
+  <a class="nav-link" href="#get-project">Get project</a>
+  <a class="nav-link" href="#update-project">Update project</a>
+  <div class="nav-section">Data</div>
+  <a class="nav-link" href="#ingest">Ingest items</a>
+  <a class="nav-link" href="#list-items">List items</a>
+  <div class="nav-section">Insights</div>
+  <a class="nav-link" href="#list-insights">List insights</a>
+  <a class="nav-link" href="#insight-kinds">Insight kinds</a>
+  <div class="nav-section">Webhooks</div>
+  <a class="nav-link" href="#webhook-setup">Setup</a>
+  <a class="nav-link" href="#webhook-payload">Payload</a>
+  <div class="nav-section">Examples</div>
+  <a class="nav-link" href="#example-js">JavaScript</a>
+  <a class="nav-link" href="#example-python">Python</a>
+</nav>
+
+<main>
+  <h1>GroupWisdom API</h1>
+  <p style="color:#888;font-size:15px">Send your team's data. Get AI-powered insights back.</p>
+
+  <div class="intro-card">
+    <p>POST items to a project → GroupWisdom runs analysis with Claude (Haiku for speed, Sonnet for depth) → insights are POSTed to your <code>webhook_url</code> and available via GET anytime.</p>
+  </div>
+
+  <!-- Authentication -->
+  <h2 id="authentication">Authentication</h2>
+  <p>All requests require your personal API key passed as a Bearer token:</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>Authorization: Bearer gw_your_api_key</pre>
+  <p>Find your key in the app under <strong>Developer API → Dashboard</strong>, or at <code>GET /api/me</code>.</p>
+
+  <!-- Base URL -->
+  <h2 id="base-url">Base URL</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>https://your-groupwisdom-url.com/v1</pre>
+  <p>All v1 endpoints are under <code>/v1</code>. The existing web app lives at <code>/api</code> and is unchanged.</p>
+
+  <!-- Errors -->
+  <h2 id="errors">Errors</h2>
+  <p>All errors return JSON with an <code>error</code> field and a standard HTTP status code.</p>
+  <table>
+    <tr><th>Status</th><th>Meaning</th></tr>
+    <tr><td>401</td><td>Missing or invalid API key</td></tr>
+    <tr><td>400</td><td>Bad request — missing required field</td></tr>
+    <tr><td>404</td><td>Project not found or not yours</td></tr>
+    <tr><td>202</td><td>Accepted — ingest queued, not yet processed</td></tr>
+  </table>
+
+  <!-- Projects -->
+  <h2 id="create-project">Create project</h2>
+  <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects</span></div>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td>name</td><td>string</td><td>Project name <span class="badge required">required</span></td></tr>
+    <tr><td>webhook_url</td><td>string</td><td>URL to receive insight callbacks <span class="badge optional">optional</span></td></tr>
+  </table>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://your-url.com/v1/projects \
+  -H "Authorization: Bearer gw_yourkey" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Q3 User Research",
+    "webhook_url": "https://your-server.com/groupwisdom-hook"
+  }'</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
+  "id": "proj_abc123",
+  "name": "Q3 User Research",
+  "created_at": "2026-06-26T14:22:00Z",
+  "webhook_url": "https://your-server.com/groupwisdom-hook",
+  "counts": { "items": 0, "insights": 0 }
+}</pre>
+
+  <h2 id="list-projects">List projects</h2>
+  <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects</span></div>
+  <p>Returns all projects you have access to.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl https://your-url.com/v1/projects \
+  -H "Authorization: Bearer gw_yourkey"</pre>
+
+  <h2 id="get-project">Get project</h2>
+  <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id</span></div>
+  <p>Returns a single project with current item and insight counts.</p>
+
+  <h2 id="update-project">Update project</h2>
+  <div class="endpoint"><span class="method patch">PATCH</span><span class="path">/v1/projects/:id</span></div>
+  <p>Update the webhook URL or name. Only fields you send are changed.</p>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td>webhook_url</td><td>string | null</td><td>Set to <code>null</code> to remove the webhook</td></tr>
+  </table>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X PATCH https://your-url.com/v1/projects/proj_abc123 \
+  -H "Authorization: Bearer gw_yourkey" \
+  -H "Content-Type: application/json" \
+  -d '{"webhook_url": "https://new-server.com/hook"}'</pre>
+
+  <!-- Ingest -->
+  <h2 id="ingest">Ingest items</h2>
+  <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects/:id/ingest</span></div>
+  <p>Send one item or an array of items. GroupWisdom queues analysis immediately — insights are delivered to your <code>webhook_url</code> within seconds and available via GET anytime.</p>
+  <p>Returns <strong>202 Accepted</strong> — analysis is async.</p>
+
+  <h3>Item fields</h3>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td>title</td><td>string</td><td>Short title or headline <span class="badge required">required*</span></td></tr>
+    <tr><td>content</td><td>string</td><td>Full text, notes, or description</td></tr>
+    <tr><td>url</td><td>string</td><td>Link to source</td></tr>
+    <tr><td>type</td><td>string</td><td><code>note</code> · <code>link</code> · <code>file</code> · <code>thought</code> (default: <code>note</code>)</td></tr>
+  </table>
+  <p style="font-size:12px;color:#888">* At least one of <code>title</code>, <code>content</code>, or <code>url</code> is required per item.</p>
+
+  <h3>Single item</h3>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://your-url.com/v1/projects/proj_abc123/ingest \
+  -H "Authorization: Bearer gw_yourkey" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Users keep abandoning checkout on mobile",
+    "content": "Support tickets up 30% this month. Affects iOS more than Android.",
+    "type": "note"
+  }'</pre>
+
+  <h3>Bulk ingest</h3>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://your-url.com/v1/projects/proj_abc123/ingest \
+  -H "Authorization: Bearer gw_yourkey" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      {"title": "Mobile checkout drop-off up 30%", "type": "note"},
+      {"title": "Competitor added Apple Pay last week", "type": "note"},
+      {"url": "https://example.com/analytics-report", "type": "link"},
+      {"title": "Team decision: prioritise mobile payment flow", "type": "thought"}
+    ]
+  }'</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
+  "accepted": 4,
+  "items": [
+    {"id": "item_001", "title": "Mobile checkout drop-off up 30%", "type": "note"},
+    ...
+  ],
+  "message": "Items queued for analysis. Insights will be POSTed to your webhook_url when ready."
+}</pre>
+
+  <!-- List items -->
+  <h2 id="list-items">List items</h2>
+  <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/items</span></div>
+  <p>Returns all items in a project, newest first.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl https://your-url.com/v1/projects/proj_abc123/items \
+  -H "Authorization: Bearer gw_yourkey"</pre>
+
+  <!-- Insights -->
+  <h2 id="list-insights">List insights</h2>
+  <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/insights</span></div>
+  <p>Returns all insights the engine has surfaced, newest first. Filter by kind with <code>?kind=pattern</code>.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://your-url.com/v1/projects/proj_abc123/insights?kind=pattern" \
+  -H "Authorization: Bearer gw_yourkey"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>[
+  {
+    "id": "ins_xyz",
+    "kind": "pattern",
+    "title": "Mobile payment friction is a recurring theme",
+    "body": "Four of six items point to the same checkout drop-off. A shared pattern is emerging that no one has named yet.",
+    "status": "acknowledged",
+    "created_at": "2026-06-26T14:30:00Z"
+  }
+]</pre>
+
+  <h2 id="insight-kinds">Insight kinds</h2>
+  <p>The engine generates insights across six categories:</p>
+  <table>
+    <tr><th>Kind</th><th>Description</th></tr>
+    <tr><td><span class="kind connection">connection</span></td><td>Two items link in an unexpected or non-obvious way</td></tr>
+    <tr><td><span class="kind pattern">pattern</span></td><td>Multiple data points imply a conclusion no one stated</td></tr>
+    <tr><td><span class="kind blind_spot">blind_spot</span></td><td>Something obvious the group has not looked at</td></tr>
+    <tr><td><span class="kind conflict">conflict</span></td><td>Two pieces of information contradict each other</td></tr>
+    <tr><td><span class="kind question">question</span></td><td>Something the group should be asking but is not</td></tr>
+    <tr><td><span class="kind decision">decision</span></td><td>Something the group has decided, and what led to it</td></tr>
+  </table>
+
+  <!-- Webhooks -->
+  <h2 id="webhook-setup">Webhook setup</h2>
+  <p>Set a <code>webhook_url</code> on any project (at creation or via PATCH). GroupWisdom will POST to that URL each time new insights are generated — typically within 3–5 seconds of an ingest call.</p>
+  <p>Your endpoint must return a 2xx status. Failed deliveries are not retried — poll <code>/v1/projects/:id/insights</code> as a fallback.</p>
+  <p>Use <a href="https://webhook.site" target="_blank">webhook.site</a> to inspect payloads during development.</p>
+
+  <h2 id="webhook-payload">Webhook payload</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>POST https://your-server.com/groupwisdom-hook
+Content-Type: application/json
+
+{
+  "event": "insights.created",
+  "group_id": "proj_abc123",
+  "insights": [
+    {
+      "id": "ins_xyz",
+      "kind": "pattern",
+      "title": "Mobile payment friction is a recurring theme",
+      "body": "Four of six items point to the same checkout drop-off."
+    }
+  ]
+}</pre>
+
+  <!-- Examples -->
+  <h2 id="example-js">JavaScript example</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>const GW_KEY = process.env.GROUPWISDOM_API_KEY;
+const BASE   = "https://your-groupwisdom-url.com/v1";
+
+async function ingest(projectId, items) {
+  const res = await fetch(`${BASE}/projects/${projectId}/ingest`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${GW_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ items }),
+  });
+  return res.json();
+}
+
+async function getInsights(projectId) {
+  const res = await fetch(`${BASE}/projects/${projectId}/insights`, {
+    headers: { "Authorization": `Bearer ${GW_KEY}` },
+  });
+  return res.json();
+}
+
+// Usage
+await ingest("proj_abc123", [
+  { title: "User retention dropped 12% in APAC", type: "note" },
+  { title: "APAC pricing change rolled out last week", type: "note" },
+]);
+
+// Or set a webhook and receive insights automatically
+</pre>
+
+  <h2 id="example-python">Python example</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>import os, requests
+
+GW_KEY = os.environ["GROUPWISDOM_API_KEY"]
+BASE   = "https://your-groupwisdom-url.com/v1"
+HEADERS = {"Authorization": f"Bearer {GW_KEY}", "Content-Type": "application/json"}
+
+def ingest(project_id, items):
+    r = requests.post(f"{BASE}/projects/{project_id}/ingest",
+                      json={"items": items}, headers=HEADERS)
+    r.raise_for_status()
+    return r.json()
+
+def get_insights(project_id, kind=None):
+    params = {"kind": kind} if kind else {}
+    r = requests.get(f"{BASE}/projects/{project_id}/insights",
+                     params=params, headers=HEADERS)
+    r.raise_for_status()
+    return r.json()
+
+# Usage
+ingest("proj_abc123", [
+    {"title": "User retention dropped 12% in APAC", "type": "note"},
+    {"title": "APAC pricing change rolled out last week", "type": "note"},
+])
+
+insights = get_insights("proj_abc123", kind="pattern")
+for ins in insights:
+    print(f"[{ins['kind']}] {ins['title']}: {ins['body']}")
+</pre>
+
+</main>
+</div>
+
+<script>
+function copyCode(btn) {
+  const pre = btn.parentElement;
+  const text = pre.textContent.replace('Copy', '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+
+// Highlight active nav link on scroll
+const links = document.querySelectorAll('.nav-link');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector(`.nav-link[href="#${e.target.id}"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+document.querySelectorAll('h2[id]').forEach(h => observer.observe(h));
+</script>
+</body>
+</html>
