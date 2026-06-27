@@ -75,6 +75,10 @@ app.all("/mcp", async (req, res) => {
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
+app.get("/docs", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "docs.html"));
+});
+
 const port = Number(process.env.PORT || 3000);
 server.listen(port, () => {
   console.log(`GroupWisdom running at http://localhost:${port}`);
