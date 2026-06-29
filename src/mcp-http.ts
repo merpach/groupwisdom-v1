@@ -13,6 +13,7 @@ import {
   getGroupsForUser,
   getGroup,
   listItems,
+  listItemsWithMembers,
   listInsights,
   listMembers,
   addItem,
@@ -217,10 +218,10 @@ function buildMcpServer(userId: string) {
     async ({ project }) => {
       const g = resolveGroup(project);
       if (!g) return text("No projects found.");
-      const items = listItems(g.id);
+      const items = listItemsWithMembers(g.id);
       if (!items.length) return text(`Nothing shared yet in "${g.name}".`);
       return text(items.map(i =>
-        `- [${i.type}] ${i.title}${i.url ? ` (${i.url})` : ""} — ${i.content}`).join("\n"));
+        `- [${i.type}]${i.member_name ? ` [by ${i.member_name}]` : ""} ${i.title}${i.url ? ` (${i.url})` : ""} — ${i.content}`).join("\n"));
     }
   );
 

@@ -9,7 +9,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import {
-  listItems, listMembers, listInsights, addInsight, setInsightStatus,
+  listItems, listItemsWithMembers, listMembers, listInsights, addInsight, setInsightStatus,
   setKnowledgeDoc, getGroup, setProjectSummary, setUserContext,
   getMemberByUserId, listItemsByMember, getGroupWebhook, type Item, type Insight,
 } from "./db.js";
@@ -46,17 +46,27 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
   const group = getGroup(groupId);
   if (!group) return;
   const existing = listInsights(groupId);
-  const recent = listItems(groupId).filter(i => !newItems.some(n => n.id === i.id)).slice(0, 10);
+  const allWithMembers = listItemsWithMembers(groupId);
+  const recent = allWithMembers.filter(i => !newItems.some(n => n.id === i.id)).slice(0, 15);
 
-  const newText = newItems
-    .map(i => `[${i.type}] "${i.title}"${i.url ? ` (${i.url})` : ""} — ${i.content?.slice(0, 120) || ""}`)
-    .join("\n");
-  const recentText = recent
-    .map(i => `[${i.type}] "${i.title}" — ${i.content?.slice(0, 60) || ""}`)
-    .join("\n") || "(none)";
-  const existingText = existing
-    .map(i => `[${i.id}] [${i.kind}] ${i.title}: ${i.body}`)
-    .join("\n") || "(none)";
+  // Build a map of member_id → name for new items (they come in as plain Items)
+  const memberNames = new Map(allWithMembers.filter(i => i.member_name).map(i => [i.id, i.member_name!]));
+
+  const fmt = (i: Item & { member_name?: string | null }) => {
+    const by = i.member_name ? ` [by ${i.member_name}]` : "";
+    return `[${i.type}]${by} "${i.title}"${i.url ? ` (${i.url})` : ""} — ${i.content?.slice(0, 120) || ""}`;
+  };
+
+  const newText = newItems.map(i => fmt({ ...i, member_name: memberNames.get(i.id) ?? null })).join("\n");
+  const recentText = recent.map(i => fmt(i)).join("\n") || "(none)";
+  const existingText = existing.map(i => `[${i.id}] [${i.kind}] ${i.title}: ${i.body}`).join("\n") || "(none)";
+
+  // Detect contributor overlap before calling Claude — flag if new items share topics with items from different contributors
+  const newContributors = new Set(newItems.map(i => memberNames.get(i.id)).filter(Boolean));
+  const otherContributorItems = recent.filter(i => i.member_name && !newContributors.has(i.member_name));
+  const overlapHint = otherContributorItems.length
+    ? `\nPay special attention to overlap: new items are from ${[...newContributors].join(", ")}. Other contributors already in the project: ${[...new Set(otherContributorItems.map(i => i.member_name))].join(", ")}. If topics overlap across contributors, surface that explicitly — name both contributors in the insight body.`
+    : "";
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return; // no mock for incremental — just skip
@@ -65,7 +75,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
   const client = new Anthropic();
   const msg = await client.messages.create({
     model: SUMMARY_MODEL,
-    max_tokens: 600,
+    max_tokens: 700,
     messages: [{
       role: "user",
       content: `You are the Wisdom engine for a shared project called "${group.name}".
@@ -74,15 +84,16 @@ Members: ${listMembers(groupId).map(m => m.name).join(", ") || "unknown"}
 New item${newItems.length > 1 ? "s" : ""} just added:
 ${newText}
 
-Recent project items (context):
+Recent project items with contributor names (context):
 ${recentText}
 
 Current wisdom (do not repeat; flag any now outdated):
 ${existingText}
+${overlapHint}
 
 Generate 0-2 NEW insights only where there is genuine signal.
+When two contributors are researching overlapping topics, always surface that as a pattern — name both contributors explicitly in the body, e.g. "Sarah and James are both investigating X from different angles."
 Also list IDs of any existing insights now stale, resolved, or superseded.
-Be conservative — only dismiss if clearly no longer relevant.
 
 Respond ONLY with valid JSON:
 {"new":[{"kind":"...","title":"...","body":"..."}],"dismiss":["id1"]}`,
@@ -156,13 +167,13 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
   try {
     const group = getGroup(groupId);
     if (!group) return [];
-    const items = listItems(groupId);
+    const items = listItemsWithMembers(groupId);
     if (items.length === 0) return [];
     const members = listMembers(groupId);
     const existing = listInsights(groupId);
 
     const result = process.env.ANTHROPIC_API_KEY
-      ? await analyzeWithClaude(group.name, items, members.map(m => `${m.name} (${m.role})`), existing)
+      ? await analyzeWithClaude(group.name, items, members.map(m => `${m.name}${m.role ? ` (${m.role})` : ""}`), existing)
       : analyzeMock(group.name, items, existing);
 
     const created: Insight[] = [];
@@ -184,18 +195,18 @@ type EngineResult = {
 };
 
 async function analyzeWithClaude(
-  groupName: string, items: Item[], members: string[], existing: Insight[],
+  groupName: string, items: (Item & { member_name?: string | null })[], members: string[], existing: Insight[],
 ): Promise<EngineResult> {
   const client = new Anthropic();
   const itemsText = items
-    .map(i => `- [${i.type}] "${i.title}" ${i.url ? `(${i.url}) ` : ""}— ${i.content}`.trim())
+    .map(i => `- [${i.type}]${i.member_name ? ` [by ${i.member_name}]` : ""} "${i.title}" ${i.url ? `(${i.url}) ` : ""}— ${i.content}`.trim())
     .join("\n");
   const existingText = existing.map(e => `- [${e.kind}] ${e.title}`).join("\n") || "(none)";
 
   const prompt = `You are the GroupWisdom insight engine: the shared brain of a group called "${groupName}".
 Members: ${members.join(", ") || "(unknown)"}
 
-Everything the group has shared (newest first):
+Everything the group has shared (newest first, with contributor name where known):
 ${itemsText}
 
 Insights already surfaced (do NOT repeat these):
@@ -210,8 +221,9 @@ Tasks:
    - question: something the group should be considering but is not
    - decision: something the group has decided, and what led to it
    0-4 insights. Quality over quantity. Each: short title + 1-2 sentence body.
+   When two different contributors are researching overlapping topics, always surface that as a pattern — name both contributors explicitly, e.g. "Sarah and James are both investigating X from different angles."
 2. Rewrite the group's living knowledge-base document as clean markdown:
-   a title, a one-line italic summary, then sections that organize what is known.
+   a title, a one-line italic summary, then sections that organize what is known, noting who contributed key findings.
    Include open questions. Keep it under 400 words.
 
 Respond with ONLY valid JSON:

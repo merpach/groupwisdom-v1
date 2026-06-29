@@ -190,6 +190,13 @@ export function addItem(groupId: string, data: Partial<Item>): Item {
 }
 export const listItems = (groupId: string) =>
   db.prepare("SELECT * FROM items WHERE group_id = ? ORDER BY created_at DESC").all(groupId) as Item[];
+
+export type ItemWithMember = Item & { member_name: string | null };
+export const listItemsWithMembers = (groupId: string): ItemWithMember[] =>
+  db.prepare(
+    "SELECT i.*, m.name as member_name FROM items i LEFT JOIN members m ON m.id = i.member_id WHERE i.group_id = ? ORDER BY i.created_at DESC"
+  ).all(groupId) as ItemWithMember[];
+
 export const searchItems = (groupId: string, q: string) =>
   db.prepare(
     "SELECT * FROM items WHERE group_id = ? AND (title LIKE ? OR content LIKE ? OR url LIKE ?) ORDER BY created_at DESC"
