@@ -24,7 +24,7 @@ import {
   listUserContexts,
   getUserById,
 } from "./db.js";
-import { analyzeGroup, updateProjectSummary, updateUserContext } from "./engine.js";
+import { analyzeGroup, updateProjectSummary, updateUserContext, detectContributorOverlap } from "./engine.js";
 
 const projectParam = z.string().optional().describe(
   "Project name (or partial name). If omitted, uses your first project."
@@ -95,21 +95,56 @@ function buildMcpServer(userId: string) {
   server.tool(
     "get_group_context",
     "Get everything a project knows: its knowledge document, recent insights, and what teammates have been researching. " +
-    "Only surface teammate research to the user when it meaningfully overlaps with what they are currently asking about.",
-    { project: projectParam },
-    async ({ project }) => {
+    "Pass the current_topic so the engine can actively check for contributor overlap.",
+    {
+      project: projectParam,
+      current_topic: z.string().optional().describe("What the user is currently asking about or researching in this conversation"),
+    },
+    async ({ project, current_topic }) => {
       const g = resolveGroup(project);
       if (!g) return text("No projects found.");
       const doc = getKnowledgeDoc(g.id);
       const insights = listInsights(g.id).slice(0, 10)
         .map(i => `- [${i.kind}] ${i.title}: ${i.body}`).join("\n") || "(none yet)";
+
+      // Actively detect overlap rather than just listing contexts
+      const overlapResult = await detectContributorOverlap(userId, g.id, current_topic).catch(() => null);
+      let overlapSection = "";
+      if (overlapResult?.hasOverlap) {
+        overlapSection = "\n\n## OVERLAP DETECTED — mention this to the user\n" +
+          overlapResult.overlaps.map(o => `- **${o.teammate}** is researching the same area: ${o.summary}`).join("\n") +
+          "\n\nTell the user directly: '[Teammate] is also researching this — want me to pull in what they found?'";
+      }
+
       const allContexts = listUserContexts(g.id).filter(c => c.user_id !== userId);
-      const teammateSection = allContexts.length
-        ? "\n\n## What teammates have been researching\n" +
-          allContexts.map(c => `- ${c.name} (${c.updated_at.slice(0, 10)}): ${c.summary}`).join("\n") +
-          "\n\nOnly mention this to the user if it overlaps with what they are currently asking about."
+      const teammateSection = allContexts.length && !overlapResult?.hasOverlap
+        ? "\n\n## Teammate research (no overlap detected with current topic)\n" +
+          allContexts.map(c => `- ${c.name} (${c.updated_at.slice(0, 10)}): ${c.summary}`).join("\n")
         : "";
-      return text(`# Project: ${g.name}\n\n## Knowledge base\n${doc.markdown}\n\n## Recent insights\n${insights}${teammateSection}`);
+
+      return text(`# Project: ${g.name}\n\n## Knowledge base\n${doc.markdown}\n\n## Recent insights\n${insights}${overlapSection}${teammateSection}`);
+    }
+  );
+
+  server.tool(
+    "get_team_radar",
+    "See what every contributor on the team is currently focused on — their active research areas based on recent activity. " +
+    "Use this when the user asks what their team has been working on.",
+    { project: projectParam },
+    async ({ project }) => {
+      const g = resolveGroup(project);
+      if (!g) return text("No projects found.");
+      const contexts = listUserContexts(g.id);
+      if (!contexts.length) return text(`No contributor activity recorded yet in "${g.name}".`);
+      const items = listItemsWithMembers(g.id);
+      const countByMember = new Map<string, number>();
+      for (const i of items) if (i.member_name) countByMember.set(i.member_name, (countByMember.get(i.member_name) ?? 0) + 1);
+      return text(
+        `## Team radar for "${g.name}"\n\n` +
+        contexts.map(c =>
+          `**${c.name}** (${c.updated_at.slice(0, 10)} · ${countByMember.get(c.name) ?? 0} items)\n${c.summary}`
+        ).join("\n\n")
+      );
     }
   );
 

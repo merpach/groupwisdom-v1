@@ -10,7 +10,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   listItems, listItemsWithMembers, listMembers, listInsights, addInsight, setInsightStatus,
-  setKnowledgeDoc, getGroup, setProjectSummary, setUserContext,
+  setKnowledgeDoc, getGroup, setProjectSummary, setUserContext, listUserContexts,
   getMemberByUserId, listItemsByMember, getGroupWebhook, type Item, type Insight,
 } from "./db.js";
 
@@ -37,7 +37,10 @@ export function queueIncrementalAnalysis(groupId: string, item: Item, onComplete
   pending.timer = setTimeout(async () => {
     const items = pending.items;
     pendingAnalysis.delete(groupId);
-    await runIncrementalWisdom(groupId, items).catch(err => console.error("[wisdom]", err.message));
+    await Promise.all([
+      runIncrementalWisdom(groupId, items).catch(err => console.error("[wisdom]", err.message)),
+      checkContextOverlapForWisdom(groupId, items).catch(err => console.error("[overlap]", err.message)),
+    ]);
     onComplete?.();
   }, 3000);
 }
@@ -396,4 +399,136 @@ Reply with only the summary, no preamble.`,
 
   const summary = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("").trim();
   if (summary) setUserContext(userId, groupId, summary);
+}
+
+export type OverlapResult = {
+  hasOverlap: boolean;
+  overlaps: Array<{ teammate: string; summary: string }>;
+};
+
+/**
+ * Actively checks if the current user's research overlaps with any teammate.
+ * Called by get_group_context so Claude gets a direct signal rather than raw summaries.
+ */
+export async function detectContributorOverlap(
+  userId: string,
+  groupId: string,
+  currentTopic?: string, // what the user is currently asking about in this conversation
+): Promise<OverlapResult> {
+  const allContexts = listUserContexts(groupId);
+  const mine = allContexts.find(c => c.user_id === userId);
+  const teammates = allContexts.filter(c => c.user_id !== userId);
+
+  if (!teammates.length) return { hasOverlap: false, overlaps: [] };
+  if (!mine?.summary && !currentTopic) return { hasOverlap: false, overlaps: [] };
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { hasOverlap: false, overlaps: [] };
+
+  const client = new Anthropic({ apiKey });
+  const userFocus = currentTopic
+    ? `Currently asking about: "${currentTopic}"\nRecent research summary: ${mine?.summary || "(none yet)"}`
+    : mine!.summary;
+
+  const msg = await client.messages.create({
+    model: SUMMARY_MODEL,
+    max_tokens: 400,
+    messages: [{
+      role: "user",
+      content: `You are checking for research overlap on a team.
+
+Current user's focus:
+${userFocus}
+
+Teammates' research summaries:
+${teammates.map(t => `- ${t.name}: ${t.summary}`).join("\n")}
+
+For each teammate whose research meaningfully overlaps with the current user's focus, explain the overlap in one sentence.
+Only flag genuine topical overlap — not vague similarity.
+
+Respond ONLY with valid JSON:
+{"overlaps":[{"teammate":"name","summary":"one sentence describing the overlap"}]}
+If no overlap, respond: {"overlaps":[]}`,
+    }],
+  });
+
+  const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
+  const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
+  try {
+    const result = JSON.parse(json) as { overlaps: Array<{ teammate: string; summary: string }> };
+    return { hasOverlap: result.overlaps.length > 0, overlaps: result.overlaps };
+  } catch {
+    return { hasOverlap: false, overlaps: [] };
+  }
+}
+
+/**
+ * Returns a snapshot of what each contributor is focused on right now.
+ * Built from user_context summaries — no new AI call needed.
+ */
+
+/**
+ * Checks user_context summaries for overlap and folds the signal into incremental wisdom.
+ * Called alongside runIncrementalWisdom when new items arrive.
+ */
+export async function checkContextOverlapForWisdom(groupId: string, newItems: Item[]): Promise<void> {
+  const contexts = listUserContexts(groupId);
+  if (contexts.length < 2) return;
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return;
+
+  // Build a map of member_id → context summary
+  const members = listMembers(groupId);
+  const memberContexts = contexts.map(c => {
+    const member = members.find(m => m.user_id === c.user_id);
+    return { name: c.name, summary: c.summary, memberId: member?.id };
+  });
+
+  const newItemContributors = new Set(
+    newItems.map(i => memberContexts.find(mc => mc.memberId === i.member_id)?.name).filter(Boolean)
+  );
+  if (!newItemContributors.size) return;
+
+  const newContributorContexts = memberContexts.filter(mc => newItemContributors.has(mc.name));
+  const otherContexts = memberContexts.filter(mc => !newItemContributors.has(mc.name));
+  if (!otherContexts.length) return;
+
+  const existing = listInsights(groupId);
+  const client = new Anthropic({ apiKey });
+
+  const msg = await client.messages.create({
+    model: SUMMARY_MODEL,
+    max_tokens: 300,
+    messages: [{
+      role: "user",
+      content: `You are checking if active researchers on a team are unknowingly working on the same thing.
+
+Contributors who just added data and what they've been researching:
+${newContributorContexts.map(c => `- ${c.name}: ${c.summary}`).join("\n")}
+
+Other teammates' current research:
+${otherContexts.map(c => `- ${c.name}: ${c.summary}`).join("\n")}
+
+Existing insights (do not duplicate):
+${existing.map(i => `- ${i.title}`).join("\n") || "(none)"}
+
+If there is meaningful overlap between any of these researchers — same topic, same competitor, same question — generate one insight naming both people.
+If no real overlap, return nothing.
+
+Respond ONLY with valid JSON:
+{"overlap":{"title":"...","body":"..."} | null}`,
+    }],
+  });
+
+  const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
+  const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
+  try {
+    const result = JSON.parse(json) as { overlap: { title: string; body: string } | null };
+    if (result.overlap) {
+      if (existing.some(e => e.title.toLowerCase() === result.overlap!.title.toLowerCase())) return;
+      const saved = addInsight(groupId, "pattern", result.overlap.title, result.overlap.body);
+      setInsightStatus(saved.id, "acknowledged");
+    }
+  } catch { /* ignore parse errors */ }
 }
