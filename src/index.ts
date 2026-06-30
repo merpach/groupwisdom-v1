@@ -4,9 +4,17 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
+import bcrypt from "bcrypt";
 import { api, setNotifier } from "./api.js";
 import { apiv1, setV1Notifier } from "./api-v1.js";
 import { handleMcpRequest } from "./mcp-http.js";
+import { getUserByEmail, createUser } from "./db.js";
+
+// Ensure demo user exists for the /v1/demo endpoint
+const DEMO_EMAIL = "demo@groupwisdom.internal";
+if (!getUserByEmail(DEMO_EMAIL)) {
+  createUser(DEMO_EMAIL, await bcrypt.hash("no-login-" + Math.random(), 10), "Demo");
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();

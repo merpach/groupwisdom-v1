@@ -23,6 +23,7 @@ import { createHmac } from "node:crypto";
 import { Router } from "express";
 import {
   getUserByApiKey,
+  getUserByEmail,
   getGroupsForUser,
   getGroup,
   createGroup,
@@ -128,6 +129,22 @@ function parsePagination(query: any) {
   const offset = Math.max(parseInt(query.offset ?? "0", 10) || 0, 0);
   return { limit, offset };
 }
+
+// ── Demo ─────────────────────────────────────────────────────────────────────
+// Creates a throwaway project + project key so anyone can try the API without signing up.
+
+apiv1.post("/demo", (req, res) => {
+  const demoUser = getUserByEmail("demo@groupwisdom.internal");
+  if (!demoUser) return res.status(503).json({ error: "Demo unavailable." });
+  const g = createGroup("Demo — " + new Date().toISOString().slice(0, 16).replace("T", " "));
+  addMember(g.id, "Demo", "", demoUser.email, demoUser.id);
+  const pk = createProjectApiKey(g.id, "demo");
+  res.status(201).json({
+    project_id: g.id,
+    api_key: pk.key,
+    base_url: (req.headers["x-forwarded-proto"] ?? req.protocol) + "://" + req.headers.host + "/v1",
+  });
+});
 
 // ── Projects ──────────────────────────────────────────────────────────────────
 

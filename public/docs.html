@@ -63,6 +63,53 @@
   .intro-card { background: #f7f9ff; border: 1px solid #dce8ff; border-radius: 10px; padding: 20px 24px; margin: 24px 0 8px; }
   .intro-card p { margin: 0; }
 
+  /* Demo section */
+  .demo-intro-badge { display: inline-flex; align-items: center; gap: 6px; background: #111; color: #4ade80; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 999px; letter-spacing: .08em; margin-bottom: 16px; }
+  .scenario-row { display: flex; gap: 8px; margin: 16px 0 20px; flex-wrap: wrap; }
+  .scenario-btn { padding: 7px 16px; border: 1px solid #e0e0e0; background: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit; color: #555; transition: all .15s; }
+  .scenario-btn:hover { border-color: #111; color: #111; }
+  .scenario-btn.active { background: #111; color: #fff; border-color: #111; }
+  .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 4px 0 20px; }
+  @media (max-width: 700px) { .demo-grid { grid-template-columns: 1fr; } }
+  .demo-panel { border: 1px solid #e8e8e8; border-radius: 10px; overflow: hidden; }
+  .demo-panel-hdr { padding: 9px 16px; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; border-bottom: 1px solid #e8e8e8; }
+  .demo-panel-hdr.light { background: #fafafa; color: #888; }
+  .demo-panel-hdr.dark { background: #0d1117; color: #4ade80; border-bottom-color: #1e2a1e; }
+  .demo-panel-body { padding: 14px; }
+  .demo-panel-body.dark { background: #0d1117; min-height: 220px; }
+  .demo-item { padding: 9px 12px; border: 1px solid #eee; border-radius: 6px; margin-bottom: 8px; font-size: 12.5px; opacity: 0; transform: translateY(5px); transition: opacity .35s, transform .35s; }
+  .demo-item.show { opacity: 1; transform: translateY(0); }
+  .demo-item-by { font-size: 11px; color: #888; margin-top: 3px; }
+  .demo-run-btn { width: 100%; padding: 11px; background: #111; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin: 12px 0 4px; font-family: inherit; letter-spacing: .01em; transition: background .15s; }
+  .demo-run-btn:hover:not(:disabled) { background: #2a2a2a; }
+  .demo-run-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .demo-insight { padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #ddd; background: #fafafa; opacity: 0; transform: translateY(5px); transition: opacity .4s, transform .4s; }
+  .demo-insight.show { opacity: 1; transform: translateY(0); }
+  .demo-insight.connection { border-left-color: #2255cc; }
+  .demo-insight.pattern { border-left-color: #7c3aed; }
+  .demo-insight.blind_spot { border-left-color: #d97706; }
+  .demo-insight.conflict { border-left-color: #dc2626; }
+  .demo-insight.question { border-left-color: #059669; }
+  .demo-insight.decision { border-left-color: #64748b; }
+  .demo-insight-kind { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #888; margin-bottom: 3px; }
+  .demo-insight-title { font-weight: 600; color: #111; margin-bottom: 3px; font-size: 13px; }
+  .demo-insight-body { color: #555; line-height: 1.55; font-size: 12.5px; }
+  .demo-waiting { color: #888; font-size: 12.5px; margin-top: 8px; }
+  /* Terminal */
+  .t-empty { color: #3a3a3a; font-size: 12px; font-family: "SF Mono","Fira Mono",monospace; }
+  .t-line { margin-bottom: 14px; font-family: "SF Mono","Fira Mono",monospace; }
+  .t-row { display: flex; align-items: center; gap: 8px; }
+  .t-verb { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px; flex-shrink: 0; }
+  .t-verb.post { color: #4ade80; background: #4ade8018; }
+  .t-verb.get { color: #60a5fa; background: #60a5fa18; }
+  .t-path { color: #e2e8f0; font-size: 12px; flex: 1; }
+  .t-status { font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .t-status.pending { color: #3a3a3a; }
+  .t-status.s201, .t-status.s200 { color: #4ade80; }
+  .t-status.s202 { color: #fbbf24; }
+  .t-status.s500 { color: #f87171; }
+  .t-body { color: #6b7280; margin-top: 5px; padding-left: 10px; border-left: 1px solid #1e293b; white-space: pre; font-size: 11px; line-height: 1.55; overflow: hidden; max-height: 100px; }
+
   /* Kind pills */
   .kind { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin: 2px; background: #f0f0f0; color: #555; }
   .kind.connection { background: #e8f0ff; color: #2255cc; }
@@ -79,6 +126,8 @@
 <nav>
   <a href="/" class="nav-back">← Back to app</a>
   <div class="nav-logo">GroupWisdom<span>API Reference</span></div>
+  <div class="nav-section">Demo</div>
+  <a class="nav-link" href="#demo">Live demo</a>
   <div class="nav-section">SDK</div>
   <a class="nav-link" href="#sdk-install">Installation</a>
   <a class="nav-link" href="#sdk-quickstart">Quick start</a>
@@ -117,6 +166,39 @@
 
   <div class="intro-card">
     <p>POST items to a project → GroupWisdom runs analysis with Claude (Haiku for speed, Sonnet for depth) → insights are POSTed to your <code>webhook_url</code> and available via GET anytime.</p>
+  </div>
+
+  <!-- DEMO -->
+  <h2 id="demo">Live demo</h2>
+  <p>Pick a scenario and click <strong>Run demo</strong>. Every action below is a real API call — no web app, no UI, just HTTP. The right panel shows exactly what's happening over the wire.</p>
+
+  <div class="scenario-row">
+    <button class="scenario-btn active" onclick="setScenario('product', this)">📦 Product team</button>
+    <button class="scenario-btn" onclick="setScenario('sales', this)">💼 Sales team</button>
+    <button class="scenario-btn" onclick="setScenario('research', this)">🔬 Research team</button>
+  </div>
+
+  <div class="demo-grid">
+    <!-- Left panel -->
+    <div>
+      <div class="demo-panel">
+        <div class="demo-panel-hdr light">DATA GOING IN — <span id="demo-scenario-label">4 items from 3 contributors</span></div>
+        <div class="demo-panel-body" id="demo-items-panel" style="min-height:180px"></div>
+      </div>
+      <button class="demo-run-btn" id="demo-btn" onclick="runDemo()">▶ Run Demo</button>
+      <div class="demo-panel" id="demo-insights-panel" style="display:none">
+        <div class="demo-panel-hdr light">INSIGHTS BACK FROM THE API</div>
+        <div class="demo-panel-body" id="demo-insights-body"></div>
+      </div>
+    </div>
+
+    <!-- Right panel — terminal -->
+    <div class="demo-panel">
+      <div class="demo-panel-hdr dark">⚡ LIVE API CALLS — THIS IS THE API, NOT THE WEB APP</div>
+      <div class="demo-panel-body dark" id="demo-terminal">
+        <span class="t-empty">Click Run Demo to see live API calls...</span>
+      </div>
+    </div>
   </div>
 
   <!-- SDK -->
@@ -480,6 +562,213 @@ function copyCode(btn) {
     setTimeout(() => btn.textContent = 'Copy', 1500);
   });
 }
+
+// ── Demo ─────────────────────────────────────────────────────────────────────
+
+const SCENARIOS = {
+  product: {
+    label: '4 items from 3 contributors',
+    description: 'Sarah, James, and Priya share what they\'ve each noticed about mobile checkout.',
+    items: [
+      { title: 'Mobile checkout abandonment up 28% this month', type: 'note', contributed_by: 'Sarah' },
+      { title: 'Users say the payment form feels unsafe on mobile', content: 'Consistent theme across 6 user interviews this week', type: 'note', contributed_by: 'James' },
+      { title: '17 support tickets about payment errors in 7 days', type: 'note', contributed_by: 'Priya' },
+      { title: 'Competitor launched Apple Pay support last quarter', type: 'note', contributed_by: 'Sarah' },
+    ],
+  },
+  sales: {
+    label: '4 items from 3 contributors',
+    description: 'Marco, Yuki, and Devon pool what they\'re hearing in the field.',
+    items: [
+      { title: 'Acme Corp deal stalled — GDPR concerns blocking sign-off', type: 'note', contributed_by: 'Marco' },
+      { title: '3 enterprise leads mentioned Notion as an alternative this week', type: 'note', contributed_by: 'Yuki' },
+      { title: 'Technical buyers want SSO before they\'ll sign', type: 'note', contributed_by: 'Devon' },
+      { title: 'Lost TechCorp deal — competitor undercut us on pricing', type: 'note', contributed_by: 'Marco' },
+    ],
+  },
+  research: {
+    label: '4 items from 3 contributors',
+    description: 'Lin, Amir, and Sofia share findings from their ML project.',
+    items: [
+      { title: 'Model accuracy drops 12% on Q4 edge cases', type: 'note', contributed_by: 'Lin' },
+      { title: 'Memory spikes on batch sizes over 512 — crashes in prod', type: 'note', contributed_by: 'Amir' },
+      { title: 'Production latency p99 is 3× higher than staging', type: 'note', contributed_by: 'Lin' },
+      { title: 'NeurIPS paper suggests different preprocessing could fix edge case drift', type: 'note', contributed_by: 'Sofia' },
+    ],
+  },
+};
+
+let activeScenario = 'product';
+let demoRunning = false;
+
+function setScenario(name, btn) {
+  activeScenario = name;
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const s = SCENARIOS[name];
+  document.getElementById('demo-scenario-label').textContent = s.label;
+  renderItemsPreview(s.items);
+  document.getElementById('demo-insights-panel').style.display = 'none';
+  document.getElementById('demo-terminal').innerHTML = '<span class="t-empty">Click Run Demo to see live API calls...</span>';
+  const btn2 = document.getElementById('demo-btn');
+  btn2.disabled = false;
+  btn2.textContent = '▶ Run Demo';
+  demoRunning = false;
+}
+
+function renderItemsPreview(items) {
+  const panel = document.getElementById('demo-items-panel');
+  panel.innerHTML = items.map(i =>
+    `<div class="demo-item show">
+      <strong>${i.title}</strong>
+      ${i.content ? `<div style="color:#666;font-size:12px;margin-top:2px">${i.content}</div>` : ''}
+      <div class="demo-item-by">contributed by ${i.contributed_by}</div>
+    </div>`
+  ).join('');
+}
+
+function addTerminalLine(verb, path, statusClass, statusText, bodyText) {
+  const t = document.getElementById('demo-terminal');
+  if (t.querySelector('.t-empty')) t.innerHTML = '';
+  const id = 't-' + Date.now() + Math.random();
+  const div = document.createElement('div');
+  div.className = 't-line';
+  div.id = id;
+  div.innerHTML = `
+    <div class="t-row">
+      <span class="t-verb ${verb.toLowerCase()}">${verb}</span>
+      <span class="t-path">${path}</span>
+      <span class="t-status ${statusClass}">${statusText}</span>
+    </div>
+    ${bodyText ? `<div class="t-body">${bodyText}</div>` : ''}
+  `;
+  t.appendChild(div);
+  t.scrollTop = t.scrollHeight;
+  return id;
+}
+
+function updateTerminalLine(id, statusClass, statusText, bodyText) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.querySelector('.t-status').className = 't-status ' + statusClass;
+  el.querySelector('.t-status').textContent = statusText;
+  let body = el.querySelector('.t-body');
+  if (bodyText) {
+    if (!body) {
+      body = document.createElement('div');
+      body.className = 't-body';
+      el.appendChild(body);
+    }
+    body.textContent = bodyText;
+  }
+  document.getElementById('demo-terminal').scrollTop = 9999;
+}
+
+async function runDemo() {
+  if (demoRunning) return;
+  demoRunning = true;
+  const btn = document.getElementById('demo-btn');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  document.getElementById('demo-insights-panel').style.display = 'none';
+  document.getElementById('demo-terminal').innerHTML = '';
+
+  const scenario = SCENARIOS[activeScenario];
+
+  // Step 1 — create demo project
+  const l1 = addTerminalLine('POST', '/v1/demo', 'pending', '···', 'Creating throwaway demo project...');
+  let projectId, apiKey, baseUrl;
+  try {
+    const r = await fetch('/v1/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const d = await r.json();
+    projectId = d.project_id;
+    apiKey = d.api_key;
+    baseUrl = d.base_url;
+    updateTerminalLine(l1, 's201', '201 Created', JSON.stringify({ project_id: projectId.slice(0,8)+'…', api_key: apiKey.slice(0,16)+'…' }, null, 2));
+  } catch (e) {
+    updateTerminalLine(l1, 's500', '500 Error', e.message);
+    resetDemo(); return;
+  }
+
+  // Step 2 — ingest items
+  const shortId = projectId.slice(0,8) + '…';
+  const l2 = addTerminalLine('POST', `/v1/projects/${shortId}/ingest`, 'pending', '···',
+    JSON.stringify({ items: scenario.items.map(i => ({ title: i.title, contributed_by: i.contributed_by })) }, null, 2));
+
+  // Animate items in left panel
+  const panels = document.querySelectorAll('#demo-items-panel .demo-item');
+  panels.forEach((el, i) => { el.classList.remove('show'); setTimeout(() => el.classList.add('show'), i * 120); });
+
+  try {
+    const r = await fetch(`${baseUrl}/projects/${projectId}/ingest`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: scenario.items }),
+    });
+    const d = await r.json();
+    updateTerminalLine(l2, 's202', '202 Accepted', JSON.stringify({ accepted: d.accepted, message: d.message }, null, 2));
+  } catch (e) {
+    updateTerminalLine(l2, 's500', '500 Error', e.message);
+    resetDemo(); return;
+  }
+
+  // Step 3 — poll for insights (engine debounces 3s then runs)
+  btn.textContent = 'Analysing…';
+  let polls = 0;
+  const maxPolls = 18;
+
+  const poll = async () => {
+    polls++;
+    const lp = addTerminalLine('GET', `/v1/projects/${shortId}/insights`, 'pending', '···', null);
+    try {
+      const r = await fetch(`${baseUrl}/projects/${projectId}/insights`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      });
+      const d = await r.json();
+      updateTerminalLine(lp, 's200', '200 OK', JSON.stringify({ total: d.total, has_more: d.has_more }, null, 2));
+
+      if (d.total > 0) {
+        renderInsights(d.data);
+        resetDemo(true); return;
+      }
+    } catch (e) {
+      updateTerminalLine(lp, 's500', '500 Error', e.message);
+      resetDemo(); return;
+    }
+    if (polls < maxPolls) setTimeout(poll, 2500);
+    else resetDemo();
+  };
+
+  setTimeout(poll, 4000); // give engine time to fire
+}
+
+function renderInsights(insights) {
+  const panel = document.getElementById('demo-insights-panel');
+  const body = document.getElementById('demo-insights-body');
+  panel.style.display = 'block';
+  body.innerHTML = insights.map(i =>
+    `<div class="demo-insight ${i.kind}">
+      <div class="demo-insight-kind">${i.kind.replace('_', ' ')}</div>
+      <div class="demo-insight-title">${i.title}</div>
+      <div class="demo-insight-body">${i.body}</div>
+    </div>`
+  ).join('');
+  setTimeout(() => body.querySelectorAll('.demo-insight').forEach((el, i) =>
+    setTimeout(() => el.classList.add('show'), i * 150)), 50);
+}
+
+function resetDemo(success) {
+  demoRunning = false;
+  const btn = document.getElementById('demo-btn');
+  btn.disabled = false;
+  btn.textContent = success ? '▶ Run Again' : '▶ Run Demo';
+}
+
+// Initialise preview on load
+document.addEventListener('DOMContentLoaded', () => {
+  renderItemsPreview(SCENARIOS[activeScenario].items);
+  document.querySelectorAll('#demo-items-panel .demo-item').forEach(el => el.classList.add('show'));
+});
 
 // Highlight active nav link on scroll
 const links = document.querySelectorAll('.nav-link');
