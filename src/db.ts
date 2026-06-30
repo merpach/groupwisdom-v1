@@ -89,9 +89,21 @@ CREATE TABLE IF NOT EXISTS user_context (
 CREATE TABLE IF NOT EXISTS group_settings (
   group_id TEXT PRIMARY KEY REFERENCES groups(id),
   webhook_url TEXT DEFAULT NULL,
+  webhook_secret TEXT DEFAULT NULL,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS project_api_keys (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES groups(id),
+  name TEXT NOT NULL,
+  key TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_used_at TEXT DEFAULT NULL
+);
 `);
+
+// Migrate: add webhook_secret if it doesn't exist yet
+try { db.exec("ALTER TABLE group_settings ADD COLUMN webhook_secret TEXT DEFAULT NULL"); } catch { /* already exists */ }
 
 export type User = { id: string; email: string; password_hash: string; name: string; api_key: string; created_at: string };
 export type Group = { id: string; name: string; api_key: string; created_at: string };
@@ -271,8 +283,58 @@ export const acceptInvite = (token: string) =>
 export const getGroupWebhook = (groupId: string): string | null =>
   ((db.prepare("SELECT webhook_url FROM group_settings WHERE group_id = ?").get(groupId) as { webhook_url: string | null } | undefined)?.webhook_url ?? null);
 
-export const setGroupWebhook = (groupId: string, webhookUrl: string | null) =>
+export const getGroupWebhookSecret = (groupId: string): string | null =>
+  ((db.prepare("SELECT webhook_secret FROM group_settings WHERE group_id = ?").get(groupId) as { webhook_secret: string | null } | undefined)?.webhook_secret ?? null);
+
+export const setGroupWebhook = (groupId: string, webhookUrl: string | null) => {
+  const secret = webhookUrl
+    ? (getGroupWebhookSecret(groupId) ?? randomBytes(24).toString("hex"))
+    : null;
   db.prepare(
-    "INSERT INTO group_settings (group_id, webhook_url, updated_at) VALUES (?, ?, datetime('now')) " +
-    "ON CONFLICT(group_id) DO UPDATE SET webhook_url = excluded.webhook_url, updated_at = datetime('now')"
-  ).run(groupId, webhookUrl);
+    "INSERT INTO group_settings (group_id, webhook_url, webhook_secret, updated_at) VALUES (?, ?, ?, datetime('now')) " +
+    "ON CONFLICT(group_id) DO UPDATE SET webhook_url = excluded.webhook_url, webhook_secret = excluded.webhook_secret, updated_at = datetime('now')"
+  ).run(groupId, webhookUrl, secret);
+  return secret;
+};
+
+export const deleteItem = (itemId: string) =>
+  db.prepare("DELETE FROM items WHERE id = ?").run(itemId);
+
+export type PaginatedResult<T> = { data: T[]; total: number; limit: number; offset: number; has_more: boolean };
+
+export function listItemsPaginated(groupId: string, limit = 50, offset = 0): PaginatedResult<Item> {
+  const data = db.prepare("SELECT * FROM items WHERE group_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?").all(groupId, limit, offset) as Item[];
+  const total = (db.prepare("SELECT COUNT(*) as n FROM items WHERE group_id = ?").get(groupId) as { n: number }).n;
+  return { data, total, limit, offset, has_more: offset + data.length < total };
+}
+
+export function listInsightsPaginated(groupId: string, kind?: string, limit = 50, offset = 0): PaginatedResult<Insight> {
+  const data = kind
+    ? db.prepare("SELECT * FROM insights WHERE group_id = ? AND kind = ? AND status != 'dismissed' ORDER BY created_at DESC LIMIT ? OFFSET ?").all(groupId, kind, limit, offset) as Insight[]
+    : db.prepare("SELECT * FROM insights WHERE group_id = ? AND status != 'dismissed' ORDER BY created_at DESC LIMIT ? OFFSET ?").all(groupId, limit, offset) as Insight[];
+  const total = kind
+    ? (db.prepare("SELECT COUNT(*) as n FROM insights WHERE group_id = ? AND kind = ? AND status != 'dismissed'").get(groupId, kind) as { n: number }).n
+    : (db.prepare("SELECT COUNT(*) as n FROM insights WHERE group_id = ? AND status != 'dismissed'").get(groupId) as { n: number }).n;
+  return { data, total, limit, offset, has_more: offset + data.length < total };
+}
+
+export type ProjectApiKey = { id: string; project_id: string; name: string; key: string; created_at: string; last_used_at: string | null };
+
+export function createProjectApiKey(projectId: string, name: string): ProjectApiKey {
+  const id = randomUUID();
+  const key = "gw_proj_" + randomBytes(20).toString("hex");
+  db.prepare("INSERT INTO project_api_keys (id, project_id, name, key) VALUES (?, ?, ?, ?)").run(id, projectId, name, key);
+  return db.prepare("SELECT * FROM project_api_keys WHERE id = ?").get(id) as ProjectApiKey;
+}
+
+export const listProjectApiKeys = (projectId: string): ProjectApiKey[] =>
+  db.prepare("SELECT * FROM project_api_keys WHERE project_id = ? ORDER BY created_at DESC").all(projectId) as ProjectApiKey[];
+
+export const getByProjectApiKey = (key: string): ProjectApiKey | undefined => {
+  const row = db.prepare("SELECT * FROM project_api_keys WHERE key = ?").get(key) as ProjectApiKey | undefined;
+  if (row) db.prepare("UPDATE project_api_keys SET last_used_at = datetime('now') WHERE id = ?").run(row.id);
+  return row;
+};
+
+export const revokeProjectApiKey = (keyId: string) =>
+  db.prepare("DELETE FROM project_api_keys WHERE id = ?").run(keyId);

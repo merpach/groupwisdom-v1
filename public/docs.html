@@ -79,7 +79,11 @@
 <nav>
   <a href="/" class="nav-back">← Back to app</a>
   <div class="nav-logo">GroupWisdom<span>API Reference</span></div>
-  <div class="nav-section">Overview</div>
+  <div class="nav-section">SDK</div>
+  <a class="nav-link" href="#sdk-install">Installation</a>
+  <a class="nav-link" href="#sdk-quickstart">Quick start</a>
+  <a class="nav-link" href="#sdk-reference">SDK reference</a>
+  <div class="nav-section">REST API</div>
   <a class="nav-link" href="#authentication">Authentication</a>
   <a class="nav-link" href="#base-url">Base URL</a>
   <a class="nav-link" href="#errors">Errors</a>
@@ -94,9 +98,14 @@
   <div class="nav-section">Insights</div>
   <a class="nav-link" href="#list-insights">List insights</a>
   <a class="nav-link" href="#insight-kinds">Insight kinds</a>
+  <div class="nav-section">API Keys</div>
+  <a class="nav-link" href="#project-keys">Project keys</a>
+  <a class="nav-link" href="#create-key">Create key</a>
+  <a class="nav-link" href="#revoke-key">Revoke key</a>
   <div class="nav-section">Webhooks</div>
   <a class="nav-link" href="#webhook-setup">Setup</a>
-  <a class="nav-link" href="#webhook-payload">Payload</a>
+  <a class="nav-link" href="#webhook-payload">Signature</a>
+  <a class="nav-link" href="#webhook-payload-shape">Payload shape</a>
   <div class="nav-section">Examples</div>
   <a class="nav-link" href="#example-js">JavaScript</a>
   <a class="nav-link" href="#example-python">Python</a>
@@ -110,15 +119,57 @@
     <p>POST items to a project → GroupWisdom runs analysis with Claude (Haiku for speed, Sonnet for depth) → insights are POSTed to your <code>webhook_url</code> and available via GET anytime.</p>
   </div>
 
+  <!-- SDK -->
+  <h2 id="sdk-install">JavaScript / TypeScript SDK</h2>
+  <p>The easiest way to integrate GroupWisdom. Install once, call functions — no HTTP boilerplate required.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>npm install @groupwisdom/sdk</pre>
+
+  <h2 id="sdk-quickstart">Quick start</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>import GroupWisdom from '@groupwisdom/sdk'
+
+const gw = new GroupWisdom({ apiKey: process.env.GROUPWISDOM_API_KEY })
+
+// Create a project
+const project = await gw.createProject('my-project')
+
+// Send data — attributed to a specific person
+await gw.ingest(project.id, {
+  title: 'Q3 user research findings',
+  content: 'Users in APAC want offline mode...',
+  contributed_by: 'Sarah'
+})
+
+// Read insights when ready
+const insights = await gw.listInsights(project.id)
+insights.forEach(i => console.log(`[${i.kind}] ${i.title}`))</pre>
+
+  <h2 id="sdk-reference">SDK reference</h2>
+  <table>
+    <tr><th>Method</th><th>Description</th></tr>
+    <tr><td>new GroupWisdom({ apiKey })</td><td>Create a client. Pass <code>baseUrl</code> to point at a self-hosted instance.</td></tr>
+    <tr><td>gw.createProject(name, { webhook_url? })</td><td>Create a new project. Returns a <code>Project</code> object.</td></tr>
+    <tr><td>gw.listProjects()</td><td>List all projects you have access to.</td></tr>
+    <tr><td>gw.getProject(projectId)</td><td>Get a single project by ID.</td></tr>
+    <tr><td>gw.updateProject(projectId, { webhook_url })</td><td>Update a project's webhook URL.</td></tr>
+    <tr><td>gw.ingest(projectId, item | item[])</td><td>Send one or more items. Triggers analysis. Each item can include <code>contributed_by</code>.</td></tr>
+    <tr><td>gw.listItems(projectId)</td><td>List all items in a project.</td></tr>
+    <tr><td>gw.listInsights(projectId, kind?)</td><td>Get insights. Optionally filter by kind.</td></tr>
+  </table>
+  <p>Full TypeScript types are included — your editor will autocomplete every field.</p>
+
   <!-- Authentication -->
   <h2 id="authentication">Authentication</h2>
-  <p>All requests require your personal API key passed as a Bearer token:</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>Authorization: Bearer gw_your_api_key</pre>
-  <p>Find your key in the app under <strong>Developer API → Dashboard</strong>, or at <code>GET /api/me</code>.</p>
+  <p>There are two types of API key:</p>
+  <table>
+    <tr><th>Key type</th><th>Format</th><th>Access</th></tr>
+    <tr><td>Personal key</td><td><code>gw_...</code></td><td>All your projects. Found in <strong>Developer API → Dashboard</strong>. Use for setup scripts and trusted backends.</td></tr>
+    <tr><td>Project key</td><td><code>gw_proj_...</code></td><td>One specific project only. Create via API or dashboard. Use in production apps — if it leaks, revoke it without affecting your account.</td></tr>
+  </table>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>Authorization: Bearer gw_proj_your_project_key</pre>
 
   <!-- Base URL -->
   <h2 id="base-url">Base URL</h2>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>https://your-groupwisdom-url.com/v1</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>https://groupwisdom.up.railway.app/v1</pre>
   <p>All v1 endpoints are under <code>/v1</code>. The existing web app lives at <code>/api</code> and is unchanged.</p>
 
   <!-- Errors -->
@@ -140,7 +191,7 @@
     <tr><td>name</td><td>string</td><td>Project name <span class="badge required">required</span></td></tr>
     <tr><td>webhook_url</td><td>string</td><td>URL to receive insight callbacks <span class="badge optional">optional</span></td></tr>
   </table>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://your-url.com/v1/projects \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects \
   -H "Authorization: Bearer gw_yourkey" \
   -H "Content-Type: application/json" \
   -d '{
@@ -158,7 +209,7 @@
   <h2 id="list-projects">List projects</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects</span></div>
   <p>Returns all projects you have access to.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl https://your-url.com/v1/projects \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl https://groupwisdom.up.railway.app/v1/projects \
   -H "Authorization: Bearer gw_yourkey"</pre>
 
   <h2 id="get-project">Get project</h2>
@@ -172,7 +223,7 @@
     <tr><th>Field</th><th>Type</th><th>Description</th></tr>
     <tr><td>webhook_url</td><td>string | null</td><td>Set to <code>null</code> to remove the webhook</td></tr>
   </table>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X PATCH https://your-url.com/v1/projects/proj_abc123 \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X PATCH https://groupwisdom.up.railway.app/v1/projects/proj_abc123 \
   -H "Authorization: Bearer gw_yourkey" \
   -H "Content-Type: application/json" \
   -d '{"webhook_url": "https://new-server.com/hook"}'</pre>
@@ -194,7 +245,7 @@
   <p style="font-size:12px;color:#888">* At least one of <code>title</code>, <code>content</code>, or <code>url</code> is required per item.</p>
 
   <h3>Single item</h3>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://your-url.com/v1/projects/proj_abc123/ingest \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects/proj_abc123/ingest \
   -H "Authorization: Bearer gw_yourkey" \
   -H "Content-Type: application/json" \
   -d '{
@@ -204,7 +255,7 @@
   }'</pre>
 
   <h3>Bulk ingest</h3>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://your-url.com/v1/projects/proj_abc123/ingest \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects/proj_abc123/ingest \
   -H "Authorization: Bearer gw_yourkey" \
   -H "Content-Type: application/json" \
   -d '{
@@ -227,26 +278,50 @@
   <!-- List items -->
   <h2 id="list-items">List items</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/items</span></div>
-  <p>Returns all items in a project, newest first.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl https://your-url.com/v1/projects/proj_abc123/items \
-  -H "Authorization: Bearer gw_yourkey"</pre>
+  <p>Returns items in a project, newest first. Paginated — default 50 per page, max 200.</p>
+  <table>
+    <tr><th>Query param</th><th>Default</th><th>Description</th></tr>
+    <tr><td>limit</td><td>50</td><td>Items per page (max 200)</td></tr>
+    <tr><td>offset</td><td>0</td><td>Number of items to skip</td></tr>
+  </table>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/items?limit=20&offset=0" \
+  -H "Authorization: Bearer gw_proj_yourkey"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
+  "data": [...],
+  "total": 142,
+  "limit": 20,
+  "offset": 0,
+  "has_more": true
+}</pre>
+
+  <h2 id="delete-item">Delete item</h2>
+  <div class="endpoint"><span class="method patch" style="background:#ffe8e8;color:#cc3333">DELETE</span><span class="path">/v1/projects/:id/items/:itemId</span></div>
+  <p>Permanently removes an item from a project.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X DELETE https://groupwisdom.up.railway.app/v1/projects/proj_abc123/items/item_001 \
+  -H "Authorization: Bearer gw_proj_yourkey"</pre>
 
   <!-- Insights -->
   <h2 id="list-insights">List insights</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/insights</span></div>
-  <p>Returns all insights the engine has surfaced, newest first. Filter by kind with <code>?kind=pattern</code>.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://your-url.com/v1/projects/proj_abc123/insights?kind=pattern" \
-  -H "Authorization: Bearer gw_yourkey"</pre>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>[
-  {
-    "id": "ins_xyz",
-    "kind": "pattern",
-    "title": "Mobile payment friction is a recurring theme",
-    "body": "Four of six items point to the same checkout drop-off. A shared pattern is emerging that no one has named yet.",
-    "status": "acknowledged",
-    "created_at": "2026-06-26T14:30:00Z"
-  }
-]</pre>
+  <p>Returns insights the engine has surfaced, newest first. Paginated — supports <code>?limit</code>, <code>?offset</code>, and <code>?kind</code> filters.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?kind=pattern&limit=20" \
+  -H "Authorization: Bearer gw_proj_yourkey"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
+  "data": [
+    {
+      "id": "ins_xyz",
+      "kind": "pattern",
+      "title": "Mobile payment friction is a recurring theme",
+      "body": "Four of six items point to the same checkout drop-off.",
+      "status": "new",
+      "created_at": "2026-06-26T14:30:00Z"
+    }
+  ],
+  "total": 8,
+  "limit": 20,
+  "offset": 0,
+  "has_more": false
+}</pre>
 
   <h2 id="insight-kinds">Insight kinds</h2>
   <p>The engine generates insights across six categories:</p>
@@ -260,6 +335,35 @@
     <tr><td><span class="kind decision">decision</span></td><td>Something the group has decided, and what led to it</td></tr>
   </table>
 
+  <!-- Project API Keys -->
+  <h2 id="project-keys">Project API keys</h2>
+  <p>Project keys (<code>gw_proj_...</code>) are scoped to a single project. Use them in production apps instead of your personal key — if a project key leaks, you revoke just that key without touching your account or other projects.</p>
+  <p>Project keys can ingest data, read items, and read insights. They cannot create new projects or manage other keys — that requires your personal key.</p>
+
+  <h2 id="create-key">Create a project key</h2>
+  <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects/:id/keys</span></div>
+  <p>The full key is only returned once on creation. Store it immediately — subsequent <code>GET /keys</code> calls only show a redacted preview.</p>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td>name</td><td>string</td><td>Label for this key (e.g. "Production", "Staging") <span class="badge required">required</span></td></tr>
+  </table>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects/proj_abc123/keys \
+  -H "Authorization: Bearer gw_your_personal_key" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Production"}'</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
+  "id": "key_xyz",
+  "name": "Production",
+  "key": "gw_proj_a1b2c3d4e5f6...",
+  "created_at": "2026-06-30T10:00:00Z"
+}</pre>
+
+  <h2 id="revoke-key">Revoke a key</h2>
+  <div class="endpoint"><span class="method patch" style="background:#ffe8e8;color:#cc3333">DELETE</span><span class="path">/v1/projects/:id/keys/:keyId</span></div>
+  <p>Immediately invalidates the key. Any requests using it will receive a 401.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X DELETE https://groupwisdom.up.railway.app/v1/projects/proj_abc123/keys/key_xyz \
+  -H "Authorization: Bearer gw_your_personal_key"</pre>
+
   <!-- Webhooks -->
   <h2 id="webhook-setup">Webhook setup</h2>
   <p>Set a <code>webhook_url</code> on any project (at creation or via PATCH). GroupWisdom will POST to that URL each time new insights are generated — typically within 3–5 seconds of an ingest call.</p>
@@ -267,8 +371,30 @@
   <p>Use <a href="https://webhook.site" target="_blank">webhook.site</a> to inspect payloads during development.</p>
 
   <h2 id="webhook-payload">Webhook payload</h2>
+  <p>Every webhook request includes an <code>X-GroupWisdom-Signature</code> header — a HMAC-SHA256 signature of the raw body using your <code>webhook_secret</code>. Always verify this before trusting the payload.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>// Node.js — verify webhook signature
+import { createHmac } from "crypto"
+
+function verifyWebhook(rawBody, signature, secret) {
+  const expected = "sha256=" + createHmac("sha256", secret).update(rawBody).digest("hex")
+  return expected === signature
+}
+
+app.post("/groupwisdom-hook", express.raw({ type: "application/json" }), (req, res) => {
+  const sig = req.headers["x-groupwisdom-signature"]
+  if (!verifyWebhook(req.body, sig, process.env.GW_WEBHOOK_SECRET)) {
+    return res.status(401).send("Invalid signature")
+  }
+  const payload = JSON.parse(req.body)
+  // handle payload.insights ...
+  res.sendStatus(200)
+})</pre>
+  <p>Your <code>webhook_secret</code> is returned when you set a <code>webhook_url</code> via PATCH. Store it securely — it is only shown once.</p>
+
+  <h2 id="webhook-payload-shape">Payload shape</h2>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>POST https://your-server.com/groupwisdom-hook
 Content-Type: application/json
+X-GroupWisdom-Signature: sha256=abc123...
 
 {
   "event": "insights.created",
@@ -284,43 +410,38 @@ Content-Type: application/json
 }</pre>
 
   <!-- Examples -->
-  <h2 id="example-js">JavaScript example</h2>
+  <h2 id="example-js">JavaScript / TypeScript example</h2>
+  <p>Using the SDK (recommended):</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>import GroupWisdom from '@groupwisdom/sdk'
+
+const gw = new GroupWisdom({ apiKey: process.env.GROUPWISDOM_API_KEY })
+
+// Send items from multiple contributors
+await gw.ingest("proj_abc123", [
+  { title: "User retention dropped 12% in APAC", type: "note", contributed_by: "Sarah" },
+  { title: "APAC pricing change rolled out last week", type: "note", contributed_by: "James" },
+])
+
+// Poll for insights — or set a webhook_url to receive them automatically
+const insights = await gw.listInsights("proj_abc123")
+insights.forEach(i => console.log(`[${i.kind}] ${i.title}: ${i.body}`))</pre>
+  <p>Using raw fetch (if you prefer no dependency):</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>const GW_KEY = process.env.GROUPWISDOM_API_KEY;
-const BASE   = "https://your-groupwisdom-url.com/v1";
+const BASE   = "https://groupwisdom.up.railway.app/v1";
 
-async function ingest(projectId, items) {
-  const res = await fetch(`${BASE}/projects/${projectId}/ingest`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${GW_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ items }),
-  });
-  return res.json();
-}
-
-async function getInsights(projectId) {
-  const res = await fetch(`${BASE}/projects/${projectId}/insights`, {
-    headers: { "Authorization": `Bearer ${GW_KEY}` },
-  });
-  return res.json();
-}
-
-// Usage
-await ingest("proj_abc123", [
-  { title: "User retention dropped 12% in APAC", type: "note" },
-  { title: "APAC pricing change rolled out last week", type: "note" },
-]);
-
-// Or set a webhook and receive insights automatically
-</pre>
+await fetch(`${BASE}/projects/proj_abc123/ingest`, {
+  method: "POST",
+  headers: { "Authorization": `Bearer ${GW_KEY}`, "Content-Type": "application/json" },
+  body: JSON.stringify({ items: [
+    { title: "User retention dropped 12% in APAC", type: "note", contributed_by: "Sarah" },
+  ]}),
+});</pre>
 
   <h2 id="example-python">Python example</h2>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>import os, requests
 
 GW_KEY = os.environ["GROUPWISDOM_API_KEY"]
-BASE   = "https://your-groupwisdom-url.com/v1"
+BASE   = "https://groupwisdom.up.railway.app/v1"
 HEADERS = {"Authorization": f"Bearer {GW_KEY}", "Content-Type": "application/json"}
 
 def ingest(project_id, items):

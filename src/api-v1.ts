@@ -2,18 +2,24 @@
  * GroupWisdom public API — v1
  * Mounted at /v1 alongside the existing /api routes (nothing removed).
  *
- * Auth: Authorization: Bearer USER_API_KEY  (same key from /api/me)
- * All responses are JSON. Errors: { error: string }
+ * Auth: Authorization: Bearer <key>
+ *   - Personal key (gw_...): access all your projects
+ *   - Project key (gw_proj_...): access one specific project only
  *
  * Endpoints:
- *   POST   /v1/projects                  — create a project
- *   GET    /v1/projects                  — list your projects
- *   GET    /v1/projects/:id              — get project + counts
- *   PATCH  /v1/projects/:id             — update name / webhook_url
- *   POST   /v1/projects/:id/ingest      — send items (bulk ok), triggers analysis
- *   GET    /v1/projects/:id/items       — list items
- *   GET    /v1/projects/:id/insights    — get current insights
+ *   POST   /v1/projects                       — create a project
+ *   GET    /v1/projects                       — list your projects
+ *   GET    /v1/projects/:id                   — get project + counts
+ *   PATCH  /v1/projects/:id                   — update name / webhook_url
+ *   POST   /v1/projects/:id/ingest            — send items (bulk ok), triggers analysis
+ *   GET    /v1/projects/:id/items             — list items (paginated)
+ *   DELETE /v1/projects/:id/items/:itemId     — delete an item
+ *   GET    /v1/projects/:id/insights          — get current insights (paginated)
+ *   POST   /v1/projects/:id/keys              — create a project API key
+ *   GET    /v1/projects/:id/keys              — list project API keys
+ *   DELETE /v1/projects/:id/keys/:keyId       — revoke a project API key
  */
+import { createHmac } from "node:crypto";
 import { Router } from "express";
 import {
   getUserByApiKey,
@@ -24,10 +30,20 @@ import {
   listMembers,
   addItem,
   listItems,
+  listItemsPaginated,
+  listInsightsPaginated,
   listInsights,
+  deleteItem,
   getGroupWebhook,
+  getGroupWebhookSecret,
   setGroupWebhook,
+  createProjectApiKey,
+  listProjectApiKeys,
+  getByProjectApiKey,
+  revokeProjectApiKey,
   type Item,
+  type Group,
+  type User,
 } from "./db.js";
 import { queueIncrementalAnalysis, updateProjectSummary } from "./engine.js";
 
@@ -36,19 +52,63 @@ export const apiv1 = Router();
 let notify: (groupId: string, event: string) => void = () => {};
 export const setV1Notifier = (fn: typeof notify) => { notify = fn; };
 
-function auth(req: any): ReturnType<typeof getUserByApiKey> {
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+type AuthResult =
+  | { kind: "user"; user: User; projectId: null }
+  | { kind: "project_key"; user: null; projectId: string };
+
+function auth(req: any): AuthResult | null {
   const header = req.headers.authorization ?? "";
   const key = header.replace(/^Bearer\s+/i, "").trim() || (req.query.key as string);
-  if (!key) return undefined;
-  return getUserByApiKey(key);
+  if (!key) return null;
+
+  if (key.startsWith("gw_proj_")) {
+    const pk = getByProjectApiKey(key);
+    if (!pk) return null;
+    return { kind: "project_key", user: null, projectId: pk.project_id };
+  }
+
+  const user = getUserByApiKey(key);
+  if (!user) return null;
+  return { kind: "user", user, projectId: null };
 }
 
-function resolveProject(req: any, userId: string) {
+function resolveProject(req: any, authResult: AuthResult): Group | undefined {
   const g = getGroup(req.params.id);
   if (!g) return undefined;
-  const isMember = listMembers(g.id).some(m => m.user_id === userId);
+
+  if (authResult.kind === "project_key") {
+    return authResult.projectId === g.id ? g : undefined;
+  }
+
+  const isMember = listMembers(g.id).some(m => m.user_id === authResult.user!.id);
   return isMember ? g : undefined;
 }
+
+function getUserId(authResult: AuthResult): string | null {
+  return authResult.kind === "user" ? authResult.user.id : null;
+}
+
+// ── Webhook ───────────────────────────────────────────────────────────────────
+
+async function fireWebhook(groupId: string, insights: any[]) {
+  const url = getGroupWebhook(groupId);
+  if (!url) return;
+  const secret = getGroupWebhookSecret(groupId);
+  const body = JSON.stringify({ event: "insights.created", group_id: groupId, insights });
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (secret) {
+    headers["X-GroupWisdom-Signature"] = "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
+  }
+  try {
+    await fetch(url, { method: "POST", headers, body });
+  } catch (err: any) {
+    console.error("[webhook] delivery failed:", err.message);
+  }
+}
+
+// ── View helpers ──────────────────────────────────────────────────────────────
 
 function projectView(groupId: string) {
   const g = getGroup(groupId)!;
@@ -63,70 +123,76 @@ function projectView(groupId: string) {
   };
 }
 
+function parsePagination(query: any) {
+  const limit = Math.min(Math.max(parseInt(query.limit ?? "50", 10) || 50, 1), 200);
+  const offset = Math.max(parseInt(query.offset ?? "0", 10) || 0, 0);
+  return { limit, offset };
+}
+
 // ── Projects ──────────────────────────────────────────────────────────────────
 
 apiv1.post("/projects", (req, res) => {
-  const user = auth(req);
-  if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  if (a.kind === "project_key") return res.status(403).json({ error: "Project keys cannot create new projects. Use your personal API key." });
   const name = (req.body?.name ?? "").trim();
   if (!name) return res.status(400).json({ error: "name is required." });
   const g = createGroup(name);
-  addMember(g.id, user.name, "", user.email, user.id);
+  addMember(g.id, a.user!.name, "", a.user!.email, a.user!.id);
   if (req.body?.webhook_url) setGroupWebhook(g.id, req.body.webhook_url);
   res.status(201).json(projectView(g.id));
 });
 
 apiv1.get("/projects", (req, res) => {
-  const user = auth(req);
-  if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
-  const groups = getGroupsForUser(user.id);
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  if (a.kind === "project_key") return res.status(403).json({ error: "Project keys are scoped to one project. Use your personal API key to list all projects." });
+  const groups = getGroupsForUser(a.user!.id);
   res.json(groups.map(g => projectView(g.id)));
 });
 
 apiv1.get("/projects/:id", (req, res) => {
-  const user = auth(req);
-  if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
-  const g = resolveProject(req, user.id);
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  const g = resolveProject(req, a);
   if (!g) return res.status(404).json({ error: "Project not found." });
   res.json(projectView(g.id));
 });
 
 apiv1.patch("/projects/:id", (req, res) => {
-  const user = auth(req);
-  if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
-  const g = resolveProject(req, user.id);
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  const g = resolveProject(req, a);
   if (!g) return res.status(404).json({ error: "Project not found." });
-  if ("webhook_url" in req.body) setGroupWebhook(g.id, req.body.webhook_url || null);
-  res.json(projectView(g.id));
+  let webhookSecret: string | null | undefined;
+  if ("webhook_url" in req.body) webhookSecret = setGroupWebhook(g.id, req.body.webhook_url || null);
+  const view = projectView(g.id);
+  res.json(webhookSecret ? { ...view, webhook_secret: webhookSecret } : view);
 });
 
 // ── Ingest ────────────────────────────────────────────────────────────────────
 
 apiv1.post("/projects/:id/ingest", (req, res) => {
-  const user = auth(req);
-  if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
-  const g = resolveProject(req, user.id);
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  const g = resolveProject(req, a);
   if (!g) return res.status(404).json({ error: "Project not found." });
 
   const raw = req.body;
-  // Accept either a single item object or an array
   const payloads: any[] = Array.isArray(raw) ? raw : raw?.items ? raw.items : [raw];
-
   if (!payloads.length) return res.status(400).json({ error: "Provide one item or an items array." });
 
-  // Cache of name → member so we only look up / create once per ingest call
   const memberCache = new Map<string, ReturnType<typeof listMembers>[0]>();
   const existingMembers = listMembers(g.id);
-  const ownerMember = existingMembers.find(m => m.user_id === user.id) ?? null;
+  const userId = getUserId(a);
+  const ownerMember = userId ? (existingMembers.find(m => m.user_id === userId) ?? null) : null;
 
   function resolveMember(contributedBy?: string) {
     if (!contributedBy) return ownerMember;
     const key = contributedBy.trim().toLowerCase();
     if (memberCache.has(key)) return memberCache.get(key)!;
-    // Find existing member by name (case-insensitive)
     const existing = existingMembers.find(m => m.name.toLowerCase() === key);
     if (existing) { memberCache.set(key, existing); return existing; }
-    // Auto-create — no login, no invite needed, just a name on the data
     const created = addMember(g!.id, contributedBy.trim(), "", "");
     existingMembers.push(created);
     memberCache.set(key, created);
@@ -134,7 +200,6 @@ apiv1.post("/projects/:id/ingest", (req, res) => {
   }
 
   const created: Item[] = [];
-
   for (const p of payloads) {
     if (!p.title && !p.content && !p.url) continue;
     const member = resolveMember(p.contributed_by);
@@ -147,8 +212,10 @@ apiv1.post("/projects/:id/ingest", (req, res) => {
       member_id: member?.id ?? null,
     });
     created.push(item);
-    // Queue incremental analysis per item (debounced, fires once for the batch)
-    queueIncrementalAnalysis(g.id, item, () => notify(g.id, "update"));
+    queueIncrementalAnalysis(g.id, item, async (insights) => {
+      notify(g.id, "update");
+      if (insights?.length) await fireWebhook(g.id, insights);
+    });
   }
 
   updateProjectSummary(g.id).catch(err => console.error("[summary]", err.message));
@@ -161,21 +228,77 @@ apiv1.post("/projects/:id/ingest", (req, res) => {
   });
 });
 
-// ── Read ──────────────────────────────────────────────────────────────────────
+// ── Items ─────────────────────────────────────────────────────────────────────
 
 apiv1.get("/projects/:id/items", (req, res) => {
-  const user = auth(req);
-  if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
-  const g = resolveProject(req, user.id);
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  const g = resolveProject(req, a);
   if (!g) return res.status(404).json({ error: "Project not found." });
-  res.json(listItems(g.id));
+  const { limit, offset } = parsePagination(req.query);
+  res.json(listItemsPaginated(g.id, limit, offset));
 });
 
-apiv1.get("/projects/:id/insights", (req, res) => {
-  const user = auth(req);
-  if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
-  const g = resolveProject(req, user.id);
+apiv1.delete("/projects/:id/items/:itemId", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  const g = resolveProject(req, a);
   if (!g) return res.status(404).json({ error: "Project not found." });
+  const items = listItems(g.id);
+  if (!items.find(i => i.id === req.params.itemId)) return res.status(404).json({ error: "Item not found." });
+  deleteItem(req.params.itemId);
+  res.json({ deleted: true, id: req.params.itemId });
+});
+
+// ── Insights ──────────────────────────────────────────────────────────────────
+
+apiv1.get("/projects/:id/insights", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  const g = resolveProject(req, a);
+  if (!g) return res.status(404).json({ error: "Project not found." });
+  const { limit, offset } = parsePagination(req.query);
   const kind = req.query.kind as string | undefined;
-  res.json(listInsights(g.id, kind));
+  res.json(listInsightsPaginated(g.id, kind, limit, offset));
+});
+
+// ── Project API Keys ──────────────────────────────────────────────────────────
+
+apiv1.post("/projects/:id/keys", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  if (a.kind === "project_key") return res.status(403).json({ error: "Use your personal API key to manage project keys." });
+  const g = resolveProject(req, a);
+  if (!g) return res.status(404).json({ error: "Project not found." });
+  const name = (req.body?.name ?? "").trim();
+  if (!name) return res.status(400).json({ error: "name is required." });
+  const pk = createProjectApiKey(g.id, name);
+  res.status(201).json({ id: pk.id, name: pk.name, key: pk.key, created_at: pk.created_at });
+});
+
+apiv1.get("/projects/:id/keys", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  if (a.kind === "project_key") return res.status(403).json({ error: "Use your personal API key to manage project keys." });
+  const g = resolveProject(req, a);
+  if (!g) return res.status(404).json({ error: "Project not found." });
+  const keys = listProjectApiKeys(g.id).map(k => ({
+    id: k.id, name: k.name,
+    key_preview: k.key.slice(0, 12) + "...",
+    created_at: k.created_at,
+    last_used_at: k.last_used_at,
+  }));
+  res.json(keys);
+});
+
+apiv1.delete("/projects/:id/keys/:keyId", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  if (a.kind === "project_key") return res.status(403).json({ error: "Use your personal API key to manage project keys." });
+  const g = resolveProject(req, a);
+  if (!g) return res.status(404).json({ error: "Project not found." });
+  const keys = listProjectApiKeys(g.id);
+  if (!keys.find(k => k.id === req.params.keyId)) return res.status(404).json({ error: "Key not found." });
+  revokeProjectApiKey(req.params.keyId);
+  res.json({ revoked: true, id: req.params.keyId });
 });

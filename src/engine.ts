@@ -11,7 +11,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import {
   listItems, listItemsWithMembers, listMembers, listInsights, addInsight, setInsightStatus,
   setKnowledgeDoc, getGroup, setProjectSummary, setUserContext, listUserContexts,
-  getMemberByUserId, listItemsByMember, getGroupWebhook, type Item, type Insight,
+  getMemberByUserId, listItemsByMember, type Item, type Insight,
 } from "./db.js";
 
 const MODEL = process.env.GW_MODEL || "claude-sonnet-4-6";
@@ -25,7 +25,7 @@ const running = new Set<string>();
 const pendingAnalysis = new Map<string, { items: Item[]; timer: ReturnType<typeof setTimeout> }>();
 
 /** Queue an incremental Wisdom pass. Debounces 3s so burst adds are batched. */
-export function queueIncrementalAnalysis(groupId: string, item: Item, onComplete?: () => void) {
+export function queueIncrementalAnalysis(groupId: string, item: Item, onComplete?: (insights: Insight[]) => void) {
   const existing = pendingAnalysis.get(groupId);
   if (existing) {
     clearTimeout(existing.timer);
@@ -37,17 +37,17 @@ export function queueIncrementalAnalysis(groupId: string, item: Item, onComplete
   pending.timer = setTimeout(async () => {
     const items = pending.items;
     pendingAnalysis.delete(groupId);
-    await Promise.all([
-      runIncrementalWisdom(groupId, items).catch(err => console.error("[wisdom]", err.message)),
+    const [newInsights] = await Promise.all([
+      runIncrementalWisdom(groupId, items).catch(err => { console.error("[wisdom]", err.message); return [] as Insight[]; }),
       checkContextOverlapForWisdom(groupId, items).catch(err => console.error("[overlap]", err.message)),
     ]);
-    onComplete?.();
+    onComplete?.(newInsights ?? []);
   }, 3000);
 }
 
-async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<void> {
+async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<Insight[]> {
   const group = getGroup(groupId);
-  if (!group) return;
+  if (!group) return [];
   const existing = listInsights(groupId);
   const allWithMembers = listItemsWithMembers(groupId);
   const recent = allWithMembers.filter(i => !newItems.some(n => n.id === i.id)).slice(0, 15);
@@ -72,7 +72,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
     : "";
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    return; // no mock for incremental — just skip
+    return []; // no mock for incremental — just skip
   }
 
   const client = new Anthropic();
@@ -106,7 +106,7 @@ Respond ONLY with valid JSON:
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
   const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
   let result: { new: Array<{ kind: string; title: string; body: string }>; dismiss: string[] };
-  try { result = JSON.parse(json); } catch { return; }
+  try { result = JSON.parse(json); } catch { return []; }
 
   const created: Insight[] = [];
   for (const ins of (result.new ?? [])) {
@@ -120,19 +120,7 @@ Respond ONLY with valid JSON:
     if (existing.some(e => e.id === id)) setInsightStatus(id, "dismissed");
   }
 
-  // Fire webhook if configured
-  const webhookUrl = getGroupWebhook(groupId);
-  if (webhookUrl && created.length > 0) {
-    fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event: "insights.created",
-        group_id: groupId,
-        insights: created.map(i => ({ id: i.id, kind: i.kind, title: i.title, body: i.body })),
-      }),
-    }).catch(err => console.error("[webhook]", err.message));
-  }
+  return created;
 }
 
 export type ProposedInsight = { kind: string; title: string; body: string };
