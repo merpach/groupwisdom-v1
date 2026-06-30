@@ -176,6 +176,7 @@
     <button class="scenario-btn active" onclick="setScenario('product', this)">📦 Product team</button>
     <button class="scenario-btn" onclick="setScenario('sales', this)">💼 Sales team</button>
     <button class="scenario-btn" onclick="setScenario('research', this)">🔬 Research team</button>
+    <button class="scenario-btn" onclick="setScenario('raw', this)">🗂 Raw inputs</button>
   </div>
 
   <div class="demo-grid">
@@ -596,6 +597,36 @@ const SCENARIOS = {
       { title: 'NeurIPS paper suggests different preprocessing could fix edge case drift', type: 'note', contributed_by: 'Sofia' },
     ],
   },
+  raw: {
+    label: '4 messy real-world inputs — Slack, PDF, ticket, meeting notes',
+    description: 'Raw, unstructured data piped straight from different tools. No cleaning required.',
+    items: [
+      {
+        title: 'Slack export — #product channel',
+        type: 'note',
+        contributed_by: 'James',
+        content: 'hey so ive been looking at the numbers and checkout on mobile is BAD. like worse than we thought?? sarah said 28% abandonment but i think its higher for ios specifically. @priya do you have support ticket data for this week',
+      },
+      {
+        title: 'Q3 User Research Report.pdf',
+        type: 'file',
+        contributed_by: 'Sarah',
+        content: 'Q3 USER RESEARCH — MOBILE EXPERIENCE\n\nExecutive Summary................1\nMethodology.....................2\n\nKey finding: 6 of 8 participants expressed hesitation at the payment screen. Common verbatims: "looks sketchy", "i dont trust putting my card in here", "why does it look different from the rest of the app". Android users less affected (2/8). See appendix C for heatmaps.',
+      },
+      {
+        title: 'Support ticket #4821 — raw body',
+        type: 'note',
+        contributed_by: 'Priya',
+        content: 'From: customer@example.com\nSubject: checkout broken???\n\nhey i tried to buy twice and it just spins and then says error. im on iphone 14. also the card form looks really different from the rest of your site, is this legit? ended up not buying bc i wasnt sure. please fix',
+      },
+      {
+        title: 'Meeting notes 14 Jun — Product sync (unformatted)',
+        type: 'note',
+        contributed_by: 'James',
+        content: 'attendees: sarah james priya tom\n\ntom said competitor launched apple pay last quarter and our conversion is down since. no one is sure if related. sarah wants to prioritise redesign, priya says support load is highest its been all year, james mentioned interview feedback about trust. no decision made. revisit thursday.',
+      },
+    ],
+  },
 };
 
 let activeScenario = 'product';
@@ -616,15 +647,24 @@ function setScenario(name, btn) {
   demoRunning = false;
 }
 
+const TYPE_ICON = { file: '📄', link: '🔗', note: '📝', thought: '💭' };
+
 function renderItemsPreview(items) {
   const panel = document.getElementById('demo-items-panel');
-  panel.innerHTML = items.map(i =>
-    `<div class="demo-item show">
-      <strong>${i.title}</strong>
-      ${i.content ? `<div style="color:#666;font-size:12px;margin-top:2px">${i.content}</div>` : ''}
-      <div class="demo-item-by">contributed by ${i.contributed_by}</div>
-    </div>`
-  ).join('');
+  panel.innerHTML = items.map(i => {
+    const icon = TYPE_ICON[i.type] || '📝';
+    const snippet = i.content ? i.content.slice(0, 120).replace(/\n/g, ' ') + (i.content.length > 120 ? '…' : '') : '';
+    return `<div class="demo-item show">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <span style="font-size:16px;flex-shrink:0;margin-top:1px">${icon}</span>
+        <div style="min-width:0">
+          <strong style="font-size:12.5px">${i.title}</strong>
+          ${snippet ? `<div style="color:#666;font-size:11.5px;margin-top:3px;line-height:1.5;font-style:italic">"${snippet}"</div>` : ''}
+          <div class="demo-item-by">${i.type} · contributed by ${i.contributed_by}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function addTerminalLine(verb, path, statusClass, statusText, bodyText) {
