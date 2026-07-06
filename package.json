@@ -15,7 +15,7 @@
     "dev": "tsx src/index.ts",
     "mcp": "node --env-file-if-exists=.env dist/mcp.js",
     "seed": "node dist/seed.js",
-    "giftswipe": "cd ../giftswipe && PORT=3001 node_modules/.bin/tsx src/index.ts"
+    "giftswipe": "cd ../giftswipe && PORT=3001 node_modules/.bin/tsx --env-file=.env src/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

@@ -6,11 +6,11 @@
 <title>GroupWisdom</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; font-size: 14px; color: #111; background: #fff; min-height: 100vh; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; font-size: 14px; color: #111; background: #fff; min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
   .shell { max-width: 640px; margin: 0 auto; padding: 0 20px 80px; }
 
   header { display: flex; align-items: center; padding: 20px 0 16px; border-bottom: 1px solid #eee; margin-bottom: 28px; }
-  .logo { font-size: 15px; font-weight: 600; }
+  .logo { font-size: 15px; font-weight: 700; letter-spacing: -.2px; }
   .group-name { color: #888; margin-left: 8px; font-size: 15px; }
   .spacer { flex: 1; }
   .icon-btn { background: none; border: none; cursor: pointer; color: #888; font-size: 18px; padding: 4px 6px; border-radius: 6px; }
@@ -28,8 +28,8 @@
   select { width: auto; flex-shrink: 0; }
   button { font: inherit; font-size: 13px; padding: 8px 14px; border-radius: 8px; border: 1px solid #ddd; background: #fff; cursor: pointer; color: #111; white-space: nowrap; }
   button:hover { background: #f5f5f5; }
-  button.primary { background: #111; border-color: #111; color: #fff; }
-  button.primary:hover { background: #333; }
+  button.primary { background: #111; border-color: #111; color: #fff; font-weight: 500; letter-spacing: -.1px; }
+  button.primary:hover { background: #1a1a1a; }
 
   /* Feed */
   .feed-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #bbb; margin-bottom: 12px; }
@@ -151,15 +151,16 @@ async function boot() {
   state.user = me;
   const groups = await api.get("/groups");
   state.groups = Array.isArray(groups) ? groups : [];
-  renderProjects();
+  renderDeveloper();
 }
 
 function renderAuth(tab = "login") {
   $("#app").innerHTML = `
     <div style="display:flex;align-items:center;justify-content:center;min-height:80vh">
-      <div style="max-width:360px;width:100%;padding:40px 32px;border:1px solid #e8e8e8;border-radius:12px">
-        <div style="font-size:20px;font-weight:600;margin-bottom:4px">GroupWisdom</div>
-        <div style="color:#888;font-size:13px;margin-bottom:24px">The intelligence layer for groups</div>
+      <div style="max-width:360px;width:100%;padding:40px 32px;border:1px solid #ddd;border-radius:14px;box-shadow:0 2px 16px rgba(0,0,0,.06)">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:10px">Developer API</div>
+        <div style="font-size:22px;font-weight:700;margin-bottom:4px;letter-spacing:-.3px">GroupWisdom</div>
+        <div style="color:#888;font-size:13px;margin-bottom:28px;line-height:1.5">Group intelligence as infrastructure.<br>Ingest data, get insights, ship products.</div>
         <div style="display:flex;gap:0;border-bottom:1px solid #eee;margin-bottom:20px">
           <button onclick="renderAuth('login')" style="flex:1;padding:8px;border:none;background:none;cursor:pointer;font:inherit;font-size:13px;${tab==='login'?'border-bottom:2px solid #111;font-weight:600':'color:#888'}">Sign in</button>
           <button onclick="renderAuth('signup')" style="flex:1;padding:8px;border:none;background:none;cursor:pointer;font:inherit;font-size:13px;${tab==='signup'?'border-bottom:2px solid #111;font-weight:600':'color:#888'}">Create account</button>
@@ -189,7 +190,7 @@ async function doLogin() {
   if (!res.ok) return document.getElementById("authErr").textContent = data.error;
   state.user = data;
   state.groups = await api.get("/groups");
-  renderProjects();
+  renderDeveloper();
 }
 
 async function doSignup() {
@@ -370,7 +371,7 @@ function renderOnboarding() {
       </div>
       ${claudeSetupSteps(key, appUrl, '')}
       <div style="margin-top:24px;padding-top:24px;border-top:1px solid #eee">
-        <button class="primary" style="padding:10px 24px" onclick="renderProjects()">Skip for now — go to my projects →</button>
+        <button class="primary" style="padding:10px 24px" onclick="renderDeveloper()">Skip for now — go to Developer API →</button>
         <p style="font-size:12px;color:#bbb;margin-top:10px">These instructions are always available in Settings → Claude Setup inside any project.</p>
       </div>
     </div>`;
@@ -843,8 +844,8 @@ function _renderDevShell() {
 
       <!-- Sidebar -->
       <div style="width:240px;flex-shrink:0;border-right:1px solid #eee;padding:28px 16px;display:flex;flex-direction:column;gap:0">
-        <div style="font-size:15px;font-weight:700;margin-bottom:4px;padding:0 4px">GroupWisdom</div>
-        <div style="font-size:11px;color:#888;margin-bottom:24px;padding:0 4px">Developer Portal</div>
+        <div style="font-size:15px;font-weight:700;letter-spacing:-.2px;margin-bottom:3px;padding:0 4px">GroupWisdom</div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:24px;padding:0 4px">Developer Portal</div>
 
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;padding:0 4px;margin-bottom:8px">Projects</div>
         <div id="dev-project-list">${projectList}</div>
