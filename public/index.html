@@ -147,11 +147,47 @@ function toast(msg) {
 
 async function boot() {
   const me = await api.get("/me").catch(() => null);
-  if (!me || me.error) return renderAuth();
+  if (!me || me.error) return renderLanding();
   state.user = me;
   const groups = await api.get("/groups");
   state.groups = Array.isArray(groups) ? groups : [];
   renderDeveloper();
+}
+
+function renderLanding() {
+  $("#app").innerHTML = `
+    <div style="min-height:100vh;display:flex;flex-direction:column">
+
+      <!-- Nav -->
+      <nav style="display:flex;align-items:center;padding:20px 32px;border-bottom:1px solid #f0f0f0">
+        <div style="font-size:15px;font-weight:700;letter-spacing:-.2px;flex:1">GroupWisdom</div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <a href="/docs" target="_blank" style="font-size:13px;color:#555;text-decoration:none;padding:6px 12px;border-radius:6px">Docs</a>
+          <a href="/docs#demo" target="_blank" style="font-size:13px;color:#555;text-decoration:none;padding:6px 12px;border-radius:6px">Demo</a>
+          <button onclick="renderAuth('login')" style="font-size:13px;padding:6px 14px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer;color:#555;margin-left:8px">Sign in</button>
+        </div>
+      </nav>
+
+      <!-- Hero -->
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:80px 32px 100px;max-width:560px">
+        <div style="display:inline-flex;align-items:center;gap:6px;background:#f5f5f5;border-radius:999px;padding:5px 12px;font-size:11px;font-weight:700;letter-spacing:.1em;color:#888;text-transform:uppercase;margin-bottom:28px;width:fit-content">For Developers</div>
+
+        <h1 style="font-size:42px;font-weight:800;line-height:1.1;letter-spacing:-.5px;color:#111;margin-bottom:18px">Group intelligence<br>infrastructure</h1>
+
+        <p style="font-size:17px;color:#666;line-height:1.6;margin-bottom:36px;max-width:420px">Send your team's data.<br>Get back what they missed.</p>
+
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:36px">
+          <button onclick="renderAuth('signup')" class="primary" style="font-size:14px;padding:11px 24px;border-radius:8px">Get API key</button>
+          <a href="/docs" target="_blank" style="font-size:14px;color:#555;text-decoration:none;padding:11px 20px;border:1px solid #e0e0e0;border-radius:8px;background:#fff">View docs ↗</a>
+        </div>
+
+        <div style="display:inline-flex;align-items:center;gap:10px;background:#f7f7f7;border-radius:8px;padding:10px 16px;width:fit-content">
+          <span style="width:8px;height:8px;border-radius:50%;background:#cc3e00;flex-shrink:0"></span>
+          <code style="font-size:13px;color:#333;font-family:ui-monospace,'SF Mono',monospace">npm install @groupwisdom/sdk</code>
+        </div>
+      </div>
+
+    </div>`;
 }
 
 function renderAuth(tab = "login") {
@@ -203,7 +239,7 @@ async function doSignup() {
   if (!res.ok) return document.getElementById("authErr").textContent = data.error;
   state.user = data;
   state.groups = [];
-  renderOnboarding();
+  renderDeveloper();
 }
 
 function claudeSetupSteps(key, appUrl, projectName) {
