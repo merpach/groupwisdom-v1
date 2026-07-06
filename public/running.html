@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PaceWise — Social Running</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --surface2: #1c1c28;
+      --border: #2a2a3d;
+      --accent: #6c63ff;
+      --accent2: #ff6584;
+      --green: #43e97b;
+      --yellow: #f9c846;
+      --orange: #ff9f43;
+      --blue: #54a0ff;
+      --text: #e8e8f0;
+      --muted: #7070a0;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { font-size: 26px; }
+    .logo h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+    .logo span { color: var(--accent); }
+    .runner-chip {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 30px; padding: 6px 14px; cursor: pointer;
+      font-size: 14px; transition: border-color 0.2s;
+    }
+    .runner-chip:hover { border-color: var(--accent); }
+
+    /* ── Layout ── */
+    main {
+      max-width: 1100px; margin: 0 auto; padding: 24px 20px;
+      display: grid; grid-template-columns: 320px 1fr; gap: 24px;
+    }
+    @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .card-header {
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-header h2 { font-size: 14px; font-weight: 700; }
+    .card-body { padding: 18px; }
+
+    /* ── Log Run ── */
+    .form-group { margin-bottom: 14px; }
+    label {
+      display: block; font-size: 11px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 5px;
+    }
+    input, textarea {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 10px; padding: 10px 13px;
+      font-size: 14px; font-family: inherit; transition: border-color 0.2s; outline: none;
+    }
+    input:focus, textarea:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 72px; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .emoji-row { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 14px; }
+    .emoji-btn {
+      font-size: 20px; background: var(--surface2); border: 2px solid var(--border);
+      border-radius: 10px; padding: 5px 9px; cursor: pointer; transition: all 0.15s;
+    }
+    .emoji-btn.selected {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 15%, transparent);
+    }
+
+    .btn-log {
+      width: 100%; background: linear-gradient(135deg, var(--accent), #9b59f0);
+      color: #fff; border: none; border-radius: 12px;
+      padding: 13px; font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-log:hover { opacity: 0.92; }
+    .btn-log:active { transform: scale(0.98); }
+    .btn-log:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Club Pulse (stats derived from insights+data) ── */
+    .pulse-grid {
+      display: grid; grid-template-columns: repeat(3,1fr); gap: 1px;
+      background: var(--border); border-radius: var(--radius); overflow: hidden;
+    }
+    .pulse-cell {
+      background: var(--surface2); padding: 14px 10px; text-align: center;
+    }
+    .pulse-num { font-size: 22px; font-weight: 800; }
+    .pulse-label { font-size: 10px; color: var(--muted); margin-top: 2px;
+      text-transform: uppercase; letter-spacing: 0.5px; }
+    .pulse-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+    /* ── Nudge card (surfaces after logging) ── */
+    .nudge-card {
+      border-radius: 12px; padding: 14px 16px;
+      display: flex; gap: 12px; align-items: flex-start;
+      animation: slideDown 0.4s ease;
+    }
+    @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; } }
+    .nudge-card.pattern { background: color-mix(in srgb, var(--accent) 10%, var(--surface2)); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); }
+    .nudge-card.connection { background: color-mix(in srgb, var(--green) 10%, var(--surface2)); border: 1px solid color-mix(in srgb, var(--green) 25%, transparent); }
+    .nudge-card.blind_spot { background: color-mix(in srgb, var(--yellow) 10%, var(--surface2)); border: 1px solid color-mix(in srgb, var(--yellow) 25%, transparent); }
+    .nudge-card.conflict { background: color-mix(in srgb, var(--orange) 10%, var(--surface2)); border: 1px solid color-mix(in srgb, var(--orange) 25%, transparent); }
+    .nudge-card.question { background: color-mix(in srgb, var(--blue) 10%, var(--surface2)); border: 1px solid color-mix(in srgb, var(--blue) 25%, transparent); }
+    .nudge-card.decision { background: color-mix(in srgb, var(--green) 10%, var(--surface2)); border: 1px solid color-mix(in srgb, var(--green) 25%, transparent); }
+    .nudge-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+    .nudge-title { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+    .nudge-body { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .nudge-dismiss { background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; margin-left:auto; flex-shrink:0; padding:0 2px; }
+    .nudge-dismiss:hover { color: var(--text); }
+
+    /* ── Feed ── */
+    .tabs { display: flex; border-bottom: 1px solid var(--border); }
+    .tab {
+      padding: 12px 18px; font-size: 13px; font-weight: 600;
+      color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+      transition: all 0.2s; user-select: none;
+    }
+    .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .feed-item {
+      display: flex; gap: 13px; padding: 15px 18px;
+      border-bottom: 1px solid var(--border);
+      animation: fadeIn 0.35s ease;
+    }
+    .feed-item:last-child { border-bottom: none; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(-5px); } to { opacity:1; } }
+
+    .run-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--accent), #9b59f0);
+    }
+    .run-meta { flex: 1; min-width: 0; }
+    .run-top { display: flex; align-items: baseline; gap: 7px; margin-bottom: 3px; }
+    .run-name { font-weight: 700; font-size: 14px; }
+    .run-time { font-size: 12px; color: var(--muted); }
+    .run-title { font-size: 13px; margin-bottom: 5px; line-height: 1.4; }
+    .run-pills { display: flex; gap: 5px; flex-wrap: wrap; }
+    .pill {
+      font-size: 11px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 7px; padding: 2px 8px; color: var(--muted);
+    }
+    .pill.km { color: var(--green); border-color: color-mix(in srgb, var(--green) 30%, transparent); }
+    .pill.pace { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 30%, transparent); }
+
+    /* ── Inline feed intel cards ── */
+    .feed-intel {
+      margin: 0; padding: 12px 18px;
+      background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+      border-bottom: 1px solid var(--border);
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .feed-intel-icon { font-size: 18px; flex-shrink: 0; }
+    .feed-intel-text { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .feed-intel-text strong { color: var(--text); font-size: 13px; display: block; margin-bottom: 2px; }
+
+    /* ── Leaderboard ── */
+    .lb-row {
+      display: flex; align-items: center; gap: 11px;
+      padding: 10px 18px; border-bottom: 1px solid var(--border);
+    }
+    .lb-row:last-child { border-bottom: none; }
+    .lb-rank { font-size: 13px; width: 20px; text-align: center; font-weight: 700; color: var(--muted); }
+    .lb-name { flex: 1; font-size: 14px; font-weight: 600; }
+    .lb-runs { font-size: 11px; color: var(--muted); }
+    .lb-km { font-size: 14px; color: var(--green); font-weight: 700; }
+
+    /* ── Companion block (connection insight) ── */
+    .companion-block {
+      margin: 0 18px 16px; border-radius: 10px; padding: 12px 14px;
+      background: color-mix(in srgb, var(--green) 8%, var(--surface2));
+      border: 1px solid color-mix(in srgb, var(--green) 20%, transparent);
+      font-size: 12px; color: var(--muted); line-height: 1.5;
+    }
+    .companion-block strong { color: var(--text); font-size: 13px; display: block; margin-bottom: 3px; }
+
+    /* ── Empty states ── */
+    .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
+    .empty .big { font-size: 40px; display: block; margin-bottom: 8px; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--green); color: #0a0a0f;
+      padding: 11px 22px; border-radius: 30px; font-weight: 700; font-size: 14px;
+      opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999;
+      white-space: nowrap;
+    }
+    #toast.show { opacity: 1; }
+
+    /* ── Name modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center; z-index: 200;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 32px; max-width: 360px; width: 90%;
+    }
+    .modal h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+    .modal p { color: var(--muted); font-size: 14px; margin-bottom: 20px; line-height: 1.5; }
+    .btn-modal {
+      width: 100%; background: var(--accent); color: #fff; border: none;
+      border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 700;
+      cursor: pointer; margin-top: 10px;
+    }
+    .btn-modal:hover { opacity: 0.9; }
+
+    .section-gap { display: flex; flex-direction: column; gap: 16px; }
+  </style>
+</head>
+<body>
+
+<!-- Name modal -->
+<div class="modal-overlay hidden" id="nameModal">
+  <div class="modal">
+    <div style="font-size:44px;margin-bottom:14px">🏃</div>
+    <h2>Welcome to PaceWise</h2>
+    <p>Log your runs, see what your club is up to, and pick up on what's working for everyone.</p>
+    <div class="form-group">
+      <input type="text" id="nameInput" placeholder="Your runner name" maxlength="30" />
+    </div>
+    <button class="btn-modal" onclick="saveName()">Let's go →</button>
+  </div>
+</div>
+
+<header>
+  <div class="logo">
+    <span class="logo-icon">🏃</span>
+    <h1>Pace<span>Wise</span></h1>
+  </div>
+  <div class="runner-chip" onclick="showNameModal()">
+    <span>👤</span>
+    <span id="chipName">Set your name</span>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT column -->
+  <div class="section-gap">
+
+    <!-- Log a run -->
+    <div class="card">
+      <div class="card-header"><h2>🎽 Log a run</h2></div>
+      <div class="card-body">
+
+        <div class="form-group">
+          <label>How did it feel?</label>
+          <div class="emoji-row">
+            <button class="emoji-btn" data-emoji="🔥" onclick="pickEmoji(this)">🔥</button>
+            <button class="emoji-btn" data-emoji="💪" onclick="pickEmoji(this)">💪</button>
+            <button class="emoji-btn" data-emoji="😤" onclick="pickEmoji(this)">😤</button>
+            <button class="emoji-btn" data-emoji="😅" onclick="pickEmoji(this)">😅</button>
+            <button class="emoji-btn" data-emoji="🐌" onclick="pickEmoji(this)">🐌</button>
+            <button class="emoji-btn" data-emoji="🌧️" onclick="pickEmoji(this)">🌧️</button>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="form-group">
+            <label>Distance (km)</label>
+            <input type="number" id="distance" placeholder="5.0" min="0.1" step="0.1" />
+          </div>
+          <div class="form-group">
+            <label>Duration (min)</label>
+            <input type="number" id="duration" placeholder="30" min="1" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Route / Location</label>
+          <input type="text" id="route" placeholder="e.g. Riverside Trail" />
+        </div>
+
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="notes" placeholder="Anything to add?"></textarea>
+        </div>
+
+        <button class="btn-log" id="logBtn" onclick="logRun()">Log my run →</button>
+      </div>
+    </div>
+
+    <!-- Post-run nudge (surfaces after logging) -->
+    <div id="nudgeArea" class="section-gap"></div>
+
+    <!-- Club Pulse — derived from insights + raw stats -->
+    <div class="card" id="pulseCard">
+      <div class="card-header"><h2>📊 Club Pulse</h2></div>
+      <div class="card-body" style="padding:0;">
+        <div class="pulse-grid" id="pulseGrid">
+          <div class="pulse-cell"><div class="pulse-num" id="pStatRuns">—</div><div class="pulse-label">Runs</div></div>
+          <div class="pulse-cell"><div class="pulse-num" id="pStatKm">—</div><div class="pulse-label">Club km</div></div>
+          <div class="pulse-cell"><div class="pulse-num" id="pStatRunners">—</div><div class="pulse-label">Runners</div></div>
+        </div>
+        <!-- Pattern insight surfaces here as a natural club stat -->
+        <div id="pulseTrend" style="padding:0 16px 16px;display:none;">
+          <div style="height:1px;background:var(--border);margin:12px 0 14px;"></div>
+          <div id="pulseTrendContent" style="font-size:12px;color:var(--muted);line-height:1.6;"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT column -->
+  <div class="card" style="min-height:600px;display:flex;flex-direction:column;">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('feed', this)">Club Feed</div>
+      <div class="tab" onclick="switchTab('leaderboard', this)">Leaderboard</div>
+    </div>
+
+    <!-- Feed -->
+    <div class="tab-panel active" id="tab-feed">
+      <!-- Connection / companion block lives here when a connection insight exists -->
+      <div id="companionArea"></div>
+      <div id="feedList">
+        <div class="empty"><span class="big">👟</span>No runs yet — be the first!</div>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="tab-panel" id="tab-leaderboard">
+      <div id="lbList">
+        <div class="empty"><span class="big">🏆</span>Start logging to climb the board</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+  const API = '/running/api';
+  let selectedEmoji = '🏃';
+  let allInsights = [];
+  let dismissedIds = new Set(JSON.parse(localStorage.getItem('pw_dismissed') || '[]'));
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function timeAgo(iso) {
+    const d = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (d < 60) return 'just now';
+    if (d < 3600) return Math.floor(d/60)+'m ago';
+    if (d < 86400) return Math.floor(d/3600)+'h ago';
+    return Math.floor(d/86400)+'d ago';
+  }
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2800);
+  }
+  function dismiss(id) {
+    dismissedIds.add(id);
+    localStorage.setItem('pw_dismissed', JSON.stringify([...dismissedIds]));
+    const el = document.getElementById('nudge-' + id);
+    if (el) el.remove();
+  }
+
+  // ── Runner name ──────────────────────────────────────────────────────────
+  function getRunnerName() { return localStorage.getItem('pacewise_name') || ''; }
+  function saveName() {
+    const v = document.getElementById('nameInput').value.trim();
+    if (!v) return;
+    localStorage.setItem('pacewise_name', v);
+    document.getElementById('chipName').textContent = v;
+    document.getElementById('nameModal').classList.add('hidden');
+  }
+  function showNameModal() {
+    document.getElementById('nameInput').value = getRunnerName();
+    document.getElementById('nameModal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('nameInput').focus(), 50);
+  }
+  function initName() {
+    const n = getRunnerName();
+    if (!n) showNameModal();
+    else document.getElementById('chipName').textContent = n;
+  }
+  document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key==='Enter') saveName(); });
+
+  // ── Emoji picker ─────────────────────────────────────────────────────────
+  function pickEmoji(btn) {
+    document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedEmoji = btn.dataset.emoji;
+  }
+
+  // ── Log run ───────────────────────────────────────────────────────────────
+  async function logRun() {
+    const name = getRunnerName();
+    if (!name) { showNameModal(); return; }
+    const distance = parseFloat(document.getElementById('distance').value);
+    if (!distance || isNaN(distance)) { document.getElementById('distance').focus(); return; }
+    const duration = parseInt(document.getElementById('duration').value) || null;
+    const route = document.getElementById('route').value.trim() || null;
+    const notes = document.getElementById('notes').value.trim() || null;
+
+    const btn = document.getElementById('logBtn');
+    btn.disabled = true; btn.textContent = 'Logging…';
+
+    try {
+      await fetch(`${API}/log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runnerName: name, distance, duration, route, notes, emoji: selectedEmoji }),
+      });
+      document.getElementById('distance').value = '';
+      document.getElementById('duration').value = '';
+      document.getElementById('route').value = '';
+      document.getElementById('notes').value = '';
+      document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+      selectedEmoji = '🏃';
+      showToast('Run logged! 🎉');
+      await Promise.all([loadFeed(), loadStats()]);
+      // Wait a beat then surface any new insights as nudges
+      setTimeout(async () => {
+        await loadInsights();
+        renderNudges();
+      }, 2500);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Log my run →';
+    }
+  }
+
+  // ── Feed ──────────────────────────────────────────────────────────────────
+  async function loadFeed() {
+    const res = await fetch(`${API}/feed`);
+    const { runs } = await res.json();
+    const el = document.getElementById('feedList');
+
+    if (!runs.length) {
+      el.innerHTML = '<div class="empty"><span class="big">👟</span>No runs yet — be the first!</div>';
+      return;
+    }
+
+    // Weave question / connection insights between feed items every ~5 runs
+    const questionInsights = allInsights.filter(i => i.kind === 'question');
+    let html = '';
+    runs.forEach((run, idx) => {
+      const km = run.content?.match(/Distance:\s*([\d.]+)/)?.[1];
+      const pace = run.content?.match(/Pace:\s*([^\n]+)/)?.[1];
+      const dur = run.content?.match(/Duration:\s*([^\n]+)/)?.[1];
+      const emoji = run.title?.match(/^(\S+)\s/)?.[1] || '🏃';
+      html += `
+      <div class="feed-item">
+        <div class="run-avatar">${emoji}</div>
+        <div class="run-meta">
+          <div class="run-top">
+            <span class="run-name">${esc(run.runner_name||'Anonymous')}</span>
+            <span class="run-time">${timeAgo(run.created_at)}</span>
+          </div>
+          <div class="run-title">${esc(run.title||'')}</div>
+          <div class="run-pills">
+            ${km ? `<span class="pill km">📍 ${km} km</span>` : ''}
+            ${dur ? `<span class="pill">⏱ ${dur}</span>` : ''}
+            ${pace ? `<span class="pill pace">⚡ ${pace}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+
+      // Splice a discussion thread prompt after every 5th run
+      if ((idx + 1) % 5 === 0 && questionInsights.length) {
+        const qi = questionInsights[(idx / 5 | 0) % questionInsights.length];
+        html += `
+        <div class="feed-intel">
+          <div class="feed-intel-icon">💬</div>
+          <div class="feed-intel-text">
+            <strong>${esc(qi.title)}</strong>
+            ${esc(qi.body)}
+          </div>
+        </div>`;
+      }
+    });
+    el.innerHTML = html;
+
+    // Render companion block (connection insight) at top of feed
+    renderCompanion();
+  }
+
+  // ── Stats + Leaderboard ───────────────────────────────────────────────────
+  async function loadStats() {
+    const res = await fetch(`${API}/stats`);
+    const { leaderboard, totalRuns } = await res.json();
+
+    document.getElementById('pStatRuns').textContent = totalRuns || '0';
+    const totalKm = leaderboard.reduce((s, r) => s + r.km, 0);
+    document.getElementById('pStatKm').textContent = totalKm > 0 ? totalKm.toFixed(1) : '0';
+    document.getElementById('pStatRunners').textContent = leaderboard.length || '0';
+
+    // Render leaderboard
+    const lb = document.getElementById('lbList');
+    if (!leaderboard.length) {
+      lb.innerHTML = '<div class="empty"><span class="big">🏆</span>Start logging to climb the board</div>';
+      return;
+    }
+    const medals = ['🥇','🥈','🥉'];
+    lb.innerHTML = leaderboard.map((r, i) => `
+      <div class="lb-row">
+        <div class="lb-rank">${medals[i] || i+1}</div>
+        <div class="lb-name">${esc(r.name)}</div>
+        <div class="lb-runs">${r.count} run${r.count!==1?'s':''}</div>
+        <div class="lb-km">${r.km.toFixed(1)} km</div>
+      </div>`).join('');
+
+    // Surface a blind_spot insight as a "To climb further…" tip on leaderboard
+    const bsInsight = allInsights.find(i => i.kind === 'blind_spot');
+    if (bsInsight) {
+      lb.innerHTML += `
+        <div style="padding:14px 18px;border-top:1px solid var(--border);">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:6px;">Coach's Eye</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:3px;">${esc(bsInsight.title)}</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.5;">${esc(bsInsight.body)}</div>
+        </div>`;
+    }
+  }
+
+  // ── Insights (fetched, never surfaced with AI branding) ──────────────────
+  async function loadInsights() {
+    const res = await fetch(`${API}/insights`);
+    const { insights } = await res.json();
+    allInsights = insights;
+
+    // Pattern insight → Club Pulse trend line
+    const pattern = insights.find(i => i.kind === 'pattern');
+    const trendEl = document.getElementById('pulseTrend');
+    const trendContent = document.getElementById('pulseTrendContent');
+    if (pattern) {
+      trendContent.innerHTML = `<span style="font-weight:700;color:var(--text);font-size:13px;">${esc(pattern.title)}</span><br>${esc(pattern.body)}`;
+      trendEl.style.display = 'block';
+    } else {
+      trendEl.style.display = 'none';
+    }
+
+    // Refresh companion block and feed intel
+    renderCompanion();
+    renderFeedIntel();
+  }
+
+  // Connection insight → "running buddy" block at top of feed
+  function renderCompanion() {
+    const area = document.getElementById('companionArea');
+    const connection = allInsights.find(i => i.kind === 'connection');
+    if (!connection) { area.innerHTML = ''; return; }
+    area.innerHTML = `
+      <div class="companion-block">
+        <strong>👯 ${esc(connection.title)}</strong>
+        ${esc(connection.body)}
+      </div>`;
+  }
+
+  // Re-render feed to pick up newly loaded question insights
+  function renderFeedIntel() {
+    // Re-run loadFeed so question prompts appear
+    loadFeed();
+  }
+
+  // ── Nudges — surfaces post-run based on insight kind ──────────────────────
+  const NUDGE_ICONS = {
+    pattern: '📈', connection: '👯', blind_spot: '💡',
+    conflict: '⚡', question: '💬', decision: '✅',
+  };
+  const NUDGE_LABELS = {
+    pattern: 'Club trend', connection: 'Running buddy', blind_spot: 'Something to try',
+    conflict: 'Club debate', question: 'Worth discussing', decision: 'Club wisdom',
+  };
+
+  function renderNudges() {
+    const area = document.getElementById('nudgeArea');
+    // Show up to 2 unseen nudges that aren't question/pattern (those surface elsewhere)
+    const eligible = allInsights.filter(i =>
+      !dismissedIds.has(i.id) &&
+      i.kind !== 'pattern' &&   // already in pulse
+      i.kind !== 'connection' && // already in companion block
+      i.kind !== 'question'      // already woven into feed
+    ).slice(0, 2);
+
+    if (!eligible.length) { area.innerHTML = ''; return; }
+
+    area.innerHTML = eligible.map(ins => `
+      <div class="nudge-card ${ins.kind}" id="nudge-${ins.id}">
+        <div class="nudge-icon">${NUDGE_ICONS[ins.kind] || '💬'}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:4px;">${NUDGE_LABELS[ins.kind] || ins.kind}</div>
+          <div class="nudge-title">${esc(ins.title)}</div>
+          <div class="nudge-body">${esc(ins.body)}</div>
+        </div>
+        <button class="nudge-dismiss" onclick="dismiss('${ins.id}')" title="Dismiss">×</button>
+      </div>`).join('');
+  }
+
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  function switchTab(name, tabEl) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tabEl.classList.add('active');
+    document.getElementById('tab-'+name).classList.add('active');
+    if (name === 'leaderboard') loadStats();
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────────────────────
+  function connectWS() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${location.host}`);
+    ws.onopen = () => {
+      fetch(`${API}/config`).then(r=>r.json()).then(({ projectId }) =>
+        ws.send(JSON.stringify({ subscribe: projectId })));
+    };
+    ws.onmessage = () => {
+      loadFeed();
+      loadStats();
+      setTimeout(() => { loadInsights().then(renderNudges); }, 1500);
+    };
+    ws.onclose = () => setTimeout(connectWS, 3000);
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  initName();
+  loadFeed();
+  loadStats();
+  loadInsights().then(() => renderNudges());
+  connectWS();
+</script>
+</body>
+</html>

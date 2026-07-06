@@ -1,0 +1,1952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wedding Planner</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; font-size: 14px; color: #222; background: #faf9f7; display: flex; min-height: 100vh; }
+
+/* ── Loading screen ── */
+#loading-screen {
+  position: fixed; inset: 0; background: #faf9f7; z-index: 999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+}
+#loading-screen.hidden { display: none; }
+.loading-ring { width: 36px; height: 36px; border: 3px solid #ece9e4; border-top-color: #c9956b; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 13px; color: #aaa; }
+
+/* ── Sidebar ── */
+#sidebar { width: 220px; flex-shrink: 0; background: #fff; border-right: 1px solid #ece9e4; display: flex; flex-direction: column; height: 100vh; position: sticky; top: 0; overflow-y: auto; }
+.sidebar-logo { padding: 28px 20px 20px; border-bottom: 1px solid #ece9e4; }
+.sidebar-logo .logo-title { font-size: 17px; font-weight: 700; letter-spacing: -.3px; color: #1a1a1a; }
+.sidebar-logo .logo-subtitle { font-size: 12px; color: #b5a89c; margin-top: 3px; }
+.sidebar-wedding-names { font-size: 13px; font-weight: 600; color: #8b6f5e; padding: 14px 20px 8px; }
+.sidebar-date { font-size: 12px; color: #b5a89c; padding: 0 20px 16px; }
+.sidebar-countdown { font-size: 11px; font-weight: 700; color: #c9956b; background: #fdf6f0; border-radius: 6px; padding: 6px 10px; margin: 0 16px 16px; text-align: center; }
+.nav-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #ccc; padding: 10px 20px 4px; }
+.nav-link { display: flex; align-items: center; gap: 10px; padding: 8px 20px; font-size: 13px; color: #666; cursor: pointer; border-left: 2px solid transparent; transition: all .12s; position: relative; }
+.nav-link:hover { color: #222; background: #faf8f6; }
+.nav-link.active { color: #8b6f5e; font-weight: 600; border-left-color: #c9956b; background: #fdf6f0; }
+.nav-link .icon { font-size: 15px; width: 20px; text-align: center; }
+.nav-badge { position: absolute; right: 14px; background: #c9956b; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; min-width: 18px; text-align: center; }
+.sidebar-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid #ece9e4; }
+.sync-status { font-size: 11px; color: #bbb; display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+.sync-dot.synced { background: #4ade80; }
+.sync-dot.syncing { background: #fbbf24; animation: pulse .8s ease-in-out infinite; }
+.sync-dot.error { background: #f87171; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+.tips-btn { display: flex; align-items: center; gap: 8px; background: #f0f4ff; border-radius: 8px; padding: 10px 12px; cursor: pointer; transition: background .12s; border: none; width: 100%; font-family: inherit; }
+.tips-btn:hover { background: #e5ecff; }
+.tips-btn .tb-icon { font-size: 16px; }
+.tips-btn .tb-label { font-size: 12px; font-weight: 600; color: #3b5bdb; }
+.tips-btn .tb-count { font-size: 11px; color: #748ffc; }
+
+/* ── Main ── */
+#main { flex: 1; overflow-y: auto; }
+.section { display: none; padding: 40px 48px 80px; max-width: 1000px; }
+.section.active { display: block; }
+.section-header { margin-bottom: 28px; }
+.section-header h1 { font-size: 24px; font-weight: 700; letter-spacing: -.3px; }
+.section-header p { color: #888; margin-top: 6px; font-size: 13px; }
+
+/* ── Insight banner ── */
+.insight-banner { background: #f7f9ff; border: 1px solid #dce8ff; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; }
+.insight-banner h3 { font-size: 11px; font-weight: 700; color: #3b5bdb; margin-bottom: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.insight-item { padding: 10px 12px; background: #fff; border: 1px solid #e8eeff; border-radius: 8px; margin-bottom: 8px; }
+.insight-item:last-child { margin-bottom: 0; }
+.insight-item .ii-title { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 4px; }
+.insight-item .ii-body { font-size: 12px; color: #555; line-height: 1.6; margin-bottom: 8px; }
+.insight-item .ii-action { display: inline-flex; align-items: center; gap: 4px; background: #3b5bdb; color: #fff; border: none; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-family: inherit; font-weight: 500; cursor: pointer; transition: background .12s; }
+.insight-item .ii-action:hover { background: #2f4bc4; }
+/* ── Pinned insight (shown in section after clicking action) ── */
+.pinned-insight { background: linear-gradient(135deg,#eef2ff 0%,#f0fdf4 100%); border: 1.5px solid #748ffc; border-radius: 12px; padding: 16px 18px; margin-bottom: 24px; position: relative; animation: slideIn .2s ease; }
+@keyframes slideIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+.pinned-insight .pi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #748ffc; margin-bottom: 6px; }
+.pinned-insight .pi-title { font-size: 14px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; }
+.pinned-insight .pi-body { font-size: 13px; color: #444; line-height: 1.65; margin-bottom: 12px; }
+.pinned-insight .pi-dismiss { position: absolute; top: 12px; right: 14px; background: none; border: none; font-size: 16px; color: #aaa; cursor: pointer; line-height: 1; }
+.pinned-insight .pi-dismiss:hover { color: #555; }
+.pinned-insight .ii-action { display: inline-flex; align-items: center; gap: 4px; background: #3b5bdb; color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 13px; font-family: inherit; font-weight: 600; cursor: pointer; }
+.pinned-insight .ii-action:hover { background: #2f4bc4; }
+
+/* ── Cards ── */
+.card { background: #fff; border: 1px solid #ece9e4; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+.card-title { font-size: 13px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 16px; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.stat-card { background: #fff; border: 1px solid #ece9e4; border-radius: 10px; padding: 18px 20px; }
+.stat-card .stat-value { font-size: 26px; font-weight: 700; color: #1a1a1a; letter-spacing: -.5px; }
+.stat-card .stat-label { font-size: 12px; color: #aaa; margin-top: 4px; }
+.stat-card.accent { background: linear-gradient(135deg, #c9956b, #e8a87c); border-color: transparent; }
+.stat-card.accent .stat-value, .stat-card.accent .stat-label { color: #fff; }
+
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-family: inherit; font-weight: 500; transition: all .12s; }
+.btn-primary { background: #c9956b; color: #fff; }
+.btn-primary:hover { background: #b8845a; }
+.btn-secondary { background: #f5f3f0; color: #555; border: 1px solid #ece9e4; }
+.btn-secondary:hover { background: #edeae6; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn-danger { background: #fff0f0; color: #cc3333; border: 1px solid #ffd0d0; }
+.btn-danger:hover { background: #ffe0e0; }
+.btn-ghost { background: none; color: #888; }
+.btn-ghost:hover { color: #333; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Forms ── */
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 12px; font-weight: 600; color: #666; margin-bottom: 5px; }
+.form-control { width: 100%; padding: 9px 12px; border: 1px solid #e0dbd5; border-radius: 8px; font-size: 13px; font-family: inherit; color: #222; background: #fff; outline: none; transition: border .12s; }
+.form-control:focus { border-color: #c9956b; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ── Tables ── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #aaa; padding: 8px 12px; border-bottom: 1px solid #ece9e4; }
+.data-table td { padding: 10px 12px; border-bottom: 1px solid #f5f3f0; color: #444; vertical-align: middle; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: #faf8f6; }
+
+/* ── Badges ── */
+.badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.badge-green { background: #e8f5ee; color: #1d7a46; }
+.badge-yellow { background: #fff8e1; color: #b87d00; }
+.badge-red { background: #fff0f0; color: #cc3333; }
+.badge-blue { background: #e8f0ff; color: #2255cc; }
+.badge-gray { background: #f0f0f0; color: #888; }
+
+/* ── Budget ── */
+.budget-bar-wrap { height: 8px; background: #ece9e4; border-radius: 99px; overflow: hidden; margin: 8px 0 4px; }
+.budget-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #c9956b, #e8a87c); transition: width .4s; }
+.budget-summary { display: flex; gap: 24px; margin-bottom: 20px; }
+.budget-summary-item .bsi-label { font-size: 12px; color: #aaa; }
+.budget-summary-item .bsi-value { font-size: 20px; font-weight: 700; color: #1a1a1a; }
+
+/* ── Guests ── */
+.guest-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.filter-btn { padding: 5px 14px; border: 1px solid #e0dbd5; background: #fff; border-radius: 99px; font-size: 12px; font-family: inherit; cursor: pointer; color: #666; transition: all .12s; }
+.filter-btn:hover, .filter-btn.active { background: #c9956b; color: #fff; border-color: #c9956b; }
+
+/* ── Seating ── */
+.seating-layout { display: flex; gap: 24px; }
+.seating-unplaced { width: 200px; flex-shrink: 0; }
+.seating-unplaced h3 { font-size: 12px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 10px; }
+.guest-chip { background: #fff; border: 1px solid #e0dbd5; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #555; margin-bottom: 6px; cursor: grab; user-select: none; transition: all .12s; }
+.guest-chip:hover { border-color: #c9956b; color: #c9956b; }
+.seating-tables-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.table-card { background: #fff; border: 1px solid #ece9e4; border-radius: 12px; padding: 16px; }
+.table-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 4px; color: #555; }
+.table-card .seats-info { font-size: 11px; color: #aaa; margin-bottom: 10px; }
+.table-drop-zone { min-height: 60px; background: #faf8f6; border: 1.5px dashed #e0dbd5; border-radius: 8px; padding: 8px; transition: all .12s; }
+.table-drop-zone.drag-over { background: #fdf6f0; border-color: #c9956b; }
+.seated-guest { background: #fff; border: 1px solid #e0dbd5; border-radius: 5px; padding: 4px 8px; font-size: 11px; color: #555; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; cursor: grab; }
+.seated-guest .remove-seat { cursor: pointer; color: #ccc; font-size: 14px; }
+.seated-guest .remove-seat:hover { color: #cc3333; }
+
+/* ── Vendors ── */
+.vendor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.vendor-card { background: #fff; border: 1px solid #ece9e4; border-radius: 12px; padding: 20px; }
+.vendor-card .vc-type { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+.vendor-card .vc-name { font-size: 16px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px; }
+.vendor-card .vc-cost { font-size: 14px; color: #888; margin-bottom: 10px; }
+.vendor-card .vc-notes { font-size: 12px; color: #666; line-height: 1.6; border-top: 1px solid #f0ede8; padding-top: 10px; margin-top: 8px; }
+.vendor-card .vc-actions { display: flex; gap: 6px; margin-top: 12px; }
+
+/* ── Venue ── */
+.venue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.venue-card { background: #fff; border: 1px solid #ece9e4; border-radius: 12px; padding: 20px; position: relative; }
+.venue-card.chosen { border-color: #c9956b; }
+.chosen-badge { position: absolute; top: 12px; right: 12px; background: #c9956b; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 99px; }
+
+/* ── Timeline ── */
+.timeline-bucket { margin-bottom: 32px; }
+.timeline-bucket h3 { font-size: 14px; font-weight: 700; color: #8b6f5e; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #ece9e4; }
+.task-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f5f3f0; }
+.task-item:last-child { border-bottom: none; }
+.task-check { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #e0dbd5; background: #fff; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 1px; transition: all .12s; }
+.task-check.done { background: #c9956b; border-color: #c9956b; }
+.task-check.done::after { content: '✓'; color: #fff; font-size: 10px; font-weight: 700; }
+.task-body { flex: 1; }
+.task-title { font-size: 13px; color: #333; }
+.task-title.done { text-decoration: line-through; color: #bbb; }
+.task-due { font-size: 11px; color: #aaa; margin-top: 2px; }
+
+/* ── Photos ── */
+.album-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.album-tab { padding: 6px 16px; border: 1px solid #e0dbd5; background: #fff; border-radius: 99px; font-size: 12px; font-family: inherit; cursor: pointer; color: #666; }
+.album-tab.active { background: #c9956b; color: #fff; border-color: #c9956b; }
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.photo-item { position: relative; border-radius: 10px; overflow: hidden; aspect-ratio: 1; background: #f0ede8; }
+.photo-item img { width: 100%; height: 100%; object-fit: cover; }
+.photo-item .photo-caption { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,.6)); color: #fff; font-size: 11px; padding: 20px 8px 8px; }
+.photo-item .photo-del { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,.5); color: #fff; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 12px; display: none; align-items: center; justify-content: center; }
+.photo-item:hover .photo-del { display: flex; }
+.photo-upload-zone { border: 2px dashed #e0dbd5; border-radius: 10px; padding: 32px; text-align: center; color: #aaa; cursor: pointer; transition: all .12s; }
+.photo-upload-zone:hover { border-color: #c9956b; color: #c9956b; background: #fdf6f0; }
+
+/* ── Join / identity modal ── */
+.fullscreen-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px; }
+.fullscreen-overlay.hidden { display:none; }
+.modal-box { background:#fff;border-radius:16px;padding:32px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.18); }
+.modal-box h2 { font-size:20px;font-weight:700;margin-bottom:6px; }
+.modal-box p { font-size:13px;color:#777;margin-bottom:20px;line-height:1.6; }
+.role-grid { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px; }
+.role-chip { border:1.5px solid #e0dbd5;border-radius:10px;padding:12px 10px;text-align:center;cursor:pointer;transition:all .12s;font-size:12px;font-weight:600;color:#555; }
+.role-chip:hover,.role-chip.selected { border-color:#3b5bdb;background:#eef2ff;color:#3b5bdb; }
+.role-chip .rc-emoji { font-size:20px;display:block;margin-bottom:4px; }
+/* ── Member avatars ── */
+.member-bar { display:flex;align-items:center;gap:6px;padding:10px 16px 6px;flex-wrap:wrap; }
+.member-chip { display:flex;align-items:center;gap:5px;background:#f0ede8;border-radius:20px;padding:4px 10px 4px 4px;font-size:11px;font-weight:600;color:#555; }
+.member-avatar { width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0; }
+.contributor-tag { font-size:10px;color:#aaa;font-weight:500; }
+/* ── Share modal ── */
+.share-box { background:#f7f9ff;border:1px solid #dce8ff;border-radius:10px;padding:14px;margin-bottom:16px; }
+.share-url { font-size:12px;font-family:monospace;color:#3b5bdb;word-break:break-all;margin-bottom:10px; }
+/* ── Mode toggle ── */
+.mode-toggle { display: flex; align-items: center; gap: 0; background: #f0ede8; border-radius: 20px; padding: 3px; margin: 12px 16px 4px; }
+.mode-toggle button { flex: 1; padding: 6px 10px; border: none; border-radius: 17px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; background: transparent; color: #888; }
+.mode-toggle button.active { color: #fff; }
+.mode-toggle button.active.gw  { background: #3b5bdb; }
+.mode-toggle button.active.ai  { background: linear-gradient(135deg,#7c3aed,#db2777); }
+.mode-label { font-size: 10px; color: #aaa; text-align: center; padding: 0 16px 10px; }
+/* AI mode suggestion cards */
+.ai-suggestion { background: #fff; border: 1.5px solid #e9d5ff; border-radius: 10px; padding: 14px 16px; display: flex; align-items: flex-start; gap: 14px; }
+.ai-suggestion .ai-badge { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #7c3aed; margin-bottom: 4px; }
+.ai-suggestion .ai-title { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 4px; }
+.ai-suggestion .ai-body { font-size: 12px; color: #555; line-height: 1.6; }
+.ai-action { flex-shrink: 0; margin-top: 2px; display: inline-flex; align-items: center; background: linear-gradient(135deg,#7c3aed,#db2777); color: #fff; border: none; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-family: inherit; font-weight: 600; cursor: pointer; }
+/* ── Planning Tips panel ── */
+#tips-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 380px; background: #fff; border-left: 1px solid #ece9e4; z-index: 100; transform: translateX(100%); transition: transform .25s ease; display: flex; flex-direction: column; box-shadow: -4px 0 24px rgba(0,0,0,.06); }
+#tips-panel.open { transform: translateX(0); }
+.tp-header { padding: 20px 20px 16px; border-bottom: 1px solid #ece9e4; display: flex; align-items: center; justify-content: space-between; }
+.tp-header h2 { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.tp-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
+.tp-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+.tp-section { margin-bottom: 20px; }
+.tp-section h3 { font-size: 12px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
+.tp-note-form textarea { width: 100%; padding: 9px 12px; border: 1px solid #e0dbd5; border-radius: 8px; font-size: 13px; font-family: inherit; outline: none; resize: vertical; min-height: 80px; }
+.tp-note-form textarea:focus { border-color: #c9956b; }
+.tp-ingest-btns { display: flex; gap: 8px; margin-top: 8px; }
+.tp-insight-card { background: #f7f9ff; border: 1px solid #dce8ff; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+.tp-insight-card .tic-kind { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #748ffc; margin-bottom: 4px; }
+.tp-insight-card .tic-title { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 4px; }
+.tp-insight-card .tic-body { font-size: 12px; color: #555; line-height: 1.6; margin-bottom: 8px; }
+.tp-insight-card .tic-action { display: inline-flex; align-items: center; gap: 4px; background: #3b5bdb; color: #fff; border: none; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-family: inherit; font-weight: 500; cursor: pointer; }
+.tp-insight-card .tic-action:hover { background: #2f4bc4; }
+.tp-note-pill { background: #f0ede8; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #666; margin-bottom: 6px; }
+
+/* ── Dashboard ── */
+.dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.dash-panel { background: #fff; border: 1px solid #ece9e4; border-radius: 12px; padding: 20px; }
+.dash-panel h3 { font-size: 13px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 14px; }
+.dash-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f5f3f0; font-size: 13px; }
+.dash-row:last-child { border-bottom: none; }
+.hero-card { background: linear-gradient(135deg, #8b6f5e 0%, #c9956b 100%); border-radius: 14px; padding: 28px 32px; color: #fff; margin-bottom: 20px; position: relative; overflow: hidden; }
+.hero-card::after { content: '💍'; position: absolute; right: 24px; bottom: 16px; font-size: 64px; opacity: .2; }
+.hero-card .hero-names { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.hero-card .hero-date { font-size: 14px; opacity: .8; margin-bottom: 12px; }
+.hero-card .hero-countdown { font-size: 36px; font-weight: 700; }
+.hero-card .hero-label { font-size: 13px; opacity: .7; }
+
+/* ── Modal ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 200; display: none; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: #fff; border-radius: 14px; padding: 28px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,.12); }
+.modal h2 { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+@media (max-width: 700px) {
+  #sidebar { width: 64px; }
+  .sidebar-logo .logo-subtitle, .sidebar-wedding-names, .sidebar-date, .sidebar-countdown, .nav-section, .nav-link span:not(.icon), .tips-btn .tb-label, .tips-btn .tb-count, .sync-status span { display: none; }
+  .section { padding: 24px 16px 60px; }
+  .dash-grid, .form-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div class="loading-ring"></div>
+  <div class="loading-text" id="loading-text">Loading your wedding…</div>
+</div>
+
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-title">💐 Wedding Planner</div>
+    <div class="logo-subtitle">Your big day, organized</div>
+  </div>
+  <div class="sidebar-wedding-names" id="nav-names">Loading…</div>
+  <div class="sidebar-date" id="nav-date"></div>
+  <div class="sidebar-countdown" id="nav-countdown"></div>
+
+  <div class="nav-section">Planning</div>
+  <a class="nav-link active" data-section="dashboard"><span class="icon">🏠</span><span>Dashboard</span></a>
+  <a class="nav-link" data-section="budget"><span class="icon">💰</span><span>Budget</span><span class="nav-badge" id="badge-budget" style="display:none"></span></a>
+  <a class="nav-link" data-section="guests"><span class="icon">👥</span><span>Guest List</span><span class="nav-badge" id="badge-guests" style="display:none"></span></a>
+  <a class="nav-link" data-section="seating"><span class="icon">🪑</span><span>Seating Chart</span></a>
+  <a class="nav-link" data-section="vendors"><span class="icon">🤝</span><span>Vendors</span><span class="nav-badge" id="badge-vendors" style="display:none"></span></a>
+  <a class="nav-link" data-section="venue"><span class="icon">🏛</span><span>Venue</span></a>
+  <a class="nav-link" data-section="timeline"><span class="icon">📋</span><span>Timeline</span></a>
+  <a class="nav-link" data-section="photos"><span class="icon">📷</span><span>Photos</span></a>
+
+  <div class="sidebar-footer">
+    <!-- Member bar -->
+    <div class="member-bar" id="nav-members" style="display:none"></div>
+    <button id="invite-btn" onclick="openShareModal()" style="display:none;margin:0 16px 8px;width:calc(100% - 32px);padding:7px;border:1.5px dashed #c9956b;border-radius:8px;background:transparent;color:#c9956b;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">+ Invite someone</button>
+
+    <div class="mode-toggle">
+      <button class="active gw" id="mode-gw" onclick="setMode('gw')">✦ GroupWisdom</button>
+      <button id="mode-ai" onclick="setMode('ai')">✦ AI Only</button>
+    </div>
+    <div class="mode-label" id="mode-label">Group intelligence active</div>
+    <div class="sync-status">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span id="sync-label">Connecting…</span>
+    </div>
+    <button class="tips-btn" onclick="openTips()">
+      <span class="tb-icon">💡</span>
+      <div>
+        <div class="tb-label">Planning Tips</div>
+        <div class="tb-count" id="tips-count">Loading…</div>
+      </div>
+    </button>
+  </div>
+</nav>
+
+<div id="main">
+  <!-- Pinned insight slot — filled by renderPinnedSlot() when user clicks an insight action -->
+  <div id="pinned-slot" style="padding: 24px 48px 0; max-width: 1000px;"></div>
+  <!-- Dashboard -->
+  <div class="section active" id="section-dashboard">
+    <div class="section-header"><h1>Dashboard</h1><p>Your wedding at a glance</p></div>
+    <div class="hero-card">
+      <div class="hero-names" id="dash-names"></div>
+      <div class="hero-date" id="dash-date"></div>
+      <div class="hero-countdown" id="dash-countdown">—</div>
+      <div class="hero-label">days to go</div>
+    </div>
+    <div class="stats-grid" id="dash-stats"></div>
+    <div id="dash-insights"></div>
+    <div class="dash-grid">
+      <div class="dash-panel"><h3>Upcoming Tasks</h3><div id="dash-tasks"></div></div>
+      <div class="dash-panel"><h3>Booked Vendors</h3><div id="dash-vendors"></div></div>
+      <div class="dash-panel"><h3>Budget Breakdown</h3><div id="dash-budget"></div></div>
+      <div class="dash-panel"><h3>RSVP Summary</h3><div id="dash-rsvp"></div></div>
+    </div>
+  </div>
+
+  <!-- Budget -->
+  <div class="section" id="section-budget">
+    <div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div><h1>Budget</h1><p>Track every dollar for the big day</p></div>
+      <button class="btn btn-primary" onclick="openBudgetModal()">+ Add Item</button>
+    </div>
+    <div id="budget-insights"></div>
+    <div class="card">
+      <div class="budget-summary" id="budget-summary"></div>
+      <div class="budget-bar-wrap"><div class="budget-bar-fill" id="budget-bar" style="width:0%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#aaa;margin-top:4px"><span>$0</span><span id="budget-total-label"></span></div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="data-table"><thead><tr><th>Item</th><th>Category</th><th>Cost</th><th>Status</th><th></th></tr></thead><tbody id="budget-table"></tbody></table>
+    </div>
+  </div>
+
+  <!-- Guests -->
+  <div class="section" id="section-guests">
+    <div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div><h1>Guest List</h1><p id="guest-count-label"></p></div>
+      <button class="btn btn-primary" onclick="openGuestModal()">+ Add Guest</button>
+    </div>
+    <div id="guest-insights"></div>
+    <div class="stats-grid" id="guest-stats"></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:14px 16px;border-bottom:1px solid #ece9e4;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="guest-filters" id="guest-filters"></div>
+        <input class="form-control" style="width:200px;margin-left:auto" placeholder="Search…" id="guest-search" oninput="renderGuests()">
+      </div>
+      <table class="data-table"><thead><tr><th>Name</th><th>Side</th><th>Group</th><th>RSVP</th><th>Meal</th><th>Notes</th><th></th></tr></thead><tbody id="guest-table"></tbody></table>
+    </div>
+  </div>
+
+  <!-- Seating -->
+  <div class="section" id="section-seating">
+    <div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div><h1>Seating Chart</h1><p id="seating-status"></p></div>
+      <button class="btn btn-primary" onclick="openTableModal()">+ Add Table</button>
+    </div>
+    <div class="seating-layout">
+      <div class="seating-unplaced">
+        <h3>Unplaced (<span id="unplaced-count">0</span>)</h3>
+        <div id="unplaced-list"></div>
+      </div>
+      <div style="flex:1"><div class="seating-tables-grid" id="tables-grid"></div></div>
+    </div>
+  </div>
+
+  <!-- Vendors -->
+  <div class="section" id="section-vendors">
+    <div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div><h1>Vendors</h1><p>Everyone making the day happen</p></div>
+      <button class="btn btn-primary" onclick="openVendorModal()">+ Add Vendor</button>
+    </div>
+    <div id="vendor-insights"></div>
+    <div class="vendor-grid" id="vendor-grid"></div>
+  </div>
+
+  <!-- Venue -->
+  <div class="section" id="section-venue">
+    <div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div><h1>Venue</h1><p>Your dream location</p></div>
+      <button class="btn btn-primary" onclick="openVenueModal()">+ Add Venue</button>
+    </div>
+    <div class="venue-grid" id="venue-grid"></div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="section" id="section-timeline">
+    <div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div><h1>Timeline & Checklist</h1><p id="timeline-progress"></p></div>
+      <button class="btn btn-primary" onclick="openTaskModal()">+ Add Task</button>
+    </div>
+    <div id="timeline-content"></div>
+  </div>
+
+  <!-- Photos (localStorage only — images are too large for cloud sync) -->
+  <div class="section" id="section-photos">
+    <div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div><h1>Photos</h1><p>Inspiration and planning images</p></div>
+      <button class="btn btn-primary" onclick="openNewAlbumModal()">+ New Album</button>
+    </div>
+    <div class="album-tabs" id="album-tabs"></div>
+    <label class="photo-upload-zone" for="photo-upload" style="display:block;margin-bottom:16px">
+      <div style="font-size:28px;margin-bottom:8px">📸</div>
+      <div style="font-weight:600">Click to upload photos</div>
+      <div style="font-size:12px;margin-top:4px">Add to current album</div>
+    </label>
+    <input type="file" id="photo-upload" accept="image/*" multiple style="display:none" onchange="handlePhotoUpload(event)">
+    <div class="photo-grid" id="photo-grid"></div>
+  </div>
+</div>
+
+<!-- Join / identity modal -->
+<div class="fullscreen-overlay hidden" id="join-modal">
+  <div class="modal-box">
+    <h2>👋 Welcome to the wedding plan</h2>
+    <p>Tell us who you are so your contributions are tracked and the planning tips are personalized to you.</p>
+    <input class="form-control" id="join-name" placeholder="Your name (e.g. Emma, James, Sarah…)" style="margin-bottom:14px">
+    <div class="role-grid" id="role-grid">
+      <div class="role-chip selected" data-role="Partner 1" onclick="selectRole(this)"><span class="rc-emoji">💍</span>Partner 1</div>
+      <div class="role-chip" data-role="Partner 2" onclick="selectRole(this)"><span class="rc-emoji">💍</span>Partner 2</div>
+      <div class="role-chip" data-role="Coordinator" onclick="selectRole(this)"><span class="rc-emoji">📋</span>Coordinator</div>
+      <div class="role-chip" data-role="Family" onclick="selectRole(this)"><span class="rc-emoji">👨‍👩‍👧</span>Family</div>
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="confirmJoin()">Join Plan →</button>
+  </div>
+</div>
+
+<!-- Share / invite modal -->
+<div class="fullscreen-overlay hidden" id="share-modal">
+  <div class="modal-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 style="margin:0">Invite someone</h2>
+      <button class="tp-close" onclick="closeShareModal()">✕</button>
+    </div>
+    <p>Share this link with your partner, coordinator, or family. They'll join the same plan and their contributions will be tracked separately.</p>
+    <div class="share-box">
+      <div class="share-url" id="share-url"></div>
+      <button class="btn btn-primary btn-sm" onclick="copyInviteLink()">📋 Copy link</button>
+      <span id="copy-confirm" style="font-size:12px;color:#1d7a46;margin-left:8px;display:none">Copied!</span>
+    </div>
+    <div id="share-members"></div>
+  </div>
+</div>
+
+<!-- Planning Tips panel -->
+<div id="tips-panel">
+  <div class="tp-header">
+    <h2>💡 Planning Tips</h2>
+    <button class="tp-close" onclick="closeTips()">✕</button>
+  </div>
+  <div class="tp-body">
+    <div class="tp-section">
+      <h3>All Suggestions <span id="tp-count" style="color:#aaa;font-weight:400"></span></h3>
+      <div id="tp-insights"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-secondary btn-sm" onclick="fetchAndRenderInsights()">↻ Refresh</button>
+        <button class="btn btn-primary btn-sm" onclick="autoAnalyze()">✦ Re-analyze wedding</button>
+      </div>
+    </div>
+    <div class="tp-section">
+      <h3>Add a Note</h3>
+      <div class="tp-note-form">
+        <textarea id="tp-note" placeholder="Jot down vendor impressions, open questions, planning decisions…"></textarea>
+        <div class="tp-ingest-btns">
+          <select class="form-control" id="tp-type" style="flex:1">
+            <option value="note">Planning Note</option>
+            <option value="vendor">Vendor Note</option>
+            <option value="idea">Idea</option>
+            <option value="concern">Concern</option>
+          </select>
+          <button class="btn btn-primary" id="tp-save-btn" onclick="saveNote()">Save</button>
+        </div>
+      </div>
+    </div>
+    <div class="tp-section">
+      <h3>Quick Analyze</h3>
+      <button class="btn btn-secondary btn-sm" style="width:100%;margin-bottom:6px" onclick="analyzeVendors()">📋 Analyze all vendors</button>
+      <button class="btn btn-secondary btn-sm" style="width:100%"  onclick="analyzeDietary()">🥗 Analyze dietary needs</button>
+    </div>
+    <div class="tp-section">
+      <h3>Your Notes</h3>
+      <div id="tp-notes-list"><div style="font-size:12px;color:#aaa">None yet.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h2 id="modal-title"></h2>
+    <div id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════
+const GW_BASE    = "/gw-proxy";
+const GW_KEY     = "gw_b4c3470e3762a64bd8318beaed188a5c22d8";
+const LS_PROJ    = "wedding_gw_proj_v3";
+const LS_PHOTOS  = "wedding_photos_v1";
+const LS_ALBUMS  = "wedding_albums_v1";
+const LS_STATE   = "wedding_local_state_v1";
+const LS_USER    = "wedding_user_v1";
+const LS_AI_Q    = "wedding_ai_queue_v1";
+const MAX_INSIGHTS = 3;
+
+// Entity type tags stored in GW item `type` field
+const T = {
+  CONFIG: "wedding_config",
+  GUEST:  "guest",
+  BUDGET: "budget_item",
+  VENDOR: "vendor",
+  VENUE:  "venue",
+  TASK:   "task",
+  TABLE:  "table",
+  NOTE:   "planning_note",
+};
+
+// ── in-memory state (rebuilt from GW) ──────────────────────
+let state = {
+  wedding: { partner1:"Emma", partner2:"James", date:"2026-10-17", budget:30000 },
+  guests: [], budget_items: [], vendors: [], venues: [], tasks: [], tables: [],
+};
+let gwProjectId  = localStorage.getItem(LS_PROJ);
+let insights     = [];
+let aiSuggestions = JSON.parse(localStorage.getItem(LS_AI_Q) || "[]").slice(0, MAX_INSIGHTS);
+let appMode      = localStorage.getItem("wedding_mode") || "gw";
+let currentUser  = JSON.parse(localStorage.getItem(LS_USER) || "null"); // {name, role, color}
+let members      = []; // unique contributors seen in GW items
+
+const MEMBER_COLORS = ["#3b5bdb","#1d7a46","#c9956b","#db2777","#7c3aed","#0891b2","#b45309","#be123c"];
+function userColor(name) {
+  let h = 0; for (const c of (name||"?")) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff;
+  return MEMBER_COLORS[Math.abs(h) % MEMBER_COLORS.length];
+}
+function avatarHTML(name, size = 22) {
+  const initials = (name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+  return `<div class="member-avatar" style="width:${size}px;height:${size}px;font-size:${size*0.42}px;background:${userColor(name)}">${initials}</div>`;
+}
+let userNotes   = [];
+
+// Photos stay in localStorage (base64 too large for cloud sync)
+let photos = JSON.parse(localStorage.getItem(LS_PHOTOS) || "[]");
+let albums = JSON.parse(localStorage.getItem(LS_ALBUMS) || '["Venue Ideas","Floral Inspiration","Dress Options","Decor Mood Board"]');
+let currentAlbum = albums[0] || null;
+
+// ═══════════════════════════════════════════════════════════
+// GW DATA LAYER
+// ═══════════════════════════════════════════════════════════
+
+async function gwFetch(path, opts = {}) {
+  const res = await fetch(GW_BASE + path, {
+    ...opts,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + GW_KEY,
+      ...(opts.headers || {}),
+    },
+  });
+  if (!res.ok) throw new Error("GW " + res.status + " " + path);
+  return res.json();
+}
+
+function setSyncStatus(status, label) {
+  const dot = document.getElementById("sync-dot");
+  const lbl = document.getElementById("sync-label");
+  dot.className = "sync-dot " + status;
+  if (lbl) lbl.textContent = label;
+}
+
+// Save (or update) one entity. Updates entity._gwId in place.
+function saveLocalState() {
+  try { localStorage.setItem(LS_STATE, JSON.stringify(state)); } catch {}
+}
+
+function loadLocalState() {
+  try {
+    const raw = localStorage.getItem(LS_STATE);
+    if (raw) { Object.assign(state, JSON.parse(raw)); return true; }
+  } catch {}
+  return false;
+}
+
+function seedLocalState() {
+  const wedding = { partner1:"Emma", partner2:"James", date:"2026-10-17", budget:30000 };
+  state.wedding = wedding;
+  state.guests = SEED_GUESTS.map(g => ({...g}));
+  state.budget_items = SEED_BUDGET.map(b => ({...b}));
+  state.vendors = SEED_VENDORS.map(v => ({...v}));
+  state.venues = SEED_VENUES.map(v => ({...v}));
+  state.tasks = SEED_TASKS.map(t => ({...t}));
+  state.tables = SEED_TABLES.map(t => ({...t}));
+  photos = [...SEED_PHOTOS];
+  localStorage.setItem(LS_PHOTOS, JSON.stringify(photos));
+  saveLocalState();
+}
+
+async function gwSave(entity, type) {
+  if (appMode === "ai") { saveLocalState(); return; }
+  setSyncStatus("syncing", "Saving…");
+  try {
+    if (entity._gwId) {
+      try { await gwFetch(`/projects/${gwProjectId}/items/${entity._gwId}`, { method: "DELETE" }); } catch {}
+    }
+    const name = entity.name || entity.title || entity.partner1 || entity.id || "item";
+    entity._contributor = currentUser?.name || "Planner";
+    const payload = { title: `[${type}] ${name}`.slice(0, 120), content: JSON.stringify(entity), type, contributed_by: currentUser?.name || "Planner" };
+    const data = await gwFetch(`/projects/${gwProjectId}/ingest`, {
+      method: "POST", body: JSON.stringify(payload),
+    });
+    entity._gwId = data.items?.[0]?.id || null;
+    setSyncStatus("synced", "Synced");
+    scheduleReAnalyze();
+  } catch (e) {
+    console.error("[gw save]", e);
+    setSyncStatus("error", "Sync error");
+  }
+}
+
+async function gwDelete(gwId) {
+  if (appMode === "ai") { saveLocalState(); return; }
+  if (!gwId) return;
+  setSyncStatus("syncing", "Saving…");
+  try {
+    await gwFetch(`/projects/${gwProjectId}/items/${gwId}`, { method: "DELETE" });
+    setSyncStatus("synced", "Synced");
+  } catch (e) {
+    console.error("[gw delete]", e);
+    setSyncStatus("error", "Sync error");
+  }
+}
+
+async function gwLoadAll() {
+  const data = await gwFetch(`/projects/${gwProjectId}/items?limit=500`);
+  const items = data.data || data.items || [];
+  // reset
+  state.guests = []; state.budget_items = []; state.vendors = [];
+  state.venues = []; state.tasks = []; state.tables = [];
+
+  for (const item of items) {
+    let entity;
+    try { entity = JSON.parse(item.content); } catch { continue; }
+    entity._gwId = item.id;
+    if (item.contributed_by) entity._contributor = item.contributed_by;
+    switch (item.type) {
+      case T.CONFIG: state.wedding = entity; break;
+      case T.GUEST:  state.guests.push(entity); break;
+      case T.BUDGET: state.budget_items.push(entity); break;
+      case T.VENDOR: state.vendors.push(entity); break;
+      case T.VENUE:  state.venues.push(entity); break;
+      case T.TASK:   state.tasks.push(entity); break;
+      case T.TABLE:  state.tables.push(entity); break;
+      case T.NOTE:   userNotes.push(entity); break;
+    }
+  }
+  extractMembers(items);
+  renderMembers();
+}
+
+// Bulk ingest (used for seeding)
+async function gwBulkIngest(payloads) {
+  const data = await gwFetch(`/projects/${gwProjectId}/ingest`, {
+    method: "POST",
+    body: JSON.stringify({ items: payloads }),
+  });
+  return data.items || [];
+}
+
+// ═══════════════════════════════════════════════════════════
+// INSIGHTS
+// ═══════════════════════════════════════════════════════════
+
+async function fetchAndRenderInsights() {
+  if (!gwProjectId) return;
+  try {
+    const data = await gwFetch(`/projects/${gwProjectId}/insights?limit=30`);
+    const fresh = data.data || data.items || data.insights || [];
+    // Rolling queue: newest at front, max 3, deduplicate by title
+    const seen = new Set(insights.map(i => i.title || i.id));
+    for (const ins of [...fresh].reverse()) {
+      if (!seen.has(ins.title || ins.id)) {
+        insights.unshift(ins);
+        seen.add(ins.title || ins.id);
+      }
+    }
+    insights = insights.slice(0, MAX_INSIGHTS);
+    renderInsightBadges();
+    renderTipsPanel();
+    renderSectionInsights(currentSection);
+    if (currentSection === "dashboard") renderDashboardInsights();
+    const count = insights.length;
+    document.getElementById("tips-count").textContent = count ? count + " suggestion" + (count !== 1 ? "s" : "") : "Analyzing…";
+  } catch (e) { console.error("[insights]", e); }
+}
+
+// Build a rich plain-English summary of the entire wedding for the analysis engine
+function buildWeddingSummary() {
+  const w = state.wedding;
+  const days = daysUntil(w.date);
+  const committed = state.budget_items.reduce((s,i)=>s+i.cost,0);
+  const over = committed - w.budget;
+  const rc = {confirmed:0,declined:0,pending:0};
+  state.guests.forEach(g=>{rc[g.rsvp||"pending"]++;});
+  const dietary = state.guests.filter(g=>g.notes).map(g=>`${g.name}: ${g.notes}`);
+  const booked = state.vendors.filter(v=>v.status==="booked");
+  const considering = state.vendors.filter(v=>v.status==="considering");
+  const overdueTasks = state.tasks.filter(t=>!t.done && t.due && new Date(t.due+"T00:00:00") < new Date());
+  const upcomingTasks = state.tasks.filter(t=>!t.done && t.due && new Date(t.due+"T00:00:00") >= new Date()).slice(0,5);
+  const unpaidItems = state.budget_items.filter(i=>i.status==="unpaid");
+  const depositItems = state.budget_items.filter(i=>i.status==="deposit");
+  const allSeated = new Set(state.tables.flatMap(t=>t.guests));
+  const confirmedGuests = state.guests.filter(g=>g.rsvp==="confirmed");
+  const unplaced = confirmedGuests.filter(g=>!allSeated.has(g.id));
+
+  return `Wedding Planning Summary — ${w.partner1} & ${w.partner2}
+Date: ${fmtDate(w.date)} (${days} days away)
+
+BUDGET
+Total budget: ${fmt(w.budget)}
+Total committed: ${fmt(committed)}
+${over > 0 ? `OVER BUDGET by ${fmt(over)} — needs attention` : `Remaining: ${fmt(-over)}`}
+Unpaid items (${unpaidItems.length}): ${unpaidItems.map(i=>`${i.name} (${fmt(i.cost)})`).join(", ")||"none"}
+Deposit-only items (${depositItems.length}): ${depositItems.map(i=>`${i.name} (${fmt(i.cost)})`).join(", ")||"none"}
+
+GUESTS
+Total invited: ${state.guests.length}
+Confirmed: ${rc.confirmed} | Declined: ${rc.declined} | Pending: ${rc.pending}
+${unplaced.length > 0 ? `Unplaced confirmed guests: ${unplaced.length} (${unplaced.map(g=>g.name).join(", ")})` : "All confirmed guests are seated."}
+Dietary restrictions & special notes:
+${dietary.length ? dietary.join("\n") : "None noted"}
+
+VENDORS
+Booked (${booked.length}): ${booked.map(v=>`${v.type} — ${v.name} (${fmt(v.cost)})`).join(", ")}
+Still considering (${considering.length}): ${considering.map(v=>`${v.type} — ${v.name} (${fmt(v.cost)}): ${v.notes}`).join(" | ")||"none"}
+
+TIMELINE
+Tasks complete: ${state.tasks.filter(t=>t.done).length} of ${state.tasks.length}
+${overdueTasks.length ? `OVERDUE tasks (${overdueTasks.length}): ${overdueTasks.map(t=>`"${t.title}" (was due ${t.due})`).join(", ")}` : "No overdue tasks."}
+Upcoming: ${upcomingTasks.map(t=>`"${t.title}" due ${t.due}`).join(", ")||"none"}
+
+SEATING
+Tables: ${state.tables.length} | Confirmed guests seated: ${allSeated.size}/${confirmedGuests.length}
+${state.tables.map(t=>{const open=t.seats-t.guests.length;return `${t.name}: ${t.guests.length}/${t.seats} seats${open>0?` (${open} open)`:' (FULL)'}`}).join(", ")}`;
+}
+
+// ── Identity / Join ─────────────────────────────────────────
+let _selectedRole = "Partner 1";
+function selectRole(el) {
+  document.querySelectorAll(".role-chip").forEach(c => c.classList.remove("selected"));
+  el.classList.add("selected");
+  _selectedRole = el.dataset.role;
+}
+function showJoinModal() {
+  document.getElementById("join-modal").classList.remove("hidden");
+}
+function confirmJoin() {
+  const name = document.getElementById("join-name").value.trim();
+  if (!name) { document.getElementById("join-name").focus(); return; }
+  currentUser = { name, role: _selectedRole, color: userColor(name) };
+  localStorage.setItem(LS_USER, JSON.stringify(currentUser));
+  document.getElementById("join-modal").classList.add("hidden");
+  continueInit();
+}
+
+// ── Members ──────────────────────────────────────────────────
+function extractMembers(items) {
+  const seen = new Map();
+  for (const item of items) {
+    const by = item.contributed_by || item.author;
+    if (by && !seen.has(by)) seen.set(by, { name: by });
+  }
+  // ensure current user is always shown
+  if (currentUser && !seen.has(currentUser.name)) seen.set(currentUser.name, currentUser);
+  members = [...seen.values()];
+}
+
+function renderMembers() {
+  const bar = document.getElementById("nav-members");
+  const btn = document.getElementById("invite-btn");
+  if (!bar) return;
+  if (!currentUser || appMode === "ai") { bar.style.display = "none"; if(btn) btn.style.display="none"; return; }
+  bar.style.display = "flex";
+  if (btn) btn.style.display = "";
+  bar.innerHTML = members.map(m => `
+    <div class="member-chip" title="${escHtml(m.name)} · ${escHtml(m.role||'')}">
+      ${avatarHTML(m.name)}
+      <span>${escHtml(m.name.split(" ")[0])}</span>
+    </div>`).join("");
+}
+
+// ── Share / invite ───────────────────────────────────────────
+function openShareModal() {
+  const base = window.location.origin + window.location.pathname;
+  const url = `${base}?join=${gwProjectId}`;
+  document.getElementById("share-url").textContent = url;
+  document.getElementById("share-members").innerHTML = members.length
+    ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#aaa;margin-bottom:8px">Currently in this plan</div>`
+      + members.map(m => `<div class="member-chip" style="margin-bottom:6px">${avatarHTML(m.name)} <span>${escHtml(m.name)}</span> <span style="color:#aaa;font-size:10px">· ${escHtml(m.role||"")}</span></div>`).join("")
+    : "";
+  document.getElementById("share-modal").classList.remove("hidden");
+}
+function closeShareModal() { document.getElementById("share-modal").classList.add("hidden"); }
+async function copyInviteLink() {
+  const url = document.getElementById("share-url").textContent;
+  await navigator.clipboard.writeText(url).catch(() => {});
+  const el = document.getElementById("copy-confirm");
+  el.style.display = "inline"; setTimeout(() => el.style.display = "none", 2000);
+}
+
+// ── Mode toggle ─────────────────────────────────────────────
+function setMode(mode) {
+  appMode = mode;
+  localStorage.setItem("wedding_mode", mode);
+  document.getElementById("mode-gw").classList.toggle("active", mode === "gw");
+  document.getElementById("mode-ai").classList.toggle("active", mode === "ai");
+  document.getElementById("mode-label").textContent =
+    mode === "gw" ? "Group intelligence active" : "AI assistant · GW off";
+  // Sync dot: green=synced(gw), grey=off(ai)
+  if (mode === "ai") {
+    setSyncStatus("synced", "GW off");
+    document.getElementById("sync-dot").style.background = "#ccc";
+  } else {
+    document.getElementById("sync-dot").style.background = "";
+    setSyncStatus("synced", "Synced");
+    // Re-fetch GW insights now that GW is back on
+    fetchAndRenderInsights().then(() => {
+      if (insights.length === 0) autoAnalyze();
+    });
+  }
+  // Tips panel is GW-only — hide in AI mode
+  const tipsBtn = document.querySelector(".tips-btn");
+  if (tipsBtn) tipsBtn.style.display = mode === "ai" ? "none" : "";
+  if (currentSection === "dashboard") renderDashboardInsights();
+  if (mode === "ai" && aiSuggestions.length === 0) fetchAiSuggestions();
+}
+
+async function fetchAiSuggestions() {
+  const el = document.getElementById("dash-insights");
+  if (el) el.innerHTML = `<div style="font-size:12px;color:#888;padding:12px 0">✦ Asking AI assistant…</div>`;
+  try {
+    const context = buildWeddingSummary();
+    const r = await fetch("/wedding-ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ context }),
+    });
+    const data = await r.json();
+    const newSugs = data.suggestions || [];
+    // Load persisted queue, prepend new (deduplicated), trim to 3, persist
+    const stored = JSON.parse(localStorage.getItem(LS_AI_Q) || "[]");
+    const seenTitles = new Set(stored.map(s => s.title));
+    for (const s of newSugs) {
+      if (!seenTitles.has(s.title)) { stored.unshift(s); seenTitles.add(s.title); }
+    }
+    aiSuggestions = stored.slice(0, MAX_INSIGHTS);
+    localStorage.setItem(LS_AI_Q, JSON.stringify(aiSuggestions));
+    renderDashboardInsights();
+  } catch (e) {
+    console.error("[ai suggestions]", e);
+    if (el) el.innerHTML = `<div style="font-size:12px;color:#f87171;padding:12px 0">Could not reach AI assistant.</div>`;
+  }
+}
+
+let _reAnalyzeTimer = null;
+function scheduleReAnalyze() {
+  if (appMode === "ai") return;
+  clearTimeout(_reAnalyzeTimer);
+  _reAnalyzeTimer = setTimeout(autoAnalyze, 20000);
+}
+
+async function autoAnalyze() {
+  if (!gwProjectId) return;
+  document.getElementById("tips-count").textContent = "Analyzing…";
+
+  const w = state.wedding;
+  const days = daysUntil(w.date);
+  const committed = state.budget_items.reduce((s,i)=>s+i.cost,0);
+  const over = committed - w.budget;
+  const rc = {confirmed:0,declined:0,pending:0};
+  state.guests.forEach(g=>{rc[g.rsvp||"pending"]++;});
+  const dietary = state.guests.filter(g=>g.notes).map(g=>`${g.name}: ${g.notes}`);
+  const booked = state.vendors.filter(v=>v.status==="booked");
+  const considering = state.vendors.filter(v=>v.status==="considering");
+  const overdueTasks = state.tasks.filter(t=>!t.done && t.due && new Date(t.due+"T00:00:00") < new Date());
+  const unpaid = state.budget_items.filter(i=>i.status==="unpaid");
+  const deposit = state.budget_items.filter(i=>i.status==="deposit");
+  const allSeated = new Set(state.tables.flatMap(t=>t.guests));
+  const confirmed = state.guests.filter(g=>g.rsvp==="confirmed");
+  const unplaced = confirmed.filter(g=>!allSeated.has(g.id));
+
+  // Ingest as separate "contributor" perspectives so GW cross-analyzes them
+  const perspectives = [
+    {
+      contributed_by: "Budget Coordinator",
+      title: "Budget & Payments Status",
+      content: `Wedding budget is ${fmt(w.budget)}. Total committed: ${fmt(committed)}. ${over > 0 ? `We are OVER BUDGET by ${fmt(over)}.` : `We have ${fmt(-over)} remaining.`} Unpaid items: ${unpaid.map(i=>`${i.name} ${fmt(i.cost)}`).join(", ")||"none"}. Items with only deposit paid: ${deposit.map(i=>`${i.name} ${fmt(i.cost)}`).join(", ")||"none"}. Still considering: ${considering.map(v=>`${v.type} ${v.name} at ${fmt(v.cost)}`).join(", ")||"none"} — these costs are not yet in the budget.`
+    },
+    {
+      contributed_by: "Guest Coordinator",
+      title: "Guest List & Dietary Needs",
+      content: `${state.guests.length} guests invited. ${rc.confirmed} confirmed, ${rc.declined} declined, ${rc.pending} still pending RSVPs. ${days} days until the wedding — pending RSVPs need to be chased. Dietary restrictions and special needs from confirmed guests: ${dietary.length ? dietary.join("; ") : "none noted"}. ${unplaced.length} confirmed guests not yet assigned to a table: ${unplaced.map(g=>g.name).join(", ")||"all seated"}.`
+    },
+    {
+      contributed_by: "Vendor Manager",
+      title: "Vendor Bookings & Concerns",
+      content: `Booked vendors (${booked.length}): ${booked.map(v=>`${v.type} — ${v.name} (${fmt(v.cost)})`).join("; ")}. Key notes: ${booked.filter(v=>v.notes).map(v=>`${v.name}: ${v.notes}`).join(" | ")}. Still deciding (${considering.length}): ${considering.map(v=>`${v.type} — ${v.name}: ${v.notes}`).join(" | ")||"none"}.`
+    },
+    {
+      contributed_by: "Wedding Coordinator",
+      title: "Timeline & Checklist Status",
+      content: `${state.tasks.filter(t=>t.done).length} of ${state.tasks.length} tasks complete. ${days} days to the wedding. ${overdueTasks.length ? `OVERDUE tasks: ${overdueTasks.map(t=>`"${t.title}" (was due ${t.due})`).join(", ")}.` : "No overdue tasks."} Next upcoming: ${state.tasks.filter(t=>!t.done && t.due).sort((a,b)=>a.due.localeCompare(b.due)).slice(0,5).map(t=>`"${t.title}" due ${t.due}`).join(", ")}.`
+    },
+  ];
+
+  try {
+    await gwFetch(`/projects/${gwProjectId}/ingest`, {
+      method: "POST",
+      body: JSON.stringify({ items: perspectives }),
+    });
+
+    // Poll until insights appear
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      await fetchAndRenderInsights();
+      if (insights.length > 0 || attempts >= 8) clearInterval(poll);
+    }, 5000);
+  } catch(e) {
+    console.error("[auto-analyze]", e);
+    document.getElementById("tips-count").textContent = "No suggestions yet";
+  }
+}
+
+const SECTION_KEYWORDS = {
+  budget:   ["budget","cost","spend","payment","price","dollar","fee","quote","deposit","paid"],
+  guests:   ["guest","dietary","rsvp","meal","allerg","invitation","attend","vegan","vegetarian","gluten"],
+  vendors:  ["vendor","florist","caterer","photographer","band","dj","officiant","baker","makeup","hair","book","contact"],
+  seating:  ["seat","table","placement","arrange"],
+  venue:    ["venue","location","capacity","estate","barn","hall"],
+  timeline: ["task","deadline","checklist","timeline","due","schedule","month","week"],
+};
+
+function insightsForSection(section) {
+  const kws = SECTION_KEYWORDS[section];
+  if (!kws) return insights;
+  return insights.filter(ins => {
+    const text = ((ins.title||"") + " " + (ins.summary||ins.content||ins.body||"")).toLowerCase();
+    return kws.some(kw => text.includes(kw));
+  });
+}
+
+// Which section an insight belongs to — check contributed_by first, then keywords
+function insightSection(ins) {
+  const by = (ins.contributed_by || "").toLowerCase();
+  if (by.includes("budget")) return "budget";
+  if (by.includes("guest")) return "guests";
+  if (by.includes("vendor")) return "vendors";
+  if (by.includes("coordinator") || by.includes("timeline") || by.includes("wedding coord")) return "timeline";
+  if (by.includes("seating")) return "seating";
+  // fall back to keyword scan
+  const text = ((ins.title||"") + " " + (ins.summary||ins.content||ins.body||"")).toLowerCase();
+  if (SECTION_KEYWORDS.vendors.some(k => text.includes(k))) return "vendors";
+  if (SECTION_KEYWORDS.budget.some(k => text.includes(k))) return "budget";
+  if (SECTION_KEYWORDS.guests.some(k => text.includes(k))) return "guests";
+  if (SECTION_KEYWORDS.seating.some(k => text.includes(k))) return "seating";
+  return "timeline";
+}
+
+const SECTION_LABELS = { budget:"Budget", guests:"Guest List", vendors:"Vendors", seating:"Seating", timeline:"Checklist" };
+
+let pinnedInsight = null; // insight pinned to current section
+
+function pinAndGo(ins) {
+  closeTips();
+  const sec = insightSection(ins);
+  pinnedInsight = { ins, section: sec };
+  showSection(sec);
+}
+
+function dismissPinned() {
+  pinnedInsight = null;
+  renderPinnedSlot();
+}
+
+function renderPinnedSlot() {
+  const el = document.getElementById("pinned-slot");
+  if (!el) return;
+  // On dashboard insights render inline — no duplicate pinned card needed
+  if (!pinnedInsight || pinnedInsight.section !== currentSection || currentSection === "dashboard") { el.innerHTML = ""; return; }
+  const ins = pinnedInsight.ins;
+  const body = escHtml(ins.summary || ins.content || ins.body || "");
+  const fnIdx = 9000;
+  _actionFns[fnIdx] = null; // no secondary action needed from pinned card
+  el.innerHTML = `
+    <div class="pinned-insight">
+      <button class="pi-dismiss" onclick="dismissPinned()">✕</button>
+      <div class="pi-label">💡 Suggestion</div>
+      ${ins.title ? `<div class="pi-title">${escHtml(ins.title)}</div>` : ""}
+      <div class="pi-body">${body}</div>
+    </div>`;
+}
+
+function insightAction(ins) {
+  const sec = insightSection(ins);
+  const label = SECTION_LABELS[sec] || "Checklist";
+  if (sec === "timeline") {
+    return { label: "+ Add to Checklist", fn: () => { closeTips(); openTaskModal(); setTimeout(() => { const el = document.getElementById("f-ttitle"); if(el) el.value = (ins.title||"").slice(0,80); }, 60); } };
+  }
+  return { label: `→ ${label}`, fn: () => { closeTips(); showSection(sec); } };
+}
+
+const _actionFns = [];
+
+function insightCardsHTML(list, fnOffset) {
+  return list.map((ins, i) => {
+    const action = insightAction(ins);
+    _actionFns[fnOffset + i] = action.fn;
+    const body = escHtml(ins.summary || ins.content || ins.body || "");
+    return `
+      <div class="insight-item">
+        ${ins.title ? `<div class="ii-title">${escHtml(ins.title)}</div>` : ""}
+        <div class="ii-body">${body}</div>
+        <button class="ii-action" onclick="_actionFns[${fnOffset+i}]()">${escHtml(action.label)}</button>
+      </div>`;
+  }).join("");
+}
+
+function renderInsightBadges() {
+  const sections = ["budget","guests","vendors"];
+  sections.forEach(s => {
+    const el = document.getElementById("badge-" + s);
+    if (!el) return;
+    const count = insightsForSection(s).length;
+    if (count) { el.textContent = count; el.style.display = ""; }
+    else el.style.display = "none";
+  });
+}
+
+function renderSectionInsights(section) {
+  const containerId = section + "-insights";
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const list = insightsForSection(section);
+  if (!list.length) { el.innerHTML = ""; return; }
+  const offset = 1000 + Object.keys(SECTION_KEYWORDS).indexOf(section) * 50;
+  el.innerHTML = `
+    <div class="insight-banner">
+      <h3>💡 ${list.length} Suggestion${list.length!==1?"s":""}</h3>
+      ${insightCardsHTML(list, offset)}
+    </div>`;
+}
+
+function renderTipsPanel() {
+  const el = document.getElementById("tp-insights");
+  document.getElementById("tp-count").textContent = insights.length ? `(${insights.length})` : "";
+  if (!insights.length) {
+    el.innerHTML = "<div style='font-size:12px;color:#aaa'>No suggestions yet. Add a note or use Quick Analyze to get started.</div>";
+    return;
+  }
+  el.innerHTML = insightCardsHTML(insights, 2000);
+
+  const notesEl = document.getElementById("tp-notes-list");
+  notesEl.innerHTML = userNotes.length
+    ? userNotes.slice(0,10).map(n=>`<div class="tp-note-pill">${escHtml((n.text||n.title||"").slice(0,60))} <span class="badge badge-gray">${escHtml(n.type||"note")}</span></div>`).join("")
+    : "<div style='font-size:12px;color:#aaa'>None yet.</div>";
+}
+
+// ═══════════════════════════════════════════════════════════
+// SEED DATA
+// ═══════════════════════════════════════════════════════════
+
+const SEED_GUESTS = [
+  {id:"g1",name:"Margaret Chen",side:"partner1",group:"family",rsvp:"confirmed",meal:"vegetarian",notes:"Allergic to shellfish"},
+  {id:"g2",name:"Robert Chen",side:"partner1",group:"family",rsvp:"confirmed",meal:"standard",notes:""},
+  {id:"g3",name:"Lily Chen",side:"partner1",group:"family",rsvp:"confirmed",meal:"vegetarian",notes:"Vegan, no dairy"},
+  {id:"g4",name:"David Chen",side:"partner1",group:"family",rsvp:"declined",meal:"",notes:""},
+  {id:"g5",name:"Sophie Williams",side:"partner1",group:"friends",rsvp:"confirmed",meal:"standard",notes:"Plus one: Mark Patel"},
+  {id:"g6",name:"Marcus Johnson",side:"partner1",group:"friends",rsvp:"confirmed",meal:"standard",notes:""},
+  {id:"g7",name:"Aisha Okafor",side:"partner1",group:"friends",rsvp:"pending",meal:"",notes:""},
+  {id:"g8",name:"Tom Bradley",side:"partner1",group:"work",rsvp:"confirmed",meal:"standard",notes:"Gluten free"},
+  {id:"g9",name:"Rachel Kim",side:"partner1",group:"work",rsvp:"confirmed",meal:"standard",notes:""},
+  {id:"g10",name:"Nina Patel",side:"partner1",group:"friends",rsvp:"confirmed",meal:"vegetarian",notes:"No nuts"},
+  {id:"g11",name:"Harold Morrison",side:"partner2",group:"family",rsvp:"confirmed",meal:"standard",notes:"Wheelchair accessible seating"},
+  {id:"g12",name:"Patricia Morrison",side:"partner2",group:"family",rsvp:"confirmed",meal:"standard",notes:""},
+  {id:"g13",name:"Daniel Morrison",side:"partner2",group:"family",rsvp:"confirmed",meal:"standard",notes:""},
+  {id:"g14",name:"Claire Morrison",side:"partner2",group:"family",rsvp:"confirmed",meal:"vegetarian",notes:""},
+  {id:"g15",name:"Owen Morrison",side:"partner2",group:"family",rsvp:"pending",meal:"",notes:""},
+  {id:"g16",name:"Jake Turner",side:"partner2",group:"friends",rsvp:"confirmed",meal:"standard",notes:"Best man"},
+  {id:"g17",name:"Chloe Adams",side:"partner2",group:"friends",rsvp:"confirmed",meal:"standard",notes:"Maid of honor"},
+  {id:"g18",name:"Ethan Brooks",side:"partner2",group:"friends",rsvp:"confirmed",meal:"standard",notes:""},
+  {id:"g19",name:"Mia Santos",side:"partner2",group:"friends",rsvp:"declined",meal:"",notes:""},
+  {id:"g20",name:"Liam Foster",side:"partner2",group:"work",rsvp:"confirmed",meal:"standard",notes:""},
+  {id:"g21",name:"Grace Park",side:"partner2",group:"work",rsvp:"confirmed",meal:"vegetarian",notes:"Halal"},
+  {id:"g22",name:"Alex Rivera",side:"partner2",group:"work",rsvp:"pending",meal:"",notes:""},
+  {id:"g23",name:"Jessica Wong",side:"partner1",group:"friends",rsvp:"confirmed",meal:"standard",notes:""},
+  {id:"g24",name:"Kevin O'Brien",side:"partner1",group:"family",rsvp:"confirmed",meal:"standard",notes:""},
+  {id:"g25",name:"Diane O'Brien",side:"partner1",group:"family",rsvp:"confirmed",meal:"standard",notes:"Celiac disease - no gluten"},
+  {id:"g26",name:"Paul Nakamura",side:"partner2",group:"friends",rsvp:"confirmed",meal:"standard",notes:""},
+  {id:"g27",name:"Yuki Nakamura",side:"partner2",group:"friends",rsvp:"confirmed",meal:"vegetarian",notes:""},
+  {id:"g28",name:"Isabella Green",side:"partner1",group:"work",rsvp:"confirmed",meal:"standard",notes:""},
+  {id:"g29",name:"Carlos Mendez",side:"partner2",group:"family",rsvp:"confirmed",meal:"standard",notes:""},
+  {id:"g30",name:"Rosa Mendez",side:"partner2",group:"family",rsvp:"confirmed",meal:"standard",notes:"Diabetic — low sugar meal"},
+];
+
+const SEED_BUDGET = [
+  {id:"b1",name:"Rosewood Estate Venue",category:"Venue",cost:14000,status:"deposit"},
+  {id:"b2",name:"Harvest Table Catering",category:"Catering",cost:6800,status:"deposit"},
+  {id:"b3",name:"Bloom & Bough Florals",category:"Flowers",cost:3200,status:"unpaid"},
+  {id:"b4",name:"Golden Hour Photography",category:"Photography",cost:3500,status:"paid"},
+  {id:"b5",name:"The String Collective",category:"Music",cost:2200,status:"deposit"},
+  {id:"b6",name:"Emma's Wedding Gown",category:"Attire",cost:1800,status:"paid"},
+  {id:"b7",name:"James's Suit & Accessories",category:"Attire",cost:650,status:"paid"},
+  {id:"b8",name:"Invitations & Stationery",category:"Stationery",cost:420,status:"paid"},
+  {id:"b9",name:"Wedding Cake",category:"Catering",cost:680,status:"unpaid"},
+  {id:"b10",name:"Officiant",category:"Ceremony",cost:400,status:"deposit"},
+];
+
+const SEED_VENDORS = [
+  {id:"v1",type:"Venue",name:"Rosewood Estate",cost:14000,status:"booked",contact:"events@rosewooodestate.com · (555) 201-3340",notes:"19th-century manor with barn reception hall. Capacity 150. Setup crew included. Ceremony at 4pm, reception until midnight."},
+  {id:"v2",type:"Caterer",name:"Harvest Table Catering",cost:6800,status:"booked",contact:"kate@harvesttable.com · (555) 482-7710",notes:"Farm-to-table menu. 3-course dinner, cocktail hour appetizers. $85 per head. Handles gluten-free and vegan with 2-week notice."},
+  {id:"v3",type:"Florist",name:"Bloom & Bough Florals",cost:3200,status:"booked",contact:"hello@bloomandbough.com · (555) 339-9921",notes:"All-white peonies, eucalyptus, and greenery. 90-day cancellation clause. Bridal bouquet, 6 bridesmaid bouquets, 12 centerpieces, ceremony arch."},
+  {id:"v4",type:"Photographer",name:"Golden Hour Photography",cost:3500,status:"booked",contact:"sarah@goldenhourphoto.com · (555) 774-5521",notes:"8 hours coverage, 600+ edited photos, engagement session included. Second shooter at no extra charge. Gallery in 6 weeks."},
+  {id:"v5",type:"Band/DJ",name:"The String Collective",cost:2200,status:"booked",contact:"booking@stringcollective.com · (555) 663-4429",notes:"Live jazz quartet for cocktail hour, then DJ for reception. Final song list due 30 days before."},
+  {id:"v6",type:"Officiant",name:"Rev. Patricia Holt",cost:400,status:"booked",contact:"patricia@ceremonies.net · (555) 190-8834",notes:"Personalized ceremony script. Meeting scheduled for August to review vows."},
+  {id:"v7",type:"Baker",name:"Sweet Layers Bakery",cost:680,status:"considering",contact:"orders@sweetlayers.com · (555) 228-4501",notes:"Tasted lemon elderflower (favorite) and classic vanilla almond. 3-tier serves 120. Need to decide by August 1st."},
+  {id:"v8",type:"Hair & Makeup",name:"Glam by Renata",cost:1100,status:"considering",contact:"renata@glambyrenata.com · (555) 551-7709",notes:"Trial booked for July 15th. Does bridal party of 4. Portfolio matches Emma's vision."},
+];
+
+const SEED_VENUES = [
+  {id:"ven1",name:"Rosewood Estate",location:"24 Manor Lane, Hudson Valley, NY",capacity:150,cost:14000,date:"2026-10-17",status:"chosen",notes:"Our top choice. Already booked."},
+  {id:"ven2",name:"The Loft at Stone Creek",location:"88 Mill Road, Catskill, NY",capacity:100,cost:9500,date:"",status:"considering",notes:"Beautiful industrial space. Lower capacity may be an issue."},
+];
+
+const SEED_TASKS = [
+  {id:"tk1",title:"Book ceremony venue",bucket:"12+ months",due:"2024-10-01",done:true},
+  {id:"tk2",title:"Set overall budget",bucket:"12+ months",due:"2024-10-15",done:true},
+  {id:"tk3",title:"Book caterer",bucket:"12+ months",due:"2024-11-01",done:true},
+  {id:"tk4",title:"Book photographer",bucket:"12+ months",due:"2024-11-15",done:true},
+  {id:"tk5",title:"Book officiant",bucket:"12+ months",due:"2024-12-01",done:true},
+  {id:"tk6",title:"Send save-the-dates",bucket:"9-12 months",due:"2025-01-15",done:true},
+  {id:"tk7",title:"Book florist",bucket:"9-12 months",due:"2025-02-01",done:true},
+  {id:"tk8",title:"Book band / DJ",bucket:"9-12 months",due:"2025-02-15",done:true},
+  {id:"tk9",title:"Purchase wedding dress",bucket:"9-12 months",due:"2025-03-01",done:true},
+  {id:"tk10",title:"Book hair & makeup trial",bucket:"6-9 months",due:"2025-04-15",done:true},
+  {id:"tk11",title:"Finalize guest list",bucket:"6-9 months",due:"2025-05-01",done:true},
+  {id:"tk12",title:"Order wedding cake / meet with baker",bucket:"6-9 months",due:"2025-06-15",done:false},
+  {id:"tk13",title:"Send formal invitations",bucket:"6-9 months",due:"2025-07-01",done:false},
+  {id:"tk14",title:"Confirm menu with caterer",bucket:"3-6 months",due:"2025-07-15",done:false},
+  {id:"tk15",title:"Hair & makeup trial",bucket:"3-6 months",due:"2025-07-15",done:false},
+  {id:"tk16",title:"Finalize ceremony music playlist",bucket:"3-6 months",due:"2025-08-01",done:false},
+  {id:"tk17",title:"Meet officiant for ceremony run-through",bucket:"3-6 months",due:"2025-08-15",done:false},
+  {id:"tk18",title:"Collect all RSVPs",bucket:"3-6 months",due:"2025-08-20",done:false},
+  {id:"tk19",title:"Finalize seating chart",bucket:"1-3 months",due:"2025-09-01",done:false},
+  {id:"tk20",title:"Submit final guest count to caterer",bucket:"1-3 months",due:"2025-09-15",done:false},
+  {id:"tk21",title:"Pick up dress — final fitting",bucket:"1-3 months",due:"2025-09-20",done:false},
+  {id:"tk22",title:"Write personal vows",bucket:"1-3 months",due:"2025-09-25",done:false},
+  {id:"tk23",title:"Confirm vendors & day-of timeline",bucket:"week of",due:"2026-10-14",done:false},
+  {id:"tk24",title:"Deliver welcome bags to hotel",bucket:"week of",due:"2026-10-16",done:false},
+  {id:"tk25",title:"Rehearsal dinner",bucket:"week of",due:"2026-10-16",done:false},
+];
+
+const SEED_TABLES = [
+  {id:"t1",name:"Head Table",seats:8,guests:["g16","g17","g18","g5"]},
+  {id:"t2",name:"Table 2 — Family A",seats:10,guests:["g1","g2","g3","g24","g25","g10"]},
+  {id:"t3",name:"Table 3 — Family B",seats:10,guests:["g11","g12","g13","g14","g29","g30"]},
+  {id:"t4",name:"Table 4 — Friends",seats:8,guests:["g6","g23","g26","g27","g20"]},
+  {id:"t5",name:"Table 5 — Work",seats:8,guests:["g8","g9","g21","g28"]},
+];
+
+const SEED_PHOTOS = [
+  {id:"ph1",album:"Venue Ideas",url:"https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=400&q=80",caption:"Rosewood Estate exterior"},
+  {id:"ph2",album:"Venue Ideas",url:"https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&q=80",caption:"Barn reception hall"},
+  {id:"ph3",album:"Floral Inspiration",url:"https://images.unsplash.com/photo-1490750967868-88df5691cc01?w=400&q=80",caption:"White peony arrangement"},
+  {id:"ph4",album:"Floral Inspiration",url:"https://images.unsplash.com/photo-1487530811015-780c1e4c81bd?w=400&q=80",caption:"Eucalyptus table runner"},
+  {id:"ph5",album:"Dress Options",url:"https://images.unsplash.com/photo-1594552072238-b8a33785b6cd?w=400&q=80",caption:"The one! Lace ballgown"},
+  {id:"ph6",album:"Decor Mood Board",url:"https://images.unsplash.com/photo-1519741497674-611481863552?w=400&q=80",caption:"Candlelit reception tables"},
+  {id:"ph7",album:"Decor Mood Board",url:"https://images.unsplash.com/photo-1537633552985-df8429e8048b?w=400&q=80",caption:"Gold and white centerpieces"},
+];
+
+async function seedAndInit() {
+  setLoading("Creating your wedding space…");
+  const proj = await gwFetch("/projects", {
+    method: "POST", body: JSON.stringify({ name: "Emma & James Wedding — Oct 2026" }),
+  });
+  gwProjectId = proj.id;
+  localStorage.setItem(LS_PROJ, gwProjectId);
+
+  setLoading("Syncing wedding details…");
+  const wedding = { partner1:"Emma", partner2:"James", date:"2026-10-17", budget:30000 };
+  const allItems = [
+    { title:"[wedding_config] Wedding Config", content: JSON.stringify(wedding), type: T.CONFIG },
+    ...SEED_GUESTS.map(e => ({ title:`[guest] ${e.name}`, content:JSON.stringify(e), type:T.GUEST })),
+    ...SEED_BUDGET.map(e => ({ title:`[budget_item] ${e.name}`, content:JSON.stringify(e), type:T.BUDGET })),
+    ...SEED_VENDORS.map(e => ({ title:`[vendor] ${e.name}`, content:JSON.stringify(e), type:T.VENDOR })),
+    ...SEED_VENUES.map(e => ({ title:`[venue] ${e.name}`, content:JSON.stringify(e), type:T.VENUE })),
+    ...SEED_TASKS.map(e => ({ title:`[task] ${e.title}`, content:JSON.stringify(e), type:T.TASK })),
+    ...SEED_TABLES.map(e => ({ title:`[table] ${e.name}`, content:JSON.stringify(e), type:T.TABLE })),
+  ].map(item => ({ ...item, contributed_by: currentUser?.name || "Planner" }));
+
+  // Batch in chunks of 20
+  for (let i = 0; i < allItems.length; i += 20) {
+    setLoading(`Syncing data… (${Math.min(i+20,allItems.length)}/${allItems.length})`);
+    await gwBulkIngest(allItems.slice(i, i + 20));
+  }
+
+  // Seed photos to localStorage
+  photos = [...SEED_PHOTOS];
+  localStorage.setItem(LS_PHOTOS, JSON.stringify(photos));
+
+  setLoading("Loading your data…");
+  await gwLoadAll();
+}
+
+// ═══════════════════════════════════════════════════════════
+// APP INIT
+// ═══════════════════════════════════════════════════════════
+
+async function initApp() {
+  // Check for ?join=<projectId> invite link
+  const joinId = new URLSearchParams(window.location.search).get("join");
+  if (joinId && joinId !== gwProjectId) {
+    gwProjectId = joinId;
+    localStorage.setItem(LS_PROJ, gwProjectId);
+    // Clear any old local state so we load fresh from the shared project
+    localStorage.removeItem(LS_STATE);
+    // Strip the ?join= from URL without reload
+    window.history.replaceState({}, "", window.location.pathname);
+  }
+
+  // Need identity before doing anything
+  if (!currentUser) { hideLoading(); showJoinModal(); return; }
+
+  await continueInit();
+}
+
+async function continueInit() {
+  try {
+    if (appMode === "ai") {
+      setSyncStatus("synced", "GW off");
+      setLoading("Loading your wedding…");
+      if (!loadLocalState()) seedLocalState();
+      hideLoading();
+      updateSidebar();
+      renderSection(currentSection);
+      setMode("ai");
+      renderMembers();
+      fetchAiSuggestions();
+      return;
+    }
+
+    setSyncStatus("syncing", "Connecting…");
+    if (!gwProjectId) {
+      await seedAndInit();
+    } else {
+      setLoading("Loading your wedding…");
+      await gwLoadAll();
+    }
+    setSyncStatus("synced", "Synced");
+    hideLoading();
+    updateSidebar();
+    renderSection(currentSection);
+    setMode("gw");
+    renderMembers();
+    await fetchAndRenderInsights();
+    if (insights.length === 0) autoAnalyze();
+    else setInterval(fetchAndRenderInsights, 30000);
+    // Poll for updates from other members every 15s
+    setInterval(async () => {
+      await gwLoadAll();
+      renderSection(currentSection);
+      updateSidebar();
+    }, 15000);
+  } catch (e) {
+    console.error("[init]", e);
+    setSyncStatus("error", "Connection error");
+    setLoading("Could not connect. Check your internet connection and refresh.");
+  }
+}
+
+function setLoading(text) {
+  document.getElementById("loading-text").textContent = text;
+}
+function hideLoading() {
+  document.getElementById("loading-screen").classList.add("hidden");
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+
+function fmt(n) { return "$" + Number(n||0).toLocaleString(); }
+function escHtml(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function uid() { return Math.random().toString(36).slice(2,10); }
+function daysUntil(d) { if(!d)return null; const now=new Date();now.setHours(0,0,0,0); return Math.round((new Date(d+"T00:00:00")-now)/86400000); }
+function fmtDate(d) { if(!d)return ""; return new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}); }
+function rsvpBadge(r) { return r==="confirmed"?'<span class="badge badge-green">Confirmed</span>':r==="declined"?'<span class="badge badge-red">Declined</span>':'<span class="badge badge-gray">Pending</span>'; }
+function statusBadge(s) { return s==="paid"?'<span class="badge badge-green">Paid in Full</span>':s==="deposit"?'<span class="badge badge-yellow">Deposit Paid</span>':'<span class="badge badge-gray">Unpaid</span>'; }
+
+// ═══════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════
+
+let currentSection = "dashboard";
+let modalSaveHandler = null;
+
+document.querySelectorAll(".nav-link").forEach(link => {
+  link.addEventListener("click", e => { e.preventDefault(); showSection(link.dataset.section); });
+});
+
+function showSection(sec) {
+  currentSection = sec;
+  document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.section === sec));
+  document.querySelectorAll(".section").forEach(s => s.classList.toggle("active", s.id === "section-" + sec));
+  renderSection(sec);
+  renderPinnedSlot();
+}
+
+function renderSection(sec) {
+  if (sec==="dashboard") renderDashboard();
+  else if (sec==="budget") renderBudget();
+  else if (sec==="guests") renderGuests();
+  else if (sec==="seating") renderSeating();
+  else if (sec==="vendors") renderVendors();
+  else if (sec==="venue") renderVenue();
+  else if (sec==="timeline") renderTimeline();
+  else if (sec==="photos") renderPhotos();
+  renderSectionInsights(sec);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SIDEBAR
+// ═══════════════════════════════════════════════════════════
+
+function updateSidebar() {
+  const w = state.wedding;
+  const names = (w.partner1||"Partner 1") + " & " + (w.partner2||"Partner 2");
+  document.getElementById("nav-names").textContent = names;
+  document.getElementById("nav-date").textContent = fmtDate(w.date);
+  document.getElementById("dash-names").textContent = names;
+  document.getElementById("dash-date").textContent = fmtDate(w.date);
+  const days = daysUntil(w.date);
+  document.getElementById("dash-countdown").textContent = days===null?"—":days>0?String(days):days===0?"Today! 🎊":"Married! 🎊";
+  document.getElementById("nav-countdown").textContent = days>0?"🗓 "+days+" days":days===0?"🎊 Today!":"💕 Married!";
+}
+
+// ═══════════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════════
+
+function renderDashboard() {
+  updateSidebar();
+  const w = state.wedding;
+  const totalSpent = state.budget_items.reduce((s,i)=>s+i.cost,0);
+  const confirmed  = state.guests.filter(g=>g.rsvp==="confirmed").length;
+  const done       = state.tasks.filter(t=>t.done).length;
+  document.getElementById("dash-stats").innerHTML = `
+    <div class="stat-card accent"><div class="stat-value">${fmt(w.budget)}</div><div class="stat-label">Total Budget</div></div>
+    <div class="stat-card"><div class="stat-value">${fmt(totalSpent)}</div><div class="stat-label">Committed</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:${totalSpent>w.budget?"#cc3333":"#1a1a1a"}">${fmt(w.budget-totalSpent)}</div><div class="stat-label">Remaining</div></div>
+    <div class="stat-card"><div class="stat-value">${state.guests.length}</div><div class="stat-label">Total Guests</div></div>
+    <div class="stat-card"><div class="stat-value">${confirmed}</div><div class="stat-label">Confirmed RSVPs</div></div>
+    <div class="stat-card"><div class="stat-value">${done}/${state.tasks.length}</div><div class="stat-label">Tasks Done</div></div>
+  `;
+  const upcoming = state.tasks.filter(t=>!t.done).slice(0,5);
+  document.getElementById("dash-tasks").innerHTML = upcoming.length
+    ? upcoming.map(t=>`<div class="dash-row"><span>${escHtml(t.title)}</span><span style="font-size:11px;color:#aaa">${t.due||""}</span></div>`).join("")
+    : "<div style='color:#aaa;font-size:13px'>All caught up! 🎉</div>";
+  document.getElementById("dash-vendors").innerHTML = state.vendors.filter(v=>v.status==="booked")
+    .map(v=>`<div class="dash-row"><span>${escHtml(v.name)}</span><span class="badge badge-green">${escHtml(v.type)}</span></div>`).join("");
+  const pct = Math.min(100, Math.round(totalSpent/w.budget*100));
+  const cats = {}; state.budget_items.forEach(i=>{cats[i.category]=(cats[i.category]||0)+i.cost;});
+  document.getElementById("dash-budget").innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#888;margin-bottom:4px"><span>${fmt(totalSpent)} committed</span><span>${pct}%</span></div>
+    <div class="budget-bar-wrap"><div class="budget-bar-fill" style="width:${pct}%"></div></div>
+    <div style="margin-top:10px">${Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([c,v])=>`<div class="dash-row"><span style="color:#666">${escHtml(c)}</span><span style="font-weight:600">${fmt(v)}</span></div>`).join("")}</div>`;
+  const rc={confirmed:0,declined:0,pending:0};
+  state.guests.forEach(g=>{rc[g.rsvp||"pending"]++;});
+  const veg = state.guests.filter(g=>g.meal==="vegetarian").length;
+  document.getElementById("dash-rsvp").innerHTML = `
+    <div style="display:flex;gap:16px;margin-bottom:14px">
+      <div><div style="font-size:22px;font-weight:700;color:#1d7a46">${rc.confirmed}</div><div style="font-size:11px;color:#aaa">Confirmed</div></div>
+      <div><div style="font-size:22px;font-weight:700;color:#cc3333">${rc.declined}</div><div style="font-size:11px;color:#aaa">Declined</div></div>
+      <div><div style="font-size:22px;font-weight:700;color:#888">${rc.pending}</div><div style="font-size:11px;color:#aaa">Pending</div></div>
+    </div>
+    <div style="font-size:12px;color:#888">🥗 ${veg} vegetarian · 🍽 ${rc.confirmed-veg} standard</div>`;
+  renderDashboardInsights();
+}
+
+function renderDashboardInsights() {
+  const el = document.getElementById("dash-insights");
+  if (!el) return;
+
+  if (appMode === "ai") {
+    if (!aiSuggestions.length) { el.innerHTML = ""; return; }
+    const offset = 600;
+    el.innerHTML = `
+      <div style="margin-bottom:24px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7c3aed">✦ AI Suggestions</span>
+          <span style="font-size:10px;color:#aaa;background:#f5f3ff;border-radius:10px;padding:2px 8px">Claude Haiku · no group data</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${aiSuggestions.map((s, i) => {
+            const sec = s.section || "timeline";
+            const label = SECTION_LABELS[sec] || "Checklist";
+            _actionFns[offset + i] = () => pinAndGo({ title: s.title, body: s.body, contributed_by: sec });
+            return `
+              <div class="ai-suggestion">
+                <div style="flex:1;min-width:0">
+                  <div class="ai-badge">AI suggestion</div>
+                  <div class="ai-title">${escHtml(s.title || "")}</div>
+                  <div class="ai-body">${escHtml(s.body || "")}</div>
+                </div>
+                <button class="ai-action" onclick="_actionFns[${offset+i}]()">→ ${escHtml(label)}</button>
+              </div>`;
+          }).join("")}
+        </div>
+      </div>`;
+    return;
+  }
+
+  // GroupWisdom mode
+  if (!insights.length) { el.innerHTML = ""; return; }
+  const offset = 500;
+  el.innerHTML = `
+    <div style="margin-bottom:24px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#3b5bdb">✦ GroupWisdom Insights</span>
+        <span style="font-size:10px;color:#aaa;background:#eef2ff;border-radius:10px;padding:2px 8px">Cross-contributor analysis</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${insights.map((ins, i) => {
+          const sec = insightSection(ins);
+          const label = SECTION_LABELS[sec] || "Checklist";
+          const body = escHtml(ins.summary || ins.content || ins.body || "");
+          _actionFns[offset + i] = () => pinAndGo(ins);
+          const isActive = pinnedInsight && pinnedInsight.ins === ins;
+          return `
+            <div style="background:#fff;border:1.5px solid ${isActive ? '#748ffc' : '#e8eeff'};border-radius:10px;padding:14px 16px;display:flex;align-items:flex-start;gap:14px;transition:border-color .15s">
+              <div style="flex:1;min-width:0">
+                ${ins.title ? `<div style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:4px">${escHtml(ins.title)}</div>` : ""}
+                <div style="font-size:12px;color:#555;line-height:1.6">${body}</div>
+              </div>
+              <button class="ii-action" style="flex-shrink:0;margin-top:2px" onclick="_actionFns[${offset+i}]()">→ ${escHtml(label)}</button>
+            </div>`;
+        }).join("")}
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// BUDGET
+// ═══════════════════════════════════════════════════════════
+
+function renderBudget() {
+  const total = state.wedding.budget, committed = state.budget_items.reduce((s,i)=>s+i.cost,0);
+  document.getElementById("budget-summary").innerHTML = `
+    <div class="budget-summary-item"><div class="bsi-label">Total Budget</div><div class="bsi-value">${fmt(total)}</div></div>
+    <div class="budget-summary-item"><div class="bsi-label">Committed</div><div class="bsi-value" style="color:#c9956b">${fmt(committed)}</div></div>
+    <div class="budget-summary-item"><div class="bsi-label">Remaining</div><div class="bsi-value" style="color:${committed>total?"#cc3333":"#1d7a46"}">${fmt(total-committed)}</div></div>`;
+  const pct = Math.min(100, Math.round(committed/total*100));
+  document.getElementById("budget-bar").style.width = pct + "%";
+  document.getElementById("budget-total-label").textContent = fmt(total);
+  document.getElementById("budget-table").innerHTML = state.budget_items.map(item=>`
+    <tr>
+      <td style="font-weight:500">${escHtml(item.name)}</td>
+      <td><span class="badge badge-gray">${escHtml(item.category)}</span></td>
+      <td style="font-weight:600">${fmt(item.cost)}</td>
+      <td>${statusBadge(item.status)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="editBudgetItem('${item.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteBudgetItem('${item.id}')">✕</button>
+      </td>
+    </tr>`).join("");
+}
+
+function openBudgetModal(id) {
+  const item = id ? state.budget_items.find(i=>i.id===id) : null;
+  document.getElementById("modal-title").textContent = item ? "Edit Item" : "Add Budget Item";
+  document.getElementById("modal-body").innerHTML = `
+    <div class="form-group"><label>Name</label><input class="form-control" id="f-name" value="${escHtml(item?.name||"")}"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Category</label><select class="form-control" id="f-cat">${["Venue","Catering","Flowers","Photography","Music","Attire","Stationery","Ceremony","Travel","Other"].map(c=>`<option${item?.category===c?" selected":""}>${c}</option>`).join("")}</select></div>
+      <div class="form-group"><label>Cost ($)</label><input class="form-control" id="f-cost" type="number" value="${item?.cost||""}"></div>
+    </div>
+    <div class="form-group"><label>Payment Status</label><select class="form-control" id="f-status"><option value="unpaid"${item?.status==="unpaid"?" selected":""}>Unpaid</option><option value="deposit"${item?.status==="deposit"?" selected":""}>Deposit Paid</option><option value="paid"${item?.status==="paid"?" selected":""}>Paid in Full</option></select></div>`;
+  modalSaveHandler = async () => {
+    const name = document.getElementById("f-name").value.trim(); if (!name) return;
+    const entry = { id:item?.id||uid(), name, category:document.getElementById("f-cat").value, cost:parseFloat(document.getElementById("f-cost").value)||0, status:document.getElementById("f-status").value, _gwId:item?._gwId };
+    if (item) state.budget_items[state.budget_items.findIndex(x=>x.id===id)] = entry;
+    else state.budget_items.push(entry);
+    closeModal(); renderBudget();
+    await gwSave(entry, T.BUDGET);
+  };
+  openModal();
+}
+function editBudgetItem(id) { openBudgetModal(id); }
+async function deleteBudgetItem(id) {
+  if (!confirm("Delete this budget item?")) return;
+  const item = state.budget_items.find(i=>i.id===id);
+  state.budget_items = state.budget_items.filter(i=>i.id!==id);
+  renderBudget(); await gwDelete(item?._gwId);
+}
+
+// ═══════════════════════════════════════════════════════════
+// GUESTS
+// ═══════════════════════════════════════════════════════════
+
+let guestFilter = "all";
+
+function renderGuests() {
+  const guests = state.guests;
+  const rc={confirmed:0,declined:0,pending:0}; guests.forEach(g=>{rc[g.rsvp||"pending"]++;});
+  document.getElementById("guest-count-label").textContent = guests.length + " guests";
+  document.getElementById("guest-stats").innerHTML = `
+    <div class="stat-card"><div class="stat-value">${guests.length}</div><div class="stat-label">Total</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:#1d7a46">${rc.confirmed}</div><div class="stat-label">Confirmed</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:#cc3333">${rc.declined}</div><div class="stat-label">Declined</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:#888">${rc.pending}</div><div class="stat-label">Pending</div></div>
+    <div class="stat-card"><div class="stat-value">${guests.filter(g=>g.meal==="vegetarian").length}</div><div class="stat-label">Vegetarian</div></div>
+    <div class="stat-card"><div class="stat-value">${guests.filter(g=>g.notes).length}</div><div class="stat-label">With Notes</div></div>`;
+  const filters = ["all","confirmed","declined","pending","family","friends","work"];
+  document.getElementById("guest-filters").innerHTML = filters.map(f=>`<button class="filter-btn${guestFilter===f?" active":""}" onclick="setGuestFilter('${f}')">${f.charAt(0).toUpperCase()+f.slice(1)}</button>`).join("");
+  const search = (document.getElementById("guest-search")||{}).value?.toLowerCase()||"";
+  let filtered = guests.filter(g=>{
+    if (guestFilter==="all") return true;
+    if (["confirmed","declined","pending"].includes(guestFilter)) return (g.rsvp||"pending")===guestFilter;
+    return g.group===guestFilter;
+  }).filter(g=>!search||g.name.toLowerCase().includes(search));
+  document.getElementById("guest-table").innerHTML = filtered.map(g=>`
+    <tr>
+      <td style="font-weight:500">${escHtml(g.name)}</td>
+      <td><span class="badge badge-gray">${g.side==="partner1"?escHtml(state.wedding.partner1):escHtml(state.wedding.partner2)}</span></td>
+      <td><span class="badge badge-gray">${escHtml(g.group||"")}</span></td>
+      <td>${rsvpBadge(g.rsvp||"pending")}</td>
+      <td><span class="badge badge-gray">${escHtml(g.meal||"—")}</span></td>
+      <td style="max-width:180px;font-size:12px;color:#888">${escHtml(g.notes||"")}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="editGuest('${g.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteGuest('${g.id}')">✕</button>
+      </td>
+    </tr>`).join("");
+}
+
+function setGuestFilter(f) { guestFilter = f; renderGuests(); }
+
+function openGuestModal(id) {
+  const g = id ? state.guests.find(x=>x.id===id) : null;
+  document.getElementById("modal-title").textContent = g ? "Edit Guest" : "Add Guest";
+  const p1=state.wedding.partner1, p2=state.wedding.partner2;
+  document.getElementById("modal-body").innerHTML = `
+    <div class="form-group"><label>Full Name</label><input class="form-control" id="f-name" value="${escHtml(g?.name||"")}"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Side</label><select class="form-control" id="f-side"><option value="partner1"${g?.side==="partner1"?" selected":""}>${escHtml(p1)}'s side</option><option value="partner2"${g?.side==="partner2"?" selected":""}>${escHtml(p2)}'s side</option></select></div>
+      <div class="form-group"><label>Group</label><select class="form-control" id="f-group"><option value="family"${g?.group==="family"?" selected":""}>Family</option><option value="friends"${g?.group==="friends"?" selected":""}>Friends</option><option value="work"${g?.group==="work"?" selected":""}>Work</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>RSVP</label><select class="form-control" id="f-rsvp"><option value="pending"${(g?.rsvp||"pending")==="pending"?" selected":""}>Pending</option><option value="confirmed"${g?.rsvp==="confirmed"?" selected":""}>Confirmed</option><option value="declined"${g?.rsvp==="declined"?" selected":""}>Declined</option></select></div>
+      <div class="form-group"><label>Meal</label><select class="form-control" id="f-meal"><option value=""${!g?.meal?" selected":""}>— TBD —</option><option value="standard"${g?.meal==="standard"?" selected":""}>Standard</option><option value="vegetarian"${g?.meal==="vegetarian"?" selected":""}>Vegetarian</option><option value="vegan"${g?.meal==="vegan"?" selected":""}>Vegan</option><option value="kids"${g?.meal==="kids"?" selected":""}>Kids meal</option></select></div>
+    </div>
+    <div class="form-group"><label>Notes (dietary restrictions, plus-ones…)</label><textarea class="form-control" id="f-notes" rows="2">${escHtml(g?.notes||"")}</textarea></div>`;
+  modalSaveHandler = async () => {
+    const name = document.getElementById("f-name").value.trim(); if (!name) return;
+    const entry = { id:g?.id||uid(), name, side:document.getElementById("f-side").value, group:document.getElementById("f-group").value, rsvp:document.getElementById("f-rsvp").value, meal:document.getElementById("f-meal").value, notes:document.getElementById("f-notes").value.trim(), _gwId:g?._gwId };
+    if (g) state.guests[state.guests.findIndex(x=>x.id===id)] = entry;
+    else state.guests.push(entry);
+    closeModal(); renderGuests();
+    await gwSave(entry, T.GUEST);
+  };
+  openModal();
+}
+function editGuest(id) { openGuestModal(id); }
+async function deleteGuest(id) {
+  if (!confirm("Remove this guest?")) return;
+  const g = state.guests.find(x=>x.id===id);
+  state.guests = state.guests.filter(x=>x.id!==id);
+  // remove from tables and re-save affected tables
+  for (const t of state.tables) {
+    if (t.guests.includes(id)) {
+      t.guests = t.guests.filter(gid=>gid!==id);
+      gwSave(t, T.TABLE);
+    }
+  }
+  renderGuests(); await gwDelete(g?._gwId);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SEATING
+// ═══════════════════════════════════════════════════════════
+
+function renderSeating() {
+  const allSeated = new Set(state.tables.flatMap(t=>t.guests));
+  const confirmed = state.guests.filter(g=>g.rsvp==="confirmed");
+  const unplaced  = confirmed.filter(g=>!allSeated.has(g.id));
+  document.getElementById("unplaced-count").textContent = unplaced.length;
+  document.getElementById("seating-status").textContent = `${allSeated.size} seated · ${unplaced.length} unplaced`;
+  document.getElementById("unplaced-list").innerHTML = unplaced.map(g=>`
+    <div class="guest-chip" draggable="true" data-gid="${g.id}" ondragstart="dragStart(event,'${g.id}')">${escHtml(g.name)}</div>`).join("")
+    || "<div style='font-size:12px;color:#aaa;padding:8px'>All confirmed guests are seated!</div>";
+  document.getElementById("tables-grid").innerHTML = state.tables.map(table=>{
+    const seated = table.guests.map(gid=>state.guests.find(g=>g.id===gid)).filter(Boolean);
+    return `<div class="table-card">
+      <h4>${escHtml(table.name)}</h4>
+      <div class="seats-info">${seated.length}/${table.seats} seats · <span style="color:${seated.length<table.seats?"#1d7a46":"#cc3333"}">${table.seats-seated.length} open</span></div>
+      <div class="table-drop-zone" data-tid="${table.id}" ondragover="dragOver(event)" ondrop="drop(event,'${table.id}')" ondragleave="dragLeave(event)">
+        ${seated.map(g=>`<div class="seated-guest" draggable="true" data-gid="${g.id}" ondragstart="dragStart(event,'${g.id}','${table.id}')"><span>${escHtml(g.name)}</span><span class="remove-seat" onclick="unseatGuest('${g.id}','${table.id}')">×</span></div>`).join("")}
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn btn-ghost btn-sm" onclick="openTableModal('${table.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteTable('${table.id}')">Remove</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+let dragSourceTable = null;
+function dragStart(e, gid, fromTable) { e.dataTransfer.setData("gid", gid); dragSourceTable = fromTable||null; }
+function dragOver(e) { e.preventDefault(); e.currentTarget.classList.add("drag-over"); }
+function dragLeave(e) { e.currentTarget.classList.remove("drag-over"); }
+async function drop(e, tableId) {
+  e.preventDefault(); e.currentTarget.classList.remove("drag-over");
+  const gid = e.dataTransfer.getData("gid");
+  const table = state.tables.find(t=>t.id===tableId);
+  if (!table||table.guests.includes(gid)) return;
+  if (table.guests.length >= table.seats) { alert("Table is full!"); return; }
+  let srcTable = null;
+  if (dragSourceTable) { srcTable = state.tables.find(t=>t.id===dragSourceTable); if(srcTable) srcTable.guests=srcTable.guests.filter(g=>g!==gid); }
+  table.guests.push(gid);
+  renderSeating();
+  await gwSave(table, T.TABLE);
+  if (srcTable) await gwSave(srcTable, T.TABLE);
+}
+async function unseatGuest(gid, tableId) {
+  const table = state.tables.find(t=>t.id===tableId);
+  if (table) table.guests = table.guests.filter(g=>g!==gid);
+  renderSeating(); await gwSave(table, T.TABLE);
+}
+
+function openTableModal(id) {
+  const table = id ? state.tables.find(t=>t.id===id) : null;
+  document.getElementById("modal-title").textContent = table ? "Edit Table" : "Add Table";
+  document.getElementById("modal-body").innerHTML = `
+    <div class="form-group"><label>Table Name</label><input class="form-control" id="f-tname" value="${escHtml(table?.name||"")}"></div>
+    <div class="form-group"><label>Seats</label><input class="form-control" id="f-seats" type="number" value="${table?.seats||8}" min="1" max="30"></div>`;
+  modalSaveHandler = async () => {
+    const name = document.getElementById("f-tname").value.trim(); if (!name) return;
+    const seats = parseInt(document.getElementById("f-seats").value)||8;
+    if (table) { table.name=name; table.seats=seats; }
+    else { const t={id:uid(),name,seats,guests:[]}; state.tables.push(t); }
+    const t = table || state.tables[state.tables.length-1];
+    closeModal(); renderSeating(); await gwSave(t, T.TABLE);
+  };
+  openModal();
+}
+async function deleteTable(id) {
+  if (!confirm("Remove this table?")) return;
+  const table = state.tables.find(t=>t.id===id);
+  state.tables = state.tables.filter(t=>t.id!==id);
+  renderSeating(); await gwDelete(table?._gwId);
+}
+
+// ═══════════════════════════════════════════════════════════
+// VENDORS
+// ═══════════════════════════════════════════════════════════
+
+function renderVendors() {
+  document.getElementById("vendor-grid").innerHTML = state.vendors.map(v=>`
+    <div class="vendor-card">
+      <div class="vc-type">${escHtml(v.type)}</div>
+      <div class="vc-name">${escHtml(v.name)}</div>
+      <div class="vc-cost">${fmt(v.cost)}</div>
+      <span class="badge ${v.status==="booked"?"badge-green":"badge-blue"}">${v.status==="booked"?"Booked":"Considering"}</span>
+      <div style="font-size:12px;color:#aaa;margin-top:8px">📧 ${escHtml(v.contact)}</div>
+      ${v.notes?`<div class="vc-notes">${escHtml(v.notes)}</div>`:""}
+      ${v._contributor&&members.length>1?`<div style="display:flex;align-items:center;gap:4px;margin-top:8px">${avatarHTML(v._contributor,16)}<span class="contributor-tag">${escHtml(v._contributor)}</span></div>`:""}
+      <div class="vc-actions">
+        <button class="btn btn-secondary btn-sm" onclick="editVendor('${v.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteVendor('${v.id}')">Remove</button>
+      </div>
+    </div>`).join("");
+}
+
+function openVendorModal(id) {
+  const v = id ? state.vendors.find(x=>x.id===id) : null;
+  document.getElementById("modal-title").textContent = v ? "Edit Vendor" : "Add Vendor";
+  document.getElementById("modal-body").innerHTML = `
+    <div class="form-row">
+      <div class="form-group"><label>Type</label><select class="form-control" id="f-vtype">${["Caterer","Florist","Photographer","Band/DJ","Officiant","Baker","Hair & Makeup","Venue","Transport","Videographer","Other"].map(t=>`<option${v?.type===t?" selected":""}>${t}</option>`).join("")}</select></div>
+      <div class="form-group"><label>Status</label><select class="form-control" id="f-vstatus"><option value="considering"${v?.status==="considering"?" selected":""}>Considering</option><option value="booked"${v?.status==="booked"?" selected":""}>Booked</option></select></div>
+    </div>
+    <div class="form-group"><label>Name</label><input class="form-control" id="f-vname" value="${escHtml(v?.name||"")}"></div>
+    <div class="form-group"><label>Cost ($)</label><input class="form-control" id="f-vcost" type="number" value="${v?.cost||""}"></div>
+    <div class="form-group"><label>Contact</label><input class="form-control" id="f-vcontact" value="${escHtml(v?.contact||"")}"></div>
+    <div class="form-group"><label>Notes</label><textarea class="form-control" id="f-vnotes" rows="3">${escHtml(v?.notes||"")}</textarea></div>`;
+  modalSaveHandler = async () => {
+    const name = document.getElementById("f-vname").value.trim(); if (!name) return;
+    const entry = { id:v?.id||uid(), type:document.getElementById("f-vtype").value, name, cost:parseFloat(document.getElementById("f-vcost").value)||0, status:document.getElementById("f-vstatus").value, contact:document.getElementById("f-vcontact").value.trim(), notes:document.getElementById("f-vnotes").value.trim(), _gwId:v?._gwId };
+    if (v) state.vendors[state.vendors.findIndex(x=>x.id===id)] = entry;
+    else state.vendors.push(entry);
+    closeModal(); renderVendors(); await gwSave(entry, T.VENDOR);
+  };
+  openModal();
+}
+function editVendor(id) { openVendorModal(id); }
+async function deleteVendor(id) {
+  if (!confirm("Remove this vendor?")) return;
+  const v = state.vendors.find(x=>x.id===id);
+  state.vendors = state.vendors.filter(x=>x.id!==id);
+  renderVendors(); await gwDelete(v?._gwId);
+}
+
+// ═══════════════════════════════════════════════════════════
+// VENUE
+// ═══════════════════════════════════════════════════════════
+
+function renderVenue() {
+  document.getElementById("venue-grid").innerHTML = state.venues.map(v=>`
+    <div class="venue-card${v.status==="chosen"?" chosen":""}">
+      ${v.status==="chosen"?'<span class="chosen-badge">✓ Chosen</span>':""}
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px">${escHtml(v.name)}</div>
+      <div style="font-size:13px;color:#888;margin-bottom:4px">📍 ${escHtml(v.location)}</div>
+      <div style="font-size:13px;color:#888;margin-bottom:4px">👥 Capacity: ${v.capacity}</div>
+      <div style="font-size:13px;color:#888;margin-bottom:4px">💰 ${fmt(v.cost)}</div>
+      ${v.date?`<div style="font-size:13px;color:#888;margin-bottom:4px">📅 ${fmtDate(v.date)}</div>`:""}
+      ${v.notes?`<div style="font-size:12px;color:#666;margin-top:8px;line-height:1.6">${escHtml(v.notes)}</div>`:""}
+      <div style="display:flex;gap:6px;margin-top:14px">
+        ${v.status!=="chosen"?`<button class="btn btn-primary btn-sm" onclick="chooseVenue('${v.id}')">Mark as Chosen</button>`:""}
+        <button class="btn btn-secondary btn-sm" onclick="editVenue('${v.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteVenue('${v.id}')">Remove</button>
+      </div>
+    </div>`).join("");
+}
+
+async function chooseVenue(id) {
+  for (const v of state.venues) { const was = v.status; v.status = v.id===id?"chosen":"considering"; if(v.status!==was) gwSave(v, T.VENUE); }
+  renderVenue();
+}
+
+function openVenueModal(id) {
+  const v = id ? state.venues.find(x=>x.id===id) : null;
+  document.getElementById("modal-title").textContent = v ? "Edit Venue" : "Add Venue";
+  document.getElementById("modal-body").innerHTML = `
+    <div class="form-group"><label>Name</label><input class="form-control" id="f-vename" value="${escHtml(v?.name||"")}"></div>
+    <div class="form-group"><label>Location</label><input class="form-control" id="f-veloc" value="${escHtml(v?.location||"")}"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Capacity</label><input class="form-control" id="f-vecap" type="number" value="${v?.capacity||""}"></div>
+      <div class="form-group"><label>Cost ($)</label><input class="form-control" id="f-vecost" type="number" value="${v?.cost||""}"></div>
+    </div>
+    <div class="form-group"><label>Wedding Date</label><input class="form-control" id="f-vedate" type="date" value="${v?.date||""}"></div>
+    <div class="form-group"><label>Status</label><select class="form-control" id="f-vestatus"><option value="considering"${v?.status!=="chosen"?" selected":""}>Considering</option><option value="chosen"${v?.status==="chosen"?" selected":""}>Chosen</option></select></div>
+    <div class="form-group"><label>Notes</label><textarea class="form-control" id="f-venotes" rows="2">${escHtml(v?.notes||"")}</textarea></div>`;
+  modalSaveHandler = async () => {
+    const name = document.getElementById("f-vename").value.trim(); if (!name) return;
+    const entry = { id:v?.id||uid(), name, location:document.getElementById("f-veloc").value.trim(), capacity:parseInt(document.getElementById("f-vecap").value)||0, cost:parseFloat(document.getElementById("f-vecost").value)||0, date:document.getElementById("f-vedate").value, status:document.getElementById("f-vestatus").value, notes:document.getElementById("f-venotes").value.trim(), _gwId:v?._gwId };
+    if (v) state.venues[state.venues.findIndex(x=>x.id===id)] = entry;
+    else state.venues.push(entry);
+    closeModal(); renderVenue(); await gwSave(entry, T.VENUE);
+  };
+  openModal();
+}
+function editVenue(id) { openVenueModal(id); }
+async function deleteVenue(id) {
+  if (!confirm("Remove this venue?")) return;
+  const v = state.venues.find(x=>x.id===id);
+  state.venues = state.venues.filter(x=>x.id!==id);
+  renderVenue(); await gwDelete(v?._gwId);
+}
+
+// ═══════════════════════════════════════════════════════════
+// TIMELINE
+// ═══════════════════════════════════════════════════════════
+
+const BUCKETS = ["12+ months","9-12 months","6-9 months","3-6 months","1-3 months","week of"];
+
+function renderTimeline() {
+  const done = state.tasks.filter(t=>t.done).length;
+  document.getElementById("timeline-progress").textContent = `${done} of ${state.tasks.length} tasks complete`;
+  document.getElementById("timeline-content").innerHTML = BUCKETS.map(bucket=>{
+    const tasks = state.tasks.filter(t=>t.bucket===bucket); if (!tasks.length) return "";
+    return `<div class="timeline-bucket"><h3>${bucket}</h3>${tasks.map(t=>`
+      <div class="task-item">
+        <div class="task-check${t.done?" done":""}" onclick="toggleTask('${t.id}')"></div>
+        <div class="task-body">
+          <div class="task-title${t.done?" done":""}">${escHtml(t.title)}</div>
+          ${t.due?`<div class="task-due">Due: ${fmtDate(t.due)}</div>`:""}
+          ${t._contributor&&members.length>1?`<div style="display:flex;align-items:center;gap:3px;margin-top:2px">${avatarHTML(t._contributor,14)}<span class="contributor-tag">${escHtml(t._contributor)}</span></div>`:""}
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="openTaskModal('${t.id}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTask('${t.id}')">✕</button>
+        </div>
+      </div>`).join("")}</div>`;
+  }).join("");
+}
+
+async function toggleTask(id) {
+  const t = state.tasks.find(x=>x.id===id); if (!t) return;
+  t.done = !t.done; renderTimeline(); await gwSave(t, T.TASK);
+}
+
+function openTaskModal(id) {
+  const t = id ? state.tasks.find(x=>x.id===id) : null;
+  document.getElementById("modal-title").textContent = t ? "Edit Task" : "Add Task";
+  document.getElementById("modal-body").innerHTML = `
+    <div class="form-group"><label>Task Title</label><input class="form-control" id="f-ttitle" value="${escHtml(t?.title||"")}"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Time Bucket</label><select class="form-control" id="f-tbucket">${BUCKETS.map(b=>`<option${t?.bucket===b?" selected":""}>${b}</option>`).join("")}</select></div>
+      <div class="form-group"><label>Due Date</label><input class="form-control" id="f-tdue" type="date" value="${t?.due||""}"></div>
+    </div>`;
+  modalSaveHandler = async () => {
+    const title = document.getElementById("f-ttitle").value.trim(); if (!title) return;
+    const entry = { id:t?.id||uid(), title, bucket:document.getElementById("f-tbucket").value, due:document.getElementById("f-tdue").value, done:t?.done||false, _gwId:t?._gwId };
+    if (t) state.tasks[state.tasks.findIndex(x=>x.id===id)] = entry;
+    else state.tasks.push(entry);
+    closeModal(); renderTimeline(); await gwSave(entry, T.TASK);
+  };
+  openModal();
+}
+async function deleteTask(id) {
+  if (!confirm("Delete this task?")) return;
+  const t = state.tasks.find(x=>x.id===id);
+  state.tasks = state.tasks.filter(x=>x.id!==id);
+  renderTimeline(); await gwDelete(t?._gwId);
+}
+
+// ═══════════════════════════════════════════════════════════
+// PHOTOS (localStorage only)
+// ═══════════════════════════════════════════════════════════
+
+function savePhotos() { localStorage.setItem(LS_PHOTOS, JSON.stringify(photos)); localStorage.setItem(LS_ALBUMS, JSON.stringify(albums)); }
+
+function renderPhotos() {
+  if (!currentAlbum||!albums.includes(currentAlbum)) currentAlbum = albums[0]||null;
+  document.getElementById("album-tabs").innerHTML = albums.map(a=>`<button class="album-tab${currentAlbum===a?" active":""}" onclick="setAlbum('${escHtml(a)}')">${escHtml(a)}</button>`).join("");
+  document.getElementById("photo-grid").innerHTML = photos.filter(p=>p.album===currentAlbum).map(p=>`
+    <div class="photo-item">
+      <img src="${p.url}" alt="${escHtml(p.caption||"")}" loading="lazy">
+      ${p.caption?`<div class="photo-caption">${escHtml(p.caption)}</div>`:""}
+      <button class="photo-del" onclick="deletePhoto('${p.id}')">✕</button>
+    </div>`).join("");
+}
+
+function setAlbum(name) { currentAlbum = name; renderPhotos(); }
+
+function openNewAlbumModal() {
+  document.getElementById("modal-title").textContent = "New Album";
+  document.getElementById("modal-body").innerHTML = `<div class="form-group"><label>Album Name</label><input class="form-control" id="f-album" placeholder="e.g. Hair Inspiration"></div>`;
+  modalSaveHandler = () => {
+    const name = document.getElementById("f-album").value.trim(); if (!name) return;
+    if (!albums.includes(name)) albums.push(name);
+    savePhotos(); closeModal(); currentAlbum = name; renderPhotos();
+  };
+  openModal();
+}
+
+function handlePhotoUpload(e) {
+  Array.from(e.target.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      photos.push({ id:uid(), album:currentAlbum||albums[0], url:ev.target.result, caption:file.name.replace(/\.[^.]+$/,"") });
+      savePhotos(); renderPhotos();
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value = "";
+}
+
+function deletePhoto(id) { photos = photos.filter(p=>p.id!==id); savePhotos(); renderPhotos(); }
+
+// ═══════════════════════════════════════════════════════════
+// PLANNING TIPS PANEL
+// ═══════════════════════════════════════════════════════════
+
+function openTips() { document.getElementById("tips-panel").classList.add("open"); renderTipsPanel(); }
+function closeTips() { document.getElementById("tips-panel").classList.remove("open"); }
+
+async function saveNote() {
+  const text = document.getElementById("tp-note").value.trim(); if (!text) return;
+  const type = document.getElementById("tp-type").value;
+  const btn = document.getElementById("tp-save-btn"); btn.disabled = true; btn.textContent = "Saving…";
+  const note = { id:uid(), text, type, ts:Date.now() };
+  userNotes.unshift(note);
+  document.getElementById("tp-note").value = "";
+  renderTipsPanel();
+  try {
+    await gwSave({ ...note, title: text.slice(0,80) }, T.NOTE);
+    setTimeout(fetchAndRenderInsights, 8000);
+  } catch {}
+  btn.disabled = false; btn.textContent = "Save";
+}
+
+async function analyzeVendors() {
+  const text = state.vendors.filter(v=>v.notes).map(v=>`${v.type} — ${v.name} ($${v.cost}): ${v.notes}`).join("\n\n");
+  if (!text) { alert("No vendor notes to analyze."); return; }
+  document.getElementById("tp-note").value = "All vendor notes:\n\n" + text;
+  document.getElementById("tp-type").value = "vendor";
+  await saveNote();
+}
+
+async function analyzeDietary() {
+  const text = state.guests.filter(g=>g.notes).map(g=>`${g.name}: ${g.notes}`).join("\n");
+  if (!text) { alert("No dietary notes to analyze."); return; }
+  document.getElementById("tp-note").value = "Guest dietary restrictions:\n\n" + text;
+  document.getElementById("tp-type").value = "note";
+  await saveNote();
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════════════
+
+function openModal()  { document.getElementById("modal-overlay").classList.add("open"); }
+function closeModal() { document.getElementById("modal-overlay").classList.remove("open"); modalSaveHandler = null; }
+function saveModal()  { if (modalSaveHandler) modalSaveHandler(); }
+
+// ═══════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════
+
+initApp();
+</script>
+</body>
+</html>
