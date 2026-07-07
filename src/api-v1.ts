@@ -91,13 +91,18 @@ function getUserId(authResult: AuthResult): string | null {
   return authResult.kind === "user" ? authResult.user.id : null;
 }
 
+// ── Insight views ─────────────────────────────────────────────────────────────
+
+function insightSimple(ins: any) { return { id: ins.id, title: ins.title, body: ins.body }; }
+function insightFull(ins: any) { return { id: ins.id, kind: ins.kind, title: ins.title, body: ins.body, status: ins.status, created_at: ins.created_at }; }
+
 // ── Webhook ───────────────────────────────────────────────────────────────────
 
 async function fireWebhook(groupId: string, insights: any[]) {
   const url = getGroupWebhook(groupId);
   if (!url) return;
   const secret = getGroupWebhookSecret(groupId);
-  const body = JSON.stringify({ event: "insights.created", group_id: groupId, insights });
+  const body = JSON.stringify({ event: "insights.created", group_id: groupId, insights: insights.map(insightSimple) });
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (secret) {
     headers["X-GroupWisdom-Signature"] = "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
@@ -276,7 +281,10 @@ apiv1.get("/projects/:id/insights", (req, res) => {
   if (!g) return res.status(404).json({ error: "Project not found." });
   const { limit, offset } = parsePagination(req.query);
   const kind = req.query.kind as string | undefined;
-  res.json(listInsightsPaginated(g.id, kind, limit, offset));
+  const full = req.query.format === "full";
+  const result = listInsightsPaginated(g.id, kind, limit, offset);
+  const view = full ? insightFull : insightSimple;
+  res.json({ ...result, data: result.data.map(view) });
 });
 
 // ── Project API Keys ──────────────────────────────────────────────────────────

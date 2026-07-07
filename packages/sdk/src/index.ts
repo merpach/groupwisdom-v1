@@ -40,12 +40,18 @@ export interface Item {
   created_at: string;
 }
 
+export type InsightKind = "connection" | "blind_spot" | "conflict" | "pattern" | "question" | "decision";
+
+/** Simple insight — default API response */
 export interface Insight {
   id: string;
-  group_id: string;
-  kind: "connection" | "blind_spot" | "conflict" | "pattern" | "question" | "decision";
   title: string;
   body: string;
+}
+
+/** Full insight — returned when format: "full" is passed */
+export interface InsightFull extends Insight {
+  kind: InsightKind;
   status: string;
   created_at: string;
 }
@@ -73,11 +79,13 @@ export interface ProjectApiKeyPreview {
   last_used_at: string | null;
 }
 
-export type InsightKind = Insight["kind"];
-
 export interface PaginationOptions {
   limit?: number;
   offset?: number;
+}
+
+export interface InsightListOptions extends PaginationOptions {
+  format?: "full";
 }
 
 class GroupWisdom {
@@ -162,9 +170,13 @@ class GroupWisdom {
 
   /**
    * Get insights for a project. Returns paginated results.
+   * Default: { id, title, body } only.
+   * Pass format: "full" to also get kind, status, and created_at.
    * Optionally filter by kind: connection | blind_spot | conflict | pattern | question | decision
    */
-  listInsights(projectId: string, kind?: InsightKind, options?: PaginationOptions): Promise<PaginatedResult<Insight>> {
+  listInsights(projectId: string, kind?: InsightKind, options?: InsightListOptions & { format: "full" }): Promise<PaginatedResult<InsightFull>>;
+  listInsights(projectId: string, kind?: InsightKind, options?: InsightListOptions): Promise<PaginatedResult<Insight>>;
+  listInsights(projectId: string, kind?: InsightKind, options?: InsightListOptions): Promise<PaginatedResult<Insight | InsightFull>> {
     const qs = buildQS({ ...options, ...(kind ? { kind } : {}) });
     return this.request("GET", `/projects/${projectId}/insights${qs}`);
   }

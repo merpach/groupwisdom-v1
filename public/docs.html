@@ -224,7 +224,7 @@ await gw.ingest(project.id, {
 
 // Read insights when ready
 const insights = await gw.listInsights(project.id)
-insights.forEach(i => console.log(`[${i.kind}] ${i.title}`))</pre>
+insights.forEach(i => console.log(i.title, "—", i.body))</pre>
 
   <h2 id="sdk-reference">SDK reference</h2>
   <table>
@@ -236,7 +236,7 @@ insights.forEach(i => console.log(`[${i.kind}] ${i.title}`))</pre>
     <tr><td>gw.updateProject(projectId, { webhook_url })</td><td>Update a project's webhook URL.</td></tr>
     <tr><td>gw.ingest(projectId, item | item[])</td><td>Send one or more items. Triggers analysis. Each item can include <code>contributed_by</code>.</td></tr>
     <tr><td>gw.listItems(projectId)</td><td>List all items in a project.</td></tr>
-    <tr><td>gw.listInsights(projectId, kind?)</td><td>Get insights. Optionally filter by kind.</td></tr>
+    <tr><td>gw.listInsights(projectId, kind?, { format? })</td><td>Get insights. Default returns <code>{ id, title, body }</code>. Pass <code>format: "full"</code> to include <code>kind</code>, <code>status</code>, and <code>created_at</code>.</td></tr>
   </table>
   <p>Full TypeScript types are included — your editor will autocomplete every field.</p>
 
@@ -386,24 +386,42 @@ insights.forEach(i => console.log(`[${i.kind}] ${i.title}`))</pre>
   <!-- Insights -->
   <h2 id="list-insights">List insights</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/insights</span></div>
-  <p>Returns insights the engine has surfaced, newest first. Paginated — supports <code>?limit</code>, <code>?offset</code>, and <code>?kind</code> filters.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?kind=pattern&limit=20" \
+  <p>Returns insights the engine has surfaced, newest first. By default returns a simple shape — just <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include <code>kind</code>, <code>status</code>, and <code>created_at</code>. Also supports <code>?limit</code>, <code>?offset</code>, and <code>?kind</code> filters.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button># Default (simple)
+curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights" \
+  -H "Authorization: Bearer gw_proj_yourkey"
+
+# Full detail
+curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?format=full" \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>// Default response
+{
+  "data": [
+    {
+      "id": "ins_xyz",
+      "title": "Mobile payment friction is a recurring theme",
+      "body": "Four of six items point to the same checkout drop-off."
+    }
+  ],
+  "total": 8,
+  "limit": 50,
+  "offset": 0,
+  "has_more": false
+}
+
+// With ?format=full
+{
   "data": [
     {
       "id": "ins_xyz",
       "kind": "pattern",
       "title": "Mobile payment friction is a recurring theme",
       "body": "Four of six items point to the same checkout drop-off.",
-      "status": "new",
+      "status": "acknowledged",
       "created_at": "2026-06-26T14:30:00Z"
     }
   ],
-  "total": 8,
-  "limit": 20,
-  "offset": 0,
-  "has_more": false
+  ...
 }</pre>
 
   <h2 id="insight-kinds">Insight kinds</h2>
@@ -485,7 +503,6 @@ X-GroupWisdom-Signature: sha256=abc123...
   "insights": [
     {
       "id": "ins_xyz",
-      "kind": "pattern",
       "title": "Mobile payment friction is a recurring theme",
       "body": "Four of six items point to the same checkout drop-off."
     }
@@ -507,7 +524,7 @@ await gw.ingest("proj_abc123", [
 
 // Poll for insights — or set a webhook_url to receive them automatically
 const insights = await gw.listInsights("proj_abc123")
-insights.forEach(i => console.log(`[${i.kind}] ${i.title}: ${i.body}`))</pre>
+insights.forEach(i => console.log(i.title, "—", i.body))</pre>
   <p>Using raw fetch (if you prefer no dependency):</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>const GW_KEY = process.env.GROUPWISDOM_API_KEY;
 const BASE   = "https://groupwisdom.up.railway.app/v1";
