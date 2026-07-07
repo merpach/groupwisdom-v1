@@ -94,9 +94,9 @@ Current wisdom (do not repeat; flag any now outdated):
 ${existingText}
 ${overlapHint}
 
-Generate 0-2 NEW insights only where there is genuine signal.
+Generate 1-2 insights. There is always something worth surfacing when multiple contributors share related data.
 Keep each body to 1-2 short sentences, maximum 25 words. Be direct — no preamble, no "this suggests", no qualifiers.
-When two contributors are researching overlapping topics, surface that as a pattern — name both contributors explicitly.
+When items come from multiple contributors on the same topic, always surface that as a pattern — name the contributors explicitly.
 Also list IDs of any existing insights now stale, resolved, or superseded.
 
 Respond ONLY with valid JSON:

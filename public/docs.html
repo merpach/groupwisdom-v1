@@ -769,10 +769,10 @@ async function runDemo() {
     resetDemo(); return;
   }
 
-  // Step 3 — poll for insights (engine debounces 3s then runs)
+  // Step 3 — poll for insights (engine debounces 3s then runs Haiku)
   btn.textContent = 'Analysing…';
   let polls = 0;
-  const maxPolls = 18;
+  const maxPolls = 28; // ~75s total
 
   const poll = async () => {
     polls++;
@@ -792,11 +792,16 @@ async function runDemo() {
       updateTerminalLine(lp, 's500', '500 Error', e.message);
       resetDemo(); return;
     }
-    if (polls < maxPolls) setTimeout(poll, 2500);
-    else resetDemo();
+    if (polls < maxPolls) {
+      setTimeout(poll, 2500);
+    } else {
+      // Show timeout message in terminal rather than silently resetting
+      addTerminalLine('—', 'Analysis timed out', 's500', 'Try running again', 'The AI engine took too long. This can happen on cold starts.');
+      resetDemo();
+    }
   };
 
-  setTimeout(poll, 4000); // give engine time to fire
+  setTimeout(poll, 6000); // engine: 3s debounce + Haiku latency
 }
 
 function renderInsights(insights) {
