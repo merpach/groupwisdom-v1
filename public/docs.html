@@ -804,8 +804,7 @@ function renderInsights(insights) {
   const body = document.getElementById('demo-insights-body');
   panel.style.display = 'block';
   body.innerHTML = insights.map(i =>
-    `<div class="demo-insight ${i.kind}">
-      <div class="demo-insight-kind">${i.kind.replace('_', ' ')}</div>
+    `<div class="demo-insight">
       <div class="demo-insight-title">${i.title}</div>
       <div class="demo-insight-body">${i.body}</div>
     </div>`
