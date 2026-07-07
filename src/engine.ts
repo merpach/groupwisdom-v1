@@ -95,7 +95,8 @@ ${existingText}
 ${overlapHint}
 
 Generate 0-2 NEW insights only where there is genuine signal.
-When two contributors are researching overlapping topics, always surface that as a pattern — name both contributors explicitly in the body, e.g. "Sarah and James are both investigating X from different angles."
+Keep each body to 1-2 short sentences, maximum 25 words. Be direct — no preamble, no "this suggests", no qualifiers.
+When two contributors are researching overlapping topics, surface that as a pattern — name both contributors explicitly.
 Also list IDs of any existing insights now stale, resolved, or superseded.
 
 Respond ONLY with valid JSON:
@@ -211,7 +212,7 @@ Tasks:
    - pattern: multiple data points imply a conclusion no one stated
    - question: something the group should be considering but is not
    - decision: something the group has decided, and what led to it
-   0-4 insights. Quality over quantity. Each: short title + 1-2 sentence body.
+   0-4 insights. Quality over quantity. Each: short title + 1-2 sentence body, max 25 words. Direct, no qualifiers.
    When two different contributors are researching overlapping topics, always surface that as a pattern — name both contributors explicitly, e.g. "Sarah and James are both investigating X from different angles."
 2. Rewrite the group's living knowledge-base document as clean markdown:
    a title, a one-line italic summary, then sections that organize what is known, noting who contributed key findings.
