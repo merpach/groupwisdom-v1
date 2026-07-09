@@ -867,6 +867,8 @@ const KIND_BG_DEV    = { connection:'#e8f0ff', pattern:'#f5e8ff', blind_spot:'#f
 let _devProjects = [];
 let _devSelected = null; // project id
 let _devProjectTab = 'insights'; // insights | add | settings
+let _devProjectsOpen = false;
+let _devPage = 'project'; // project | usage
 
 let _devUsagePct = 0;
 let _devUsageLimitReached = false;
@@ -889,11 +891,18 @@ function _renderDevShell() {
   const key = state.user.api_key;
   const mcpUrl = window.location.origin + '/mcp?key=' + encodeURIComponent(key);
 
-  const projectList = _devProjects.map(p => `
-    <div onclick="devSelectProject('${p.id}')" style="padding:10px 14px;border-radius:8px;cursor:pointer;margin-bottom:4px;background:${_devSelected===p.id?'#111':'transparent'};color:${_devSelected===p.id?'#fff':'#111'}">
-      <div style="font-weight:500;font-size:14px;margin-bottom:2px">${esc(p.name)}</div>
-      <div style="font-size:12px;opacity:.6">${p.counts.items} items · ${p.counts.insights} insights</div>
+  const selectedProject = _devProjects.find(p => p.id === _devSelected);
+  const dropdownItems = _devProjects.map(p => `
+    <div onclick="devSelectProject('${p.id}')" style="padding:9px 12px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:6px;margin:1px 0;background:${_devSelected===p.id?'#f5f5f5':'transparent'}">
+      <div>
+        <div style="font-size:13px;font-weight:${_devSelected===p.id?'600':'400'};color:#111">${esc(p.name)}</div>
+        <div style="font-size:11px;color:#bbb;margin-top:1px">${p.counts.items} items · ${p.counts.insights} insights</div>
+      </div>
+      ${_devSelected===p.id ? '<span style="color:#111;font-size:14px">✓</span>' : ''}
     </div>`).join('');
+
+  const usageBarColor = _devUsageLimitReached ? '#cc3333' : _devUsagePct > 75 ? '#e67e22' : '#111';
+  const usageActive = _devPage === 'usage';
 
   $("#app").innerHTML = `
     <div style="display:flex;min-height:100vh;max-width:1100px;margin:0 auto">
@@ -903,9 +912,23 @@ function _renderDevShell() {
         <div style="font-size:15px;font-weight:700;letter-spacing:-.2px;margin-bottom:3px;padding:0 4px">GroupWisdom</div>
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:24px;padding:0 4px">Developer Portal</div>
 
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;padding:0 4px;margin-bottom:8px">Projects</div>
-        <div id="dev-project-list">${projectList}</div>
-        <button onclick="devNewProject()" style="font:inherit;font-size:13px;padding:8px 14px;border:1px dashed #ddd;border-radius:8px;background:none;cursor:pointer;color:#888;margin-top:8px;text-align:left">+ New project</button>
+        <!-- Projects dropdown -->
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;padding:0 4px;margin-bottom:6px">Projects</div>
+        <div style="position:relative">
+          <button onclick="devToggleProjectDropdown()" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;width:100%;text-align:left;display:flex;align-items:center;justify-content:space-between;color:#111">
+            <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${selectedProject ? esc(selectedProject.name) : 'Select a project'}</span>
+            <span style="color:#aaa;font-size:11px;flex-shrink:0;margin-left:6px">${_devProjectsOpen ? '▲' : '▼'}</span>
+          </button>
+          ${_devProjectsOpen ? `
+          <div style="position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.08);z-index:50;padding:4px;max-height:280px;overflow-y:auto">
+            ${dropdownItems}
+            <div style="border-top:1px solid #f0f0f0;margin-top:4px;padding-top:4px">
+              <div onclick="devNewProject()" style="padding:9px 12px;cursor:pointer;font-size:13px;color:#888;border-radius:6px;display:flex;align-items:center;gap:6px" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">
+                <span>+</span> New project
+              </div>
+            </div>
+          </div>` : ''}
+        </div>
 
         <div style="flex:1"></div>
 
@@ -922,19 +945,18 @@ function _renderDevShell() {
           <button onclick="navigator.clipboard.writeText('${esc(key)}').then(()=>toast('API key copied'))" style="font:inherit;font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer;width:100%">Copy API key</button>
         </div>
 
-        <div style="border-top:1px solid #eee;padding-top:16px;margin-top:16px">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:8px;padding:0 4px">Monthly Budget</div>
-          <div style="background:#f0f0f0;border-radius:999px;height:6px;overflow:hidden;margin-bottom:6px">
-            <div style="height:100%;width:${Math.min(_devUsagePct,100)}%;background:${_devUsageLimitReached?'#cc3333':_devUsagePct>75?'#e67e22':'#111'};border-radius:999px;transition:width .4s"></div>
+        <!-- Usage / Monthly Budget — clickable nav item -->
+        <div onclick="devShowUsage()" style="border-top:1px solid #eee;padding-top:16px;margin-top:16px;cursor:pointer;border-radius:8px;padding:12px;margin-left:-4px;margin-right:-4px;background:${usageActive?'#f5f5f5':'transparent'};transition:background .15s">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:8px">Usage</div>
+          <div style="background:#e8e8e8;border-radius:999px;height:5px;overflow:hidden;margin-bottom:6px">
+            <div style="height:100%;width:${Math.min(_devUsagePct,100)}%;background:${usageBarColor};border-radius:999px"></div>
           </div>
-          <div style="font-size:11px;color:${_devUsageLimitReached?'#cc3333':'#888'};padding:0 2px">
-            ${_devUsageLimitReached
-              ? 'Monthly limit reached — analysis paused'
-              : `${_devUsagePct}% of your monthly analysis budget used`}
+          <div style="font-size:11px;color:${_devUsageLimitReached?'#cc3333':'#888'}">
+            ${_devUsageLimitReached ? 'Limit reached' : `${_devUsagePct}% used`}
           </div>
         </div>
 
-        <div style="border-top:1px solid #eee;padding-top:16px;margin-top:16px;display:flex;flex-direction:column;gap:4px">
+        <div style="border-top:1px solid #eee;padding-top:16px;margin-top:8px;display:flex;flex-direction:column;gap:4px">
           <a href="/docs" target="_blank" style="font-size:13px;color:#555;text-decoration:none;padding:6px 4px;display:block">API Docs ↗</a>
           <button onclick="renderProjects()" style="font:inherit;font-size:13px;padding:6px 4px;border:none;background:none;cursor:pointer;color:#888;text-align:left">← Web app</button>
           <button onclick="logout()" style="font:inherit;font-size:13px;padding:6px 4px;border:none;background:none;cursor:pointer;color:#bbb;text-align:left">Sign out</button>
@@ -942,9 +964,9 @@ function _renderDevShell() {
       </div>
 
       <!-- Detail panel -->
-      <div style="flex:1;padding:36px 48px 80px;overflow-y:auto">
+      <div style="flex:1;padding:36px 48px 80px;overflow-y:auto" onclick="devCloseDropdown(event)">
         <div id="dev-detail">
-          ${_devSelected ? '<div style="color:#bbb;font-size:14px">Loading…</div>' : _devEmptyState()}
+          ${_devPage === 'usage' ? _devUsagePage() : (_devSelected ? '<div style="color:#bbb;font-size:14px">Loading…</div>' : _devEmptyState())}
         </div>
       </div>
     </div>`;
@@ -957,6 +979,86 @@ function _devEmptyState() {
     <div style="font-size:14px;margin-bottom:20px">Create a project to start ingesting data and receiving insights.</div>
     <button onclick="devNewProject()" class="primary" style="font-size:14px;padding:10px 24px">Create first project</button>
   </div>`;
+}
+
+function _devUsagePage() {
+  const pct = _devUsagePct;
+  const limitReached = _devUsageLimitReached;
+  const barColor = limitReached ? '#cc3333' : pct > 75 ? '#e67e22' : '#111';
+
+  const totalProjects = _devProjects.length;
+  const totalItems = _devProjects.reduce((s, p) => s + p.counts.items, 0);
+  const totalInsights = _devProjects.reduce((s, p) => s + p.counts.insights, 0);
+
+  const statusLabel = limitReached
+    ? `<span style="background:#ffe8e8;color:#cc3333;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px">Limit reached — analysis paused</span>`
+    : pct > 75
+    ? `<span style="background:#fff5e0;color:#996600;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px">High usage</span>`
+    : `<span style="background:#e8f5ee;color:#1d7a46;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px">Good standing</span>`;
+
+  return `
+    <div style="max-width:560px">
+      <div style="margin-bottom:32px">
+        <div style="font-size:22px;font-weight:700;margin-bottom:6px">Usage</div>
+        <div style="font-size:14px;color:#888">Your monthly analysis budget resets on the 1st of each month.</div>
+      </div>
+
+      <!-- Big progress ring area -->
+      <div style="background:#f7f7f7;border-radius:16px;padding:32px;margin-bottom:24px;display:flex;align-items:center;gap:32px">
+        <div style="position:relative;width:96px;height:96px;flex-shrink:0">
+          <svg viewBox="0 0 96 96" style="width:96px;height:96px;transform:rotate(-90deg)">
+            <circle cx="48" cy="48" r="40" fill="none" stroke="#e8e8e8" stroke-width="8"/>
+            <circle cx="48" cy="48" r="40" fill="none" stroke="${barColor}" stroke-width="8"
+              stroke-dasharray="${2 * Math.PI * 40}"
+              stroke-dashoffset="${2 * Math.PI * 40 * (1 - pct / 100)}"
+              stroke-linecap="round"/>
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#111">${pct}%</div>
+        </div>
+        <div>
+          <div style="font-size:28px;font-weight:700;color:#111;margin-bottom:4px">${pct}% used</div>
+          <div style="font-size:14px;color:#888;margin-bottom:12px">${100 - pct}% of your monthly analysis budget remaining</div>
+          ${statusLabel}
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div style="margin-bottom:24px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#aaa;margin-bottom:6px">
+          <span>0%</span><span>50%</span><span>100%</span>
+        </div>
+        <div style="background:#e8e8e8;border-radius:999px;height:8px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(pct,100)}%;background:${barColor};border-radius:999px;transition:width .6s ease"></div>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:32px">
+        ${[['Projects', totalProjects], ['Items ingested', totalItems], ['Insights generated', totalInsights]].map(([label, val]) => `
+        <div style="background:#f7f7f7;border-radius:12px;padding:16px">
+          <div style="font-size:22px;font-weight:700;color:#111;margin-bottom:4px">${val}</div>
+          <div style="font-size:12px;color:#888">${label}</div>
+        </div>`).join('')}
+      </div>
+
+      <!-- Info box -->
+      <div style="border:1px solid #eee;border-radius:12px;padding:20px">
+        <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:12px">How usage is calculated</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
+            <span style="color:#555">Incremental analysis (Haiku)</span>
+            <span style="color:#888;font-family:monospace">$1 / $5 per MTok</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
+            <span style="color:#555">Full analysis (Sonnet)</span>
+            <span style="color:#888;font-family:monospace">$3 / $15 per MTok</span>
+          </div>
+          <div style="border-top:1px solid #f0f0f0;padding-top:10px;font-size:12px;color:#bbb;line-height:1.6">
+            Usage is tracked across all your projects. Your monthly budget resets automatically — you'll never be billed; analysis simply pauses when the limit is reached.
+          </div>
+        </div>
+      </div>
+    </div>`;
 }
 
 async function _loadDevDetail(projectId, tab = 'insights') {
@@ -1072,14 +1174,31 @@ async function _loadDevDetail(projectId, tab = 'insights') {
 
 window.devSelectProject = async function(id) {
   _devSelected = id;
+  _devPage = 'project';
   _devProjectTab = 'insights';
-  // update sidebar highlight
-  document.querySelectorAll('#dev-project-list > div').forEach(el => {
-    const isActive = el.getAttribute('onclick')?.includes(id);
-    el.style.background = isActive ? '#111' : 'transparent';
-    el.style.color = isActive ? '#fff' : '#111';
-  });
+  _devProjectsOpen = false;
+  _renderDevShell();
   await _loadDevDetail(id, 'insights');
+};
+
+window.devToggleProjectDropdown = function() {
+  _devProjectsOpen = !_devProjectsOpen;
+  _renderDevShell();
+  if (_devPage === 'project' && _devSelected) _loadDevDetail(_devSelected, _devProjectTab);
+};
+
+window.devCloseDropdown = function(e) {
+  if (_devProjectsOpen && !e.target.closest('[onclick*="devToggleProjectDropdown"]')) {
+    _devProjectsOpen = false;
+    _renderDevShell();
+    if (_devPage === 'project' && _devSelected) _loadDevDetail(_devSelected, _devProjectTab);
+  }
+};
+
+window.devShowUsage = function() {
+  _devPage = 'usage';
+  _devProjectsOpen = false;
+  _renderDevShell();
 };
 
 window.devSwitchTab = async function(tab) {
