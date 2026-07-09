@@ -11,7 +11,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import {
   listItems, listItemsWithMembers, listMembers, listInsights, addInsight, setInsightStatus,
   setKnowledgeDoc, getGroup, setProjectSummary, setUserContext, listUserContexts,
-  getMemberByUserId, listItemsByMember, type Item, type Insight,
+  getMemberByUserId, listItemsByMember, recordUsage, isGroupOverBudget,
+  type Item, type Insight,
 } from "./db.js";
 
 const MODEL = process.env.GW_MODEL || "claude-sonnet-4-6";
@@ -75,6 +76,11 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
     return []; // no mock for incremental — just skip
   }
 
+  if (isGroupOverBudget(groupId)) {
+    console.warn(`[wisdom] group ${groupId} over budget — skipping analysis`);
+    return [];
+  }
+
   const client = new Anthropic();
   const msg = await client.messages.create({
     model: SUMMARY_MODEL,
@@ -103,6 +109,7 @@ Respond ONLY with valid JSON:
 {"new":[{"kind":"...","title":"...","body":"..."}],"dismiss":["id1"]}`,
     }],
   });
+  recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "incremental_wisdom");
 
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
   const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
@@ -136,7 +143,7 @@ export async function previewAnalysis(groupId: string): Promise<ProposedInsight[
   const existing = listInsights(groupId);
 
   const result = process.env.ANTHROPIC_API_KEY
-    ? await analyzeWithClaude(group.name, items, members.map(m => `${m.name} (${m.role})`), existing)
+    ? await analyzeWithClaude(groupId, group.name, items, members.map(m => `${m.name} (${m.role})`), existing)
     : analyzeMock(group.name, items, existing);
 
   return result.insights.filter(ins =>
@@ -164,8 +171,13 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
     const members = listMembers(groupId);
     const existing = listInsights(groupId);
 
+    if (process.env.ANTHROPIC_API_KEY && isGroupOverBudget(groupId)) {
+      console.warn(`[analyze] group ${groupId} over budget — skipping`);
+      return [];
+    }
+
     const result = process.env.ANTHROPIC_API_KEY
-      ? await analyzeWithClaude(group.name, items, members.map(m => `${m.name}${m.role ? ` (${m.role})` : ""}`), existing)
+      ? await analyzeWithClaude(groupId, group.name, items, members.map(m => `${m.name}${m.role ? ` (${m.role})` : ""}`), existing)
       : analyzeMock(group.name, items, existing);
 
     const created: Insight[] = [];
@@ -187,7 +199,7 @@ type EngineResult = {
 };
 
 async function analyzeWithClaude(
-  groupName: string, items: (Item & { member_name?: string | null })[], members: string[], existing: Insight[],
+  groupId: string, groupName: string, items: (Item & { member_name?: string | null })[], members: string[], existing: Insight[],
 ): Promise<EngineResult> {
   const client = new Anthropic();
   const itemsText = items
@@ -226,6 +238,7 @@ Respond with ONLY valid JSON:
     max_tokens: 3000,
     messages: [{ role: "user", content: prompt }],
   });
+  recordUsage(groupId, MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "full_analysis");
   const text = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
   const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
   return JSON.parse(json) as EngineResult;
@@ -340,6 +353,7 @@ ${itemList}
 Reply with only the summary, no preamble.`,
     }],
   });
+  recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "project_summary");
 
   const summary = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("").trim();
   if (summary) setProjectSummary(groupId, summary);
@@ -385,6 +399,7 @@ ${itemList}
 Reply with only the summary, no preamble.`,
     }],
   });
+  recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "user_context");
 
   const summary = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("").trim();
   if (summary) setUserContext(userId, groupId, summary);
@@ -440,6 +455,7 @@ Respond ONLY with valid JSON:
 If no overlap, respond: {"overlaps":[]}`,
     }],
   });
+  recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "overlap_check");
 
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
   const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
@@ -509,6 +525,7 @@ Respond ONLY with valid JSON:
 {"overlap":{"title":"...","body":"..."} | null}`,
     }],
   });
+  recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "context_overlap");
 
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
   const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);

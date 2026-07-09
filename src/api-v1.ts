@@ -42,6 +42,7 @@ import {
   listProjectApiKeys,
   getByProjectApiKey,
   revokeProjectApiKey,
+  getUserUsagePct,
   type Item,
   type Group,
   type User,
@@ -149,6 +150,16 @@ apiv1.post("/demo", (req, res) => {
     api_key: pk.key,
     base_url: (req.headers["x-forwarded-proto"] ?? req.protocol) + "://" + req.headers.host + "/v1",
   });
+});
+
+// ── Usage ─────────────────────────────────────────────────────────────────────
+
+apiv1.get("/usage", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  if (a.kind === "project_key") return res.status(403).json({ error: "Use your personal API key to check usage." });
+  const pct = getUserUsagePct(a.user!.id);
+  res.json({ percent_used: pct, limit_reached: pct >= 100 });
 });
 
 // ── Projects ──────────────────────────────────────────────────────────────────

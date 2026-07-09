@@ -100,6 +100,16 @@ CREATE TABLE IF NOT EXISTS project_api_keys (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   last_used_at TEXT DEFAULT NULL
 );
+CREATE TABLE IF NOT EXISTS usage_events (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL,
+  model TEXT NOT NULL,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  cost_usd REAL NOT NULL DEFAULT 0,
+  purpose TEXT NOT NULL DEFAULT 'analysis',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 // Migrate: add webhook_secret if it doesn't exist yet
@@ -338,3 +348,53 @@ export const getByProjectApiKey = (key: string): ProjectApiKey | undefined => {
 
 export const revokeProjectApiKey = (keyId: string) =>
   db.prepare("DELETE FROM project_api_keys WHERE id = ?").run(keyId);
+
+// ── Usage tracking ─────────────────────────────────────────────────────────────
+
+const COST_PER_TOKEN: Record<string, { input: number; output: number }> = {
+  haiku:  { input: 1e-6,  output: 5e-6  },  // $1.00 / $5.00 per MTok
+  sonnet: { input: 3e-6,  output: 15e-6 },  // $3.00 / $15.00 per MTok
+};
+
+const USER_BUDGET_USD = 50;
+
+function modelRates(model: string) {
+  if (model.includes("haiku")) return COST_PER_TOKEN.haiku;
+  return COST_PER_TOKEN.sonnet;
+}
+
+export function recordUsage(
+  groupId: string, model: string, inputTokens: number, outputTokens: number, purpose = "analysis"
+): void {
+  const rates = modelRates(model);
+  const cost = inputTokens * rates.input + outputTokens * rates.output;
+  db.prepare(
+    "INSERT INTO usage_events (id, group_id, model, input_tokens, output_tokens, cost_usd, purpose) VALUES (?, ?, ?, ?, ?, ?, ?)"
+  ).run(randomUUID(), groupId, model, inputTokens, outputTokens, cost, purpose);
+}
+
+export function getUserTotalCostUsd(userId: string): number {
+  const row = db.prepare(
+    "SELECT COALESCE(SUM(u.cost_usd), 0) as total FROM usage_events u " +
+    "WHERE u.group_id IN (SELECT group_id FROM members WHERE user_id = ?)"
+  ).get(userId) as { total: number };
+  return row.total;
+}
+
+export function getUserUsagePct(userId: string): number {
+  const cost = getUserTotalCostUsd(userId);
+  return Math.min(Math.round((cost / USER_BUDGET_USD) * 100), 100);
+}
+
+export function getGroupOwnerUserId(groupId: string): string | null {
+  const row = db.prepare(
+    "SELECT user_id FROM members WHERE group_id = ? AND user_id IS NOT NULL ORDER BY created_at LIMIT 1"
+  ).get(groupId) as { user_id: string } | undefined;
+  return row?.user_id ?? null;
+}
+
+export function isGroupOverBudget(groupId: string): boolean {
+  const ownerId = getGroupOwnerUserId(groupId);
+  if (!ownerId) return false;
+  return getUserTotalCostUsd(ownerId) >= USER_BUDGET_USD;
+}
