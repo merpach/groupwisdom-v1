@@ -227,13 +227,15 @@ function renderLanding() {
     </div>`;
 
   const insights = [
-    { type: "Pattern",  body: "Alex unblocks others before standups consistently",           sig: "Signal 0.87 · high confidence" },
-    { type: "Overlap",  body: "Sarah and Ben rarely interact despite shared domain context", sig: "Similarity 0.91 · recommend introduction" },
-    { type: "Velocity", body: "Sprint velocity drops 40% when more than 5 PRs are open",    sig: "Signal 0.79 · recurring pattern" },
-    { type: "Pattern",  body: "Zara’s PRs merge 3× faster when reviewed by the same pair", sig: "Signal 0.82 · consistent across sprints" },
+    { kind: "pattern",    title: "Security blockers across three deals",        body: "Marco, Devon, and Yuki all report GDPR or SSO as blockers. Security is a deal prerequisite no one has escalated." },
+    { kind: "blind_spot", title: "No one has looked at pricing objections",     body: "Four lost deals mention competitor pricing. The team is solving the wrong problem." },
+    { kind: "connection", title: "Notion comes up in every enterprise call",    body: "Yuki, Marco, and Sara each logged it independently. This is a comparison buyers are making before you get the call." },
+    { kind: "pattern",    title: "Technical buyers block legal sign-off",       body: "Devon and Marco both note the same sequence: technical approval stalls, then legal goes silent." },
+    { kind: "question",   title: "What does the team know about Notion?",       body: "Three contributors flagged it as a competitor but no one has shared research on it." },
+    { kind: "decision",   title: "SSO moves to Q1 roadmap",                    body: "Yuki and Devon’s notes together make the case. Three enterprise deals are gated on it." },
   ];
   let ldIdx = 0;
-  const MAX_CARDS = 4;
+  const MAX_CARDS = 3;
   function addLdInsight() {
     const list = document.getElementById("ld-list");
     if (!list) return;
@@ -252,15 +254,15 @@ function renderLanding() {
   function insertLdCard() {
     const list = document.getElementById("ld-list");
     if (!list) return;
-    const { type, body, sig } = insights[ldIdx % insights.length];
+    const { kind, title, body } = insights[ldIdx % insights.length];
     ldIdx++;
     const d = document.createElement("div");
     d.className = "ld-ic";
-    d.innerHTML = "<div style='font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:4px'>" + type + "</div><div style='font-size:13px;color:#333;line-height:1.45'>" + body + "</div><div style='font-size:10.5px;color:#00A870;margin-top:6px;font-weight:600'>" + sig + "</div>";
+    d.innerHTML = "<div style=’font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:5px’>" + kind + "</div><div style=’font-size:12.5px;font-weight:600;color:#111;margin-bottom:3px;line-height:1.35’>" + title + "</div><div style=’font-size:12px;color:#555;line-height:1.5’>" + body + "</div>";
     list.appendChild(d);
     void d.offsetHeight;
     d.classList.add("vis");
-    setTimeout(addLdInsight, 2000);
+    setTimeout(addLdInsight, 2800);
   }
   setTimeout(addLdInsight, 900);
 }
