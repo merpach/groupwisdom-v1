@@ -169,10 +169,9 @@ function renderLanding() {
       @keyframes ld-rule { to { width: 56px; } }
       @keyframes ld-fade { to { opacity: 1; } }
       @keyframes ld-dot  { 0%,100%{opacity:1} 50%{opacity:.3} }
-      .ld-w   { display:block; transform:translateY(106%); animation:ld-wup .65s cubic-bezier(.2,0,0,1) forwards; font-family:'Syne',sans-serif; font-size:56px; font-weight:800; color:#111; letter-spacing:-1.5px; line-height:1.05; }
+      .ld-w   { display:block; transform:translateY(106%); animation:ld-wup .65s cubic-bezier(.2,0,0,1) forwards; font-family:'Syne',sans-serif; font-size:60px; font-weight:800; color:#111; letter-spacing:-2px; line-height:1.05; white-space:nowrap; }
       .ld-w1  { animation-delay:.05s; }
-      .ld-w2  { animation-delay:.22s; }
-      .ld-w3  { animation-delay:.38s; }
+      .ld-w2  { animation-delay:.28s; }
       .ld-bar { width:0; height:2px; background:#1B4FFF; margin:20px 0 22px; animation:ld-rule .55s .62s cubic-bezier(.2,0,0,1) forwards; }
       .ld-sub { opacity:0; animation:ld-fade .4s .76s forwards; }
       .ld-cta { opacity:0; animation:ld-fade .4s .86s forwards; }
@@ -201,9 +200,8 @@ function renderLanding() {
           <div style="flex:1;min-width:0">
             <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#bbb;margin-bottom:20px">For developers</div>
             <div>
-              <div style="overflow:hidden"><span class="ld-w ld-w1">Group</span></div>
-              <div style="overflow:hidden"><span class="ld-w ld-w2">intelligence</span></div>
-              <div style="overflow:hidden"><span class="ld-w ld-w3">infrastructure</span></div>
+              <div style="overflow:hidden"><span class="ld-w ld-w1">Group intelligence</span></div>
+              <div style="overflow:hidden"><span class="ld-w ld-w2">infrastructure</span></div>
             </div>
             <div class="ld-bar"></div>
             <p class="ld-sub" style="font-size:18px;color:#777;line-height:1.6;margin-bottom:32px">Send your team's data.<br>Get back what they missed.</p>
@@ -238,22 +236,34 @@ function renderLanding() {
     { type: "Pattern",  body: "Zara’s PRs merge 3× faster when reviewed by the same pair", sig: "Signal 0.82 · consistent across sprints" },
   ];
   let ldIdx = 0;
+  const MAX_CARDS = 4;
   function addLdInsight() {
     const list = document.getElementById("ld-list");
     if (!list) return;
-    if (ldIdx >= insights.length) {
-      ldIdx = 0;
-      setTimeout(() => { const l2 = document.getElementById("ld-list"); if (l2) { l2.innerHTML = ""; addLdInsight(); } }, 1000);
-      return;
+    if (list.children.length >= MAX_CARDS) {
+      const oldest = list.firstElementChild;
+      oldest.style.transition = "opacity .25s";
+      oldest.style.opacity = "0";
+      setTimeout(() => {
+        if (oldest.parentNode) oldest.remove();
+        insertLdCard();
+      }, 280);
+    } else {
+      insertLdCard();
     }
-    const { type, body, sig } = insights[ldIdx++];
+  }
+  function insertLdCard() {
+    const list = document.getElementById("ld-list");
+    if (!list) return;
+    const { type, body, sig } = insights[ldIdx % insights.length];
+    ldIdx++;
     const d = document.createElement("div");
     d.className = "ld-ic";
     d.innerHTML = "<div style='font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:4px'>" + type + "</div><div style='font-size:13px;color:#333;line-height:1.45'>" + body + "</div><div style='font-size:10.5px;color:#00A870;margin-top:6px;font-weight:600'>" + sig + "</div>";
     list.appendChild(d);
     void d.offsetHeight;
     d.classList.add("vis");
-    setTimeout(addLdInsight, 1500);
+    setTimeout(addLdInsight, 2000);
   }
   setTimeout(addLdInsight, 900);
 }
