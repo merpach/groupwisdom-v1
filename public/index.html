@@ -1079,8 +1079,8 @@ async function _loadDevDetail(projectId, tab = 'insights') {
     }).then(r => r.json()).catch(() => []);
   }
 
-  const tabs = ['insights','add','settings'].map(t => `
-    <button onclick="devSwitchTab('${t}')" style="font:inherit;font-size:13px;padding:8px 16px;border:none;background:none;cursor:pointer;color:${_devProjectTab===t?'#111':'#aaa'};border-bottom:2px solid ${_devProjectTab===t?'#111':'transparent'};margin-bottom:-1px">${{insights:'Insights',add:'Add Data',settings:'Settings'}[t]}</button>`).join('');
+  const tabs = ['insights','add','quickstart','settings'].map(t => `
+    <button onclick="devSwitchTab('${t}')" style="font:inherit;font-size:13px;padding:8px 16px;border:none;background:none;cursor:pointer;color:${_devProjectTab===t?'#111':'#aaa'};border-bottom:2px solid ${_devProjectTab===t?'#111':'transparent'};margin-bottom:-1px">${{insights:'Insights',add:'Add Data',quickstart:'Quickstart',settings:'Settings'}[t]}</button>`).join('');
 
   let body = '';
 
@@ -1128,8 +1128,39 @@ async function _loadDevDetail(projectId, tab = 'insights') {
       ${recentItems}`;
   }
 
+  if (tab === 'quickstart') {
+    const apiKey = state.user.api_key;
+    const pid = project.id;
+    const origin = window.location.origin;
+    window._qsSnippets = {
+      node: `import GroupWisdom from '@groupwisdom/sdk';\n\nconst gw = new GroupWisdom({ apiKey: '${apiKey}' });\n\n// Send data to your project\nawait gw.ingest('${pid}', [\n  { title: 'Q3 strategy doc', type: 'note', content: 'Focus on enterprise.', contributed_by: 'Alice' },\n  { title: 'Competitor analysis', url: 'https://example.com/report', contributed_by: 'Bob' },\n]);\n\n// Fetch insights\nconst { data } = await gw.listInsights('${pid}');\nconsole.log(data);`,
+      curl: `# Ingest items\ncurl -X POST ${origin}/v1/projects/${pid}/ingest \\\n  -H "Authorization: Bearer ${apiKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"title":"My first item","content":"Notes here","contributed_by":"Alice"}'\n\n# Get insights\ncurl ${origin}/v1/projects/${pid}/insights \\\n  -H "Authorization: Bearer ${apiKey}"`,
+    };
+    body = `
+      <div style="margin-bottom:20px">
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button onclick="devQsTab('node')" id="qs-btn-node" style="font:inherit;font-size:12px;font-weight:600;padding:6px 14px;border-radius:6px;cursor:pointer;border:1px solid #111;background:#111;color:#fff">Node.js SDK</button>
+          <button onclick="devQsTab('curl')" id="qs-btn-curl" style="font:inherit;font-size:12px;font-weight:600;padding:6px 14px;border-radius:6px;cursor:pointer;border:1px solid #e0e0e0;background:#fff;color:#555">cURL</button>
+        </div>
+        <div id="qs-node" style="position:relative">
+          <pre style="background:#f7f7f7;border:1px solid #eee;border-radius:10px;padding:18px 48px 18px 18px;font-size:12px;line-height:1.6;overflow-x:auto;margin:0">${esc(window._qsSnippets.node)}</pre>
+          <button onclick="navigator.clipboard.writeText(window._qsSnippets.node).then(()=>toast('Copied'))" style="position:absolute;top:10px;right:10px;font:inherit;font-size:11px;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#555">Copy</button>
+        </div>
+        <div id="qs-curl" style="position:relative;display:none">
+          <pre style="background:#f7f7f7;border:1px solid #eee;border-radius:10px;padding:18px 48px 18px 18px;font-size:12px;line-height:1.6;overflow-x:auto;margin:0">${esc(window._qsSnippets.curl)}</pre>
+          <button onclick="navigator.clipboard.writeText(window._qsSnippets.curl).then(()=>toast('Copied'))" style="position:absolute;top:10px;right:10px;font:inherit;font-size:11px;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#555">Copy</button>
+        </div>
+      </div>
+      <div style="background:#f7f7f7;border-radius:10px;padding:16px;font-size:13px;color:#555;line-height:1.6">
+        <strong style="color:#111">Your key and project ID are already filled in.</strong><br>
+        Install the SDK with <code style="background:#eee;padding:1px 5px;border-radius:4px">npm install @groupwisdom/sdk</code>, then paste and run.
+        Insights appear in this portal within seconds of ingesting data.
+      </div>`;
+  }
+
   if (tab === 'settings') {
     const mcpUrl = window.location.origin + '/mcp?key=' + encodeURIComponent(state.user.api_key);
+    const hasWebhook = !!project.webhook_url;
     body = `
       <div style="margin-bottom:28px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">Project ID</div>
@@ -1141,11 +1172,12 @@ async function _loadDevDetail(projectId, tab = 'insights') {
       <div style="margin-bottom:28px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">Webhook URL</div>
         <p style="font-size:13px;color:#888;margin-bottom:8px">GroupWisdom will POST new insights here automatically after each analysis.</p>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;margin-bottom:8px">
           <input id="dev-wh" value="${esc(project.webhook_url || '')}" placeholder="https://your-server.com/hook" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fafafa;flex:1">
-          <button onclick="devSaveWebhook('${project.id}')" style="font-size:13px;padding:9px 16px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer">Save</button>
+          <button onclick="devSaveWebhook('${project.id}')" style="font-size:13px;padding:9px 16px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;white-space:nowrap">Save</button>
+          <button onclick="devTestWebhook('${project.id}')" ${hasWebhook?'':'disabled'} style="font-size:13px;padding:9px 16px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:${hasWebhook?'pointer':'default'};color:${hasWebhook?'#111':'#ccc'};white-space:nowrap">Send test</button>
         </div>
-        <div id="dev-wh-msg" style="font-size:12px;color:#1d7a46;margin-top:6px;display:none">✓ Saved</div>
+        <div id="dev-wh-msg" style="font-size:12px;color:#1d7a46;margin-top:4px;display:none"></div>
         <p style="font-size:12px;color:#bbb;margin-top:6px">Use <a href="https://webhook.site" target="_blank" style="color:#888">webhook.site</a> to test without a real server.</p>
       </div>
       <div style="margin-bottom:28px">
@@ -1156,10 +1188,17 @@ async function _loadDevDetail(projectId, tab = 'insights') {
           <button onclick="navigator.clipboard.writeText('${esc(mcpUrl)}').then(()=>toast('MCP URL copied'))" style="font-size:13px;padding:9px 16px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;flex-shrink:0">Copy</button>
         </div>
       </div>
-      <div style="padding-top:28px;border-top:1px solid #eee">
+      <div style="margin-bottom:28px;padding-top:28px;border-top:1px solid #eee">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">Ingest endpoint</div>
         <code style="font-size:12px;background:#f5f5f5;padding:9px 12px;border-radius:8px;display:block;word-break:break-all">${esc(window.location.origin)}/v1/projects/${esc(project.id)}/ingest</code>
         <p style="font-size:12px;color:#bbb;margin-top:6px">POST items here from your backend. <a href="/docs" target="_blank" style="color:#888">See docs →</a></p>
+      </div>
+      <div style="padding-top:24px;border-top:1px solid #fee">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#e0a0a0;margin-bottom:8px">Danger zone</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+          <p style="font-size:13px;color:#888;margin:0">Permanently delete <strong>${esc(project.name)}</strong> and all its items and insights. This cannot be undone.</p>
+          <button onclick="devDeleteProject('${esc(project.id)}','${esc(project.name)}')" style="font:inherit;font-size:13px;padding:8px 16px;border:1px solid #e0a0a0;border-radius:8px;background:#fff;cursor:pointer;color:#cc3333;white-space:nowrap;flex-shrink:0">Delete project</button>
+        </div>
       </div>`;
   }
 
@@ -1253,6 +1292,46 @@ window.devSaveWebhook = async function(projectId) {
   if (p) p.webhook_url = url;
   const msg = document.getElementById('dev-wh-msg');
   if (msg) { msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 2000); }
+};
+
+window.devTestWebhook = async function(projectId) {
+  const msg = document.getElementById('dev-wh-msg');
+  if (msg) { msg.style.display = 'block'; msg.style.color = '#888'; msg.textContent = 'Sending…'; }
+  const r = await fetch('/v1/projects/' + projectId + '/test-webhook', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key },
+  }).then(r => r.json()).catch(() => ({ sent: false, error: 'Network error' }));
+  if (msg) {
+    msg.textContent = r.sent ? '✓ Test event delivered (HTTP ' + r.status + ')' : '✗ ' + (r.error || 'Delivery failed');
+    msg.style.color = r.sent ? '#1d7a46' : '#cc3333';
+    msg.style.display = 'block';
+    setTimeout(() => { if (msg) msg.style.display = 'none'; }, 4000);
+  }
+};
+
+window.devDeleteProject = async function(projectId, projectName) {
+  if (prompt(`Type the project name to confirm deletion:\n\n"${projectName}"`) !== projectName) return;
+  await fetch('/v1/projects/' + projectId, {
+    method: 'DELETE',
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key },
+  });
+  _devProjects = _devProjects.filter(p => p.id !== projectId);
+  _devSelected = _devProjects[0]?.id ?? null;
+  _devPage = 'project';
+  _renderDevShell();
+  if (_devSelected) await _loadDevDetail(_devSelected, 'insights');
+  toast('Project deleted');
+};
+
+window.devQsTab = function(tab) {
+  document.getElementById('qs-node').style.display = tab === 'node' ? 'block' : 'none';
+  document.getElementById('qs-curl').style.display = tab === 'curl' ? 'block' : 'none';
+  document.getElementById('qs-btn-node').style.background = tab === 'node' ? '#111' : '#fff';
+  document.getElementById('qs-btn-node').style.color = tab === 'node' ? '#fff' : '#555';
+  document.getElementById('qs-btn-node').style.borderColor = tab === 'node' ? '#111' : '#e0e0e0';
+  document.getElementById('qs-btn-curl').style.background = tab === 'curl' ? '#111' : '#fff';
+  document.getElementById('qs-btn-curl').style.color = tab === 'curl' ? '#fff' : '#555';
+  document.getElementById('qs-btn-curl').style.borderColor = tab === 'curl' ? '#111' : '#e0e0e0';
 };
 
 window.saveWebhook = window.devSaveWebhook; // keep old alias working

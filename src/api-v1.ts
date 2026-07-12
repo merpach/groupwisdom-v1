@@ -27,6 +27,7 @@ import {
   getGroupsForUser,
   getGroup,
   createGroup,
+  deleteGroup,
   addMember,
   listMembers,
   addItem,
@@ -201,6 +202,39 @@ apiv1.patch("/projects/:id", (req, res) => {
   if ("webhook_url" in req.body) webhookSecret = setGroupWebhook(g.id, req.body.webhook_url || null);
   const view = projectView(g.id);
   res.json(webhookSecret ? { ...view, webhook_secret: webhookSecret } : view);
+});
+
+apiv1.delete("/projects/:id", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  if (a.kind === "project_key") return res.status(403).json({ error: "Use your personal API key to delete projects." });
+  const g = resolveProject(req, a);
+  if (!g) return res.status(404).json({ error: "Project not found." });
+  deleteGroup(g.id);
+  res.json({ deleted: true, id: g.id });
+});
+
+apiv1.post("/projects/:id/test-webhook", async (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  const g = resolveProject(req, a);
+  if (!g) return res.status(404).json({ error: "Project not found." });
+  const url = getGroupWebhook(g.id);
+  if (!url) return res.status(400).json({ error: "No webhook URL set for this project." });
+  const secret = getGroupWebhookSecret(g.id);
+  const body = JSON.stringify({
+    event: "test",
+    group_id: g.id,
+    insights: [{ id: "test-insight", title: "Webhook is working", body: "This is a test event from GroupWisdom." }],
+  });
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (secret) headers["X-GroupWisdom-Signature"] = "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
+  try {
+    const r = await fetch(url, { method: "POST", headers, body });
+    res.json({ sent: true, status: r.status });
+  } catch (err: any) {
+    res.status(502).json({ sent: false, error: err.message });
+  }
 });
 
 // ── Ingest ────────────────────────────────────────────────────────────────────
