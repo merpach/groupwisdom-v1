@@ -158,41 +158,104 @@ function renderLanding() {
   const app = $("#app");
   Object.assign(app.style, { maxWidth: "none", padding: "0", margin: "0" });
 
+  if (!document.getElementById("ld-syne")) {
+    const l = Object.assign(document.createElement("link"), { id: "ld-syne", rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Syne:wght@800&display=swap" });
+    document.head.appendChild(l);
+  }
+
   app.innerHTML = `
-    <div style="min-height:100vh;display:flex;flex-direction:column;background:#fff">
+    <style>
+      @keyframes ld-wup  { to { transform: translateY(0); } }
+      @keyframes ld-rule { to { width: 56px; } }
+      @keyframes ld-fade { to { opacity: 1; } }
+      @keyframes ld-dot  { 0%,100%{opacity:1} 50%{opacity:.3} }
+      .ld-w   { display:block; transform:translateY(106%); animation:ld-wup .65s cubic-bezier(.2,0,0,1) forwards; font-family:'Syne',sans-serif; font-size:56px; font-weight:800; color:#111; letter-spacing:-1.5px; line-height:1.05; }
+      .ld-w1  { animation-delay:.05s; }
+      .ld-w2  { animation-delay:.22s; }
+      .ld-w3  { animation-delay:.38s; }
+      .ld-bar { width:0; height:2px; background:#1B4FFF; margin:20px 0 22px; animation:ld-rule .55s .62s cubic-bezier(.2,0,0,1) forwards; }
+      .ld-sub { opacity:0; animation:ld-fade .4s .76s forwards; }
+      .ld-cta { opacity:0; animation:ld-fade .4s .86s forwards; }
+      .ld-npm { opacity:0; animation:ld-fade .4s .94s forwards; }
+      .ld-ic  { opacity:0; transform:translateY(8px); transition:opacity .35s,transform .35s; background:#fff; border:1px solid #E8E6E0; border-radius:8px; padding:12px 14px; }
+      .ld-ic.vis { opacity:1; transform:translateY(0); }
+      .ld-ldot { animation:ld-dot 2s ease-in-out infinite; }
+    </style>
+    <div style="min-height:100vh;display:flex;flex-direction:column;background:#FAFAF8">
 
       <!-- Nav -->
-      <nav style="display:flex;align-items:center;padding:0 48px;height:60px;border-bottom:1px solid #f0f0f0;max-width:1200px;width:100%;margin:0 auto;box-sizing:border-box">
+      <nav style="display:flex;align-items:center;padding:0 48px;height:60px;border-bottom:1px solid #EEECE8;max-width:1200px;width:100%;margin:0 auto;box-sizing:border-box">
         <div style="font-size:15px;font-weight:700;letter-spacing:-.2px;flex:1">GroupWisdom</div>
         <div style="display:flex;align-items:center;gap:4px">
-          <a href="/docs" target="_blank" style="font-size:13px;color:#555;text-decoration:none;padding:6px 14px;border-radius:6px">Docs</a>
-          <a href="/docs#demo" target="_blank" style="font-size:13px;color:#555;text-decoration:none;padding:6px 14px;border-radius:6px">Demo</a>
-          <button onclick="resetShellAndRun(renderAuth)" style="font-size:13px;padding:7px 16px;border:1px solid #e0e0e0;border-radius:7px;background:#fff;cursor:pointer;color:#555;margin-left:12px">Sign in</button>
+          <a href="/docs" target="_blank" style="font-size:13px;color:#777;text-decoration:none;padding:6px 14px;border-radius:6px">Docs</a>
+          <a href="/docs#demo" target="_blank" style="font-size:13px;color:#777;text-decoration:none;padding:6px 14px;border-radius:6px">Demo</a>
+          <button onclick="resetShellAndRun(renderAuth)" style="font-size:13px;padding:7px 16px;border:1px solid #DDD;border-radius:7px;background:#FAFAF8;cursor:pointer;color:#555;margin-left:12px">Sign in</button>
         </div>
       </nav>
 
       <!-- Hero -->
-      <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:80px 48px 100px">
-        <div style="max-width:680px;width:100%">
-          <div style="display:inline-flex;align-items:center;background:#f5f5f5;border-radius:999px;padding:5px 14px;font-size:11px;font-weight:700;letter-spacing:.1em;color:#888;text-transform:uppercase;margin-bottom:32px">For Developers</div>
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:70px 48px 90px">
+        <div style="display:flex;align-items:flex-start;gap:64px;width:100%;max-width:1100px">
 
-          <h1 style="font-size:56px;font-weight:800;line-height:1.05;letter-spacing:-.8px;color:#111;margin-bottom:22px">Group intelligence<br>infrastructure</h1>
-
-          <p style="font-size:19px;color:#666;line-height:1.6;margin-bottom:40px">Send your team's data.<br>Get back what they missed.</p>
-
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:44px">
-            <button onclick="resetShellAndRun(()=>renderAuth('signup'))" class="primary" style="font-size:15px;padding:13px 28px;border-radius:9px">Get API key</button>
-            <a href="/docs" target="_blank" style="font-size:15px;color:#555;text-decoration:none;padding:13px 24px;border:1px solid #e0e0e0;border-radius:9px;background:#fff">View docs ↗</a>
+          <!-- Left: headline + CTAs -->
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#bbb;margin-bottom:20px">For developers</div>
+            <div>
+              <div style="overflow:hidden"><span class="ld-w ld-w1">Group</span></div>
+              <div style="overflow:hidden"><span class="ld-w ld-w2">intelligence</span></div>
+              <div style="overflow:hidden"><span class="ld-w ld-w3">infrastructure</span></div>
+            </div>
+            <div class="ld-bar"></div>
+            <p class="ld-sub" style="font-size:18px;color:#777;line-height:1.6;margin-bottom:32px">Send your team's data.<br>Get back what they missed.</p>
+            <div class="ld-cta" style="display:flex;align-items:center;gap:12px;margin-bottom:36px">
+              <button onclick="resetShellAndRun(()=>renderAuth('signup'))" class="primary" style="font-size:15px;padding:12px 26px;border-radius:8px">Get API key</button>
+              <a href="/docs" target="_blank" style="font-size:15px;color:#555;text-decoration:none;padding:12px 22px;border:1px solid #DDD;border-radius:9px;background:#FAFAF8">View docs ↗</a>
+            </div>
+            <div class="ld-npm" style="display:inline-flex;align-items:center;gap:10px;background:#F0EFEA;border-radius:8px;padding:10px 18px">
+              <span style="width:7px;height:7px;border-radius:50%;background:#e5484d;flex-shrink:0"></span>
+              <code style="font-size:13px;color:#555;font-family:ui-monospace,'SF Mono',monospace">npm install @groupwisdom/sdk</code>
+            </div>
           </div>
 
-          <div style="display:inline-flex;align-items:center;gap:12px;background:#f7f7f7;border-radius:9px;padding:12px 20px">
-            <span style="width:8px;height:8px;border-radius:50%;background:#cc3e00;flex-shrink:0"></span>
-            <code style="font-size:14px;color:#333;font-family:ui-monospace,'SF Mono',monospace">npm install @groupwisdom/sdk</code>
+          <!-- Right: live API demo -->
+          <div style="width:360px;flex-shrink:0;padding-top:4px">
+            <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+              <span class="ld-ldot" style="width:5px;height:5px;border-radius:50%;background:#00A870;flex-shrink:0"></span>
+              Live API output
+            </div>
+            <div id="ld-list" style="display:flex;flex-direction:column;gap:8px"></div>
           </div>
+
         </div>
       </div>
 
     </div>`;
+
+  const insights = [
+    { type: "Pattern",  body: "Alex unblocks others before standups consistently",           sig: "Signal 0.87 · high confidence" },
+    { type: "Overlap",  body: "Sarah and Ben rarely interact despite shared domain context", sig: "Similarity 0.91 · recommend introduction" },
+    { type: "Velocity", body: "Sprint velocity drops 40% when more than 5 PRs are open",    sig: "Signal 0.79 · recurring pattern" },
+    { type: "Pattern",  body: "Zara’s PRs merge 3× faster when reviewed by the same pair", sig: "Signal 0.82 · consistent across sprints" },
+  ];
+  let ldIdx = 0;
+  function addLdInsight() {
+    const list = document.getElementById("ld-list");
+    if (!list) return;
+    if (ldIdx >= insights.length) {
+      ldIdx = 0;
+      setTimeout(() => { const l2 = document.getElementById("ld-list"); if (l2) { l2.innerHTML = ""; addLdInsight(); } }, 1000);
+      return;
+    }
+    const { type, body, sig } = insights[ldIdx++];
+    const d = document.createElement("div");
+    d.className = "ld-ic";
+    d.innerHTML = "<div style='font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:4px'>" + type + "</div><div style='font-size:13px;color:#333;line-height:1.45'>" + body + "</div><div style='font-size:10.5px;color:#00A870;margin-top:6px;font-weight:600'>" + sig + "</div>";
+    list.appendChild(d);
+    void d.offsetHeight;
+    d.classList.add("vis");
+    setTimeout(addLdInsight, 1500);
+  }
+  setTimeout(addLdInsight, 900);
 }
 
 function resetShellAndRun(fn) {
