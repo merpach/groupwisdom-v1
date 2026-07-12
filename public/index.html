@@ -158,24 +158,20 @@ function renderLanding() {
   const app = $("#app");
   Object.assign(app.style, { maxWidth: "none", padding: "0", margin: "0" });
 
-  if (!document.getElementById("ld-syne")) {
-    const l = Object.assign(document.createElement("link"), { id: "ld-syne", rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Syne:wght@800&display=swap" });
-    document.head.appendChild(l);
-  }
-
   app.innerHTML = `
     <style>
       @keyframes ld-wup  { to { transform: translateY(0); } }
       @keyframes ld-rule { to { width: 56px; } }
       @keyframes ld-fade { to { opacity: 1; } }
       @keyframes ld-dot  { 0%,100%{opacity:1} 50%{opacity:.3} }
-      .ld-w   { display:block; transform:translateY(106%); animation:ld-wup .65s cubic-bezier(.2,0,0,1) forwards; font-family:'Syne',sans-serif; font-size:60px; font-weight:800; color:#111; letter-spacing:-2px; line-height:1.05; white-space:nowrap; }
+      .ld-w   { display:block; transform:translateY(106%); animation:ld-wup .65s cubic-bezier(.2,0,0,1) forwards; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:64px; font-weight:900; color:#111; letter-spacing:-2.5px; line-height:1.0; }
       .ld-w1  { animation-delay:.05s; }
-      .ld-w2  { animation-delay:.28s; }
-      .ld-bar { width:0; height:2px; background:#1B4FFF; margin:20px 0 22px; animation:ld-rule .55s .62s cubic-bezier(.2,0,0,1) forwards; }
-      .ld-sub { opacity:0; animation:ld-fade .4s .76s forwards; }
-      .ld-cta { opacity:0; animation:ld-fade .4s .86s forwards; }
-      .ld-npm { opacity:0; animation:ld-fade .4s .94s forwards; }
+      .ld-w2  { animation-delay:.22s; }
+      .ld-w3  { animation-delay:.39s; }
+      .ld-bar { width:0; height:2px; background:#1B4FFF; margin:22px 0 22px; animation:ld-rule .55s .72s cubic-bezier(.2,0,0,1) forwards; }
+      .ld-sub { opacity:0; animation:ld-fade .4s .86s forwards; }
+      .ld-cta { opacity:0; animation:ld-fade .4s .96s forwards; }
+      .ld-npm { opacity:0; animation:ld-fade .4s 1.04s forwards; }
       .ld-ic  { opacity:0; transform:translateY(8px); transition:opacity .35s,transform .35s; background:#fff; border:1px solid #E8E6E0; border-radius:8px; padding:12px 14px; }
       .ld-ic.vis { opacity:1; transform:translateY(0); }
       .ld-ldot { animation:ld-dot 2s ease-in-out infinite; }
@@ -200,8 +196,9 @@ function renderLanding() {
           <div style="flex:1;min-width:0">
             <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#bbb;margin-bottom:20px">For developers</div>
             <div>
-              <div style="overflow:hidden"><span class="ld-w ld-w1">Group intelligence</span></div>
-              <div style="overflow:hidden"><span class="ld-w ld-w2">infrastructure</span></div>
+              <div style="overflow:hidden"><span class="ld-w ld-w1">Group</span></div>
+              <div style="overflow:hidden"><span class="ld-w ld-w2">intelligence</span></div>
+              <div style="overflow:hidden"><span class="ld-w ld-w3">infrastructure</span></div>
             </div>
             <div class="ld-bar"></div>
             <p class="ld-sub" style="font-size:18px;color:#777;line-height:1.6;margin-bottom:32px">Send your team's data.<br>Get back what they missed.</p>
