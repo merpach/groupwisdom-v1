@@ -145,7 +145,34 @@ function toast(msg) {
   setTimeout(() => el.classList.remove("show"), 2600);
 }
 
+function checkAccessWall() {
+  if (localStorage.getItem("gw_access") === "1") return true;
+  const wall = document.createElement("div");
+  wall.id = "gw-wall";
+  wall.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#FAFAF8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <div style="font-size:15px;font-weight:700;letter-spacing:-.2px;margin-bottom:32px">GroupWisdom</div>
+    <input id="gw-pw" type="password" placeholder="Access code" style="width:240px;padding:10px 14px;border:1px solid #DDD;border-radius:8px;font-size:14px;font-family:inherit;outline:none;text-align:center;background:#F0EFEA" onkeydown="if(event.key==='Enter')gwSubmit()">
+    <div id="gw-err" style="color:#e5484d;font-size:13px;margin-top:10px;min-height:18px"></div>
+  </div>`;
+  document.body.prepend(wall);
+  setTimeout(() => document.getElementById("gw-pw")?.focus(), 50);
+  return false;
+}
+
+function gwSubmit() {
+  const val = document.getElementById("gw-pw")?.value;
+  if (val === "2026WisdomGen1e") {
+    localStorage.setItem("gw_access", "1");
+    document.getElementById("gw-wall")?.remove();
+    boot();
+  } else {
+    const err = document.getElementById("gw-err");
+    if (err) { err.textContent = "Incorrect access code."; setTimeout(() => err.textContent = "", 2000); }
+  }
+}
+
 async function boot() {
+  if (!checkAccessWall()) return;
   const me = await api.get("/me").catch(() => null);
   if (!me || me.error) return renderLanding();
   state.user = me;
