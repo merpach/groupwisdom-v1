@@ -161,7 +161,7 @@ function checkAccessWall() {
 
 function gwSubmit() {
   const val = document.getElementById("gw-pw")?.value;
-  if (val === "2026WisdomGen1e") {
+  if (val === "2026wisdom") {
     localStorage.setItem("gw_access", "1");
     document.getElementById("gw-wall")?.remove();
     boot();
