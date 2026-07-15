@@ -184,7 +184,9 @@
   <a class="nav-link" href="#ingest">Ingest items</a>
   <a class="nav-link" href="#list-items">List items</a>
   <div class="nav-section">Insights</div>
+  <a class="nav-link" href="#how-it-works">How the engine works</a>
   <a class="nav-link" href="#list-insights">List insights</a>
+  <a class="nav-link" href="#trigger-analysis">Trigger analysis</a>
   <a class="nav-link" href="#insight-kinds">Insight kinds</a>
   <div class="nav-section">API Keys</div>
   <a class="nav-link" href="#project-keys">Project keys</a>
@@ -429,15 +431,27 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X DELETE https://groupwisdom.up.railway.app/v1/projects/proj_abc123/items/item_001 \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
 
-  <!-- Insights -->
+  <!-- How the engine works -->
+  <h2 id="how-it-works">How the engine works</h2>
+  <p>GroupWisdom runs a <strong>two-pass analysis</strong> every time new data comes in.</p>
+  <table>
+    <tr><th>Pass</th><th>What happens</th></tr>
+    <tr><td><strong>Pass 1 — Candidate scan</strong></td><td>A fast Haiku model reads all items in the project and identifies candidate insights — patterns, blind spots, connections, and questions that might be worth surfacing.</td></tr>
+    <tr><td><strong>Pass 2 — Metacognitive evaluation</strong></td><td>A second model call reviews every candidate and decides: is this strong enough to surface? It assigns a confidence level, writes a concrete next action (<code>do_next</code>), notes any caveats, and flags whose perspective is missing (<code>missing_voice</code>). Weak candidates are suppressed entirely.</td></tr>
+  </table>
+  <p>Only insights that survive both passes are saved. The result is fewer, higher-quality insights rather than a list of everything the model noticed.</p>
+  <p>Insights are generated automatically after every <code>/ingest</code> call. You can also trigger a fresh full analysis on demand — see <a href="#trigger-analysis">Trigger analysis</a>.</p>
+
+  <!-- List insights -->
   <h2 id="list-insights">List insights</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/insights</span></div>
-  <p>Returns insights the engine has surfaced, newest first. By default returns a simple shape — just <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include <code>kind</code>, <code>status</code>, and <code>created_at</code>. Also supports <code>?limit</code>, <code>?offset</code>, and <code>?kind</code> filters.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button># Default (simple)
+  <p>Returns insights the engine has surfaced, newest first. Supports <code>?limit</code>, <code>?offset</code>, and <code>?kind</code> filters.</p>
+  <p>By default returns a minimal shape — <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include metacognitive fields from Pass 2: <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, and <code>missing_voice</code>.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button># Default (minimal)
 curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights" \
   -H "Authorization: Bearer gw_proj_yourkey"
 
-# Full detail
+# Full — includes metacognitive fields
 curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?format=full" \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>// Default response
@@ -449,7 +463,7 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?format
       "body": "Four of six items point to the same checkout drop-off."
     }
   ],
-  "total": 8,
+  "total": 3,
   "limit": 50,
   "offset": 0,
   "has_more": false
@@ -463,12 +477,36 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?format
       "kind": "pattern",
       "title": "Mobile payment friction is a recurring theme",
       "body": "Four of six items point to the same checkout drop-off.",
-      "status": "acknowledged",
-      "created_at": "2026-06-26T14:30:00Z"
+      "status": "new",
+      "created_at": "2026-07-15T14:30:00Z",
+      "confidence": "high",
+      "do_next": "Run a short usability session on the checkout flow with 3-5 users.",
+      "caveat": "All data is from support tickets — may overrepresent frustrated users.",
+      "missing_voice": "A product manager or designer with context on past payment work."
     }
   ],
   ...
 }</pre>
+
+  <h3>Metacognitive fields</h3>
+  <table>
+    <tr><th>Field</th><th>Values</th><th>Description</th></tr>
+    <tr><td>confidence</td><td><code>high</code> · <code>medium</code> · <code>low</code></td><td>How strongly the evidence supports this insight. High = 3+ independent data points; medium = 2; low = 1 or inferred.</td></tr>
+    <tr><td>do_next</td><td>string or null</td><td>A concrete action the group should take. Null if the insight is purely observational.</td></tr>
+    <tr><td>caveat</td><td>string or null</td><td>A condition or limitation that could invalidate the insight if ignored.</td></tr>
+    <tr><td>missing_voice</td><td>string or null</td><td>A perspective or role not represented in the current data that would strengthen or challenge the insight.</td></tr>
+  </table>
+  <p>These fields are always present in <code>format=full</code> responses — they may be <code>null</code> when not applicable.</p>
+  <p>You decide what to show your users. A simple card might render only <code>title</code> and <code>body</code>. A richer view might add <code>do_next</code> as a call-to-action button. A team dashboard might show all fields including confidence and missing voices.</p>
+
+  <!-- Trigger analysis -->
+  <h2 id="trigger-analysis">Trigger analysis</h2>
+  <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects/:id/analyze</span></div>
+  <p>Triggers a full two-pass analysis immediately, bypassing the automatic debounce timer. Useful when you want fresh insights on demand — for example, after a batch ingest or before showing results to a user.</p>
+  <p>Returns <strong>202 Accepted</strong> immediately. Analysis runs in the background; poll <a href="#list-insights">List insights</a> or wait for your <a href="#webhook-setup">webhook</a> to receive results.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects/proj_abc123/analyze \
+  -H "Authorization: Bearer gw_proj_yourkey"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "message": "Analysis started." }</pre>
 
   <h2 id="insight-kinds">Insight kinds</h2>
   <p>The engine generates insights across six categories:</p>
