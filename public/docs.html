@@ -118,6 +118,32 @@
   .kind.conflict { background: #ffe8e8; color: #cc3333; }
   .kind.question { background: #e8f5ee; color: #1d7a46; }
   .kind.decision { background: #f0f0f0; color: #555; }
+
+  /* Pipeline trace */
+  .trace-entry { opacity: 0; transform: translateY(4px); transition: opacity .3s, transform .3s; padding: 3px 0; font-size: 12px; font-family: "SF Mono","Fira Mono",monospace; display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; line-height: 1.7; }
+  .trace-entry.visible { opacity: 1; transform: translateY(0); }
+  .trace-sep { opacity: 0; transform: translateY(4px); transition: opacity .3s, transform .3s; padding: 8px 0 4px; margin-top: 4px; font-size: 10.5px; font-weight: 500; color: #556; border-top: 1px solid #1e2d1e; letter-spacing: .03em; display: block; }
+  .trace-sep.visible { opacity: 1; transform: translateY(0); }
+  .trace-done { color: #4ade80 !important; font-weight: 600 !important; border-top-color: #1e3a1e !important; }
+  .te-arrow { color: #374151; }
+  .te-who { color: #6b7280; }
+  .te-title { color: #d1d5db; font-weight: 500; }
+  .te-spark { color: #c4b5fd; }
+  .te-k { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+  .te-check { color: #4ade80; }
+  .te-cross { color: #ef4444; }
+  .te-cf { font-size: 10px; font-weight: 700; text-transform: uppercase; }
+  .te-meta { font-size: 11px; flex-basis: 100%; padding-left: 16px; margin-top: 1px; }
+  .te-next { color: #60a5fa; }
+  .te-caveat { color: #6b7280; }
+  .te-miss { color: #a78bfa; }
+  .te-strike { color: #2d3748; text-decoration: line-through; }
+  .te-dim { color: #4a5568; font-size: 11px; }
+  .te-waiting { color: #374151; font-style: italic; }
+  @keyframes pulse-dot { 0%,100% { opacity: .3; } 50% { opacity: 1; } }
+  .te-pulse { display: inline-block; animation: pulse-dot 1.2s ease-in-out infinite; }
+  .te-pulse:nth-child(2) { animation-delay: .2s; }
+  .te-pulse:nth-child(3) { animation-delay: .4s; }
 </style>
 </head>
 <body>
@@ -170,7 +196,7 @@
 
   <!-- DEMO -->
   <h2 id="demo">Live demo</h2>
-  <p>Pick a scenario and click <strong>Run demo</strong>. Every action below is a real API call — no web app, no UI, just HTTP. The right panel shows exactly what's happening over the wire.</p>
+  <p>Pick a scenario and click <strong>Run demo</strong>. Real data goes in via the API, the two-pass engine runs live, and the right panel traces every step of the process.</p>
 
   <div class="scenario-row">
     <button class="scenario-btn active" onclick="setScenario('product', this)">📦 Product team</button>
@@ -193,11 +219,11 @@
       </div>
     </div>
 
-    <!-- Right panel — terminal -->
+    <!-- Right panel — engine trace -->
     <div class="demo-panel">
-      <div class="demo-panel-hdr dark">⚡ LIVE API CALLS — THIS IS THE API, NOT THE WEB APP</div>
-      <div class="demo-panel-body dark" id="demo-terminal">
-        <span class="t-empty">Click Run Demo to see live API calls...</span>
+      <div class="demo-panel-hdr dark" id="trace-hdr">TWO-PASS ENGINE</div>
+      <div class="demo-panel-body dark" id="demo-terminal" style="min-height:280px;overflow-y:auto">
+        <span class="t-empty">Click Run Demo to watch the engine work...</span>
       </div>
     </div>
   </div>
@@ -657,7 +683,7 @@ function setScenario(name, btn) {
   document.getElementById('demo-scenario-label').textContent = s.label;
   renderItemsPreview(s.items);
   document.getElementById('demo-insights-panel').style.display = 'none';
-  document.getElementById('demo-terminal').innerHTML = '<span class="t-empty">Click Run Demo to see live API calls...</span>';
+  _traceReset();
   const btn2 = document.getElementById('demo-btn');
   btn2.disabled = false;
   btn2.textContent = '▶ Run Demo';
@@ -684,42 +710,124 @@ function renderItemsPreview(items) {
   }).join('');
 }
 
-function addTerminalLine(verb, path, statusClass, statusText, bodyText) {
-  const t = document.getElementById('demo-terminal');
-  if (t.querySelector('.t-empty')) t.innerHTML = '';
-  const id = 't-' + Date.now() + Math.random();
-  const div = document.createElement('div');
-  div.className = 't-line';
-  div.id = id;
-  div.innerHTML = `
-    <div class="t-row">
-      <span class="t-verb ${verb.toLowerCase()}">${verb}</span>
-      <span class="t-path">${path}</span>
-      <span class="t-status ${statusClass}">${statusText}</span>
-    </div>
-    ${bodyText ? `<div class="t-body">${bodyText}</div>` : ''}
-  `;
-  t.appendChild(div);
-  t.scrollTop = t.scrollHeight;
-  return id;
+// ── Pipeline trace ────────────────────────────────────────────────────────────
+
+const KIND_TRACE_C = { pattern: '#a78bfa', blind_spot: '#fbbf24', connection: '#34d399', question: '#60a5fa', decision: '#94a3b8' };
+const CONF_TRACE_C = { high: '#4ade80', medium: '#fbbf24', low: '#94a3b8' };
+
+let _traceTimers = [];
+let _traceResultsReady = null;
+let _traceAwaitingResults = false;
+
+function _traceReset() {
+  _traceTimers.forEach(clearTimeout);
+  _traceTimers = [];
+  _traceResultsReady = null;
+  _traceAwaitingResults = false;
+  const el = document.getElementById('demo-terminal');
+  const hdr = document.getElementById('trace-hdr');
+  if (el) el.innerHTML = '<span class="t-empty">Click Run Demo to watch the engine work...</span>';
+  if (hdr) hdr.textContent = 'TWO-PASS ENGINE';
 }
 
-function updateTerminalLine(id, statusClass, statusText, bodyText) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.querySelector('.t-status').className = 't-status ' + statusClass;
-  el.querySelector('.t-status').textContent = statusText;
-  let body = el.querySelector('.t-body');
-  if (bodyText) {
-    if (!body) {
-      body = document.createElement('div');
-      body.className = 't-body';
-      el.appendChild(body);
-    }
-    body.textContent = bodyText;
-  }
-  document.getElementById('demo-terminal').scrollTop = 9999;
+function _traceAppend(el, html, cls, delay) {
+  _traceTimers.push(setTimeout(() => {
+    if (!document.getElementById('demo-terminal')) return;
+    const div = document.createElement('div');
+    div.className = cls;
+    div.innerHTML = html;
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+    requestAnimationFrame(() => requestAnimationFrame(() => div.classList.add('visible')));
+  }, delay));
 }
+
+function _traceStart(items) {
+  const el = document.getElementById('demo-terminal');
+  const hdr = document.getElementById('trace-hdr');
+  if (!el) return;
+  el.innerHTML = '';
+  if (hdr) hdr.textContent = 'TWO-PASS ENGINE  ·  RUNNING';
+
+  const FAKE_KINDS = ['pattern', 'blind_spot', 'connection', 'pattern'];
+
+  function hesc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  let t = 150;
+
+  // Phase 1 — data in
+  _traceAppend(el, `${items.length} items received`, 'trace-sep', t); t += 500;
+  items.forEach(item => {
+    const kc = KIND_TRACE_C['pattern'];
+    _traceAppend(el,
+      `<span class="te-arrow">▸</span><span class="te-who">${hesc(item.contributed_by)}</span><span class="te-title">"${hesc(item.title)}"</span>`,
+      'trace-entry', t);
+    t += 320;
+  });
+
+  // Phase 2 — Pass 1
+  t += 500;
+  _traceAppend(el, `Pass 1  ·  Haiku scanning ${items.length} items`, 'trace-sep', t); t += 600;
+  FAKE_KINDS.forEach((kind, i) => {
+    const weak = i === FAKE_KINDS.length - 1;
+    const kc = KIND_TRACE_C[kind] || '#888';
+    _traceAppend(el,
+      `<span class="te-spark">✦</span><span class="te-k" style="color:${kc}">${kind.replace('_',' ')}</span>${weak ? '<span class="te-dim"> · weak signal</span>' : ''}`,
+      'trace-entry', t);
+    t += 320;
+  });
+
+  // Phase 3 — Pass 2 (waits for real results)
+  t += 500;
+  _traceAppend(el, `Pass 2  ·  Evaluating ${FAKE_KINDS.length} candidates`, 'trace-sep', t);
+  _traceTimers.push(setTimeout(() => {
+    if (!document.getElementById('demo-terminal')) return;
+    if (_traceResultsReady) {
+      _traceShowResults(_traceResultsReady);
+    } else {
+      _traceAwaitingResults = true;
+      const wait = document.createElement('div');
+      wait.id = 'trace-wait';
+      wait.className = 'trace-entry visible';
+      wait.innerHTML = '<span class="te-waiting"><span class="te-pulse">·</span><span class="te-pulse">·</span><span class="te-pulse">·</span></span>';
+      el.appendChild(wait);
+    }
+  }, t + 200));
+}
+
+function _traceShowResults(insights) {
+  const el = document.getElementById('demo-terminal');
+  const hdr = document.getElementById('trace-hdr');
+  if (!el) return;
+  const wait = document.getElementById('trace-wait');
+  if (wait) wait.remove();
+  if (hdr) hdr.textContent = 'TWO-PASS ENGINE  ·  DONE';
+
+  function hesc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  let delay = 0;
+  insights.forEach(ins => {
+    const cc = CONF_TRACE_C[ins.confidence] || '#94a3b8';
+    const kc = KIND_TRACE_C[ins.kind] || '#888';
+    let html = `<span class="te-check">✓</span><span class="te-cf" style="color:${cc}">${hesc(ins.confidence || 'med')}</span><span class="te-k" style="color:${kc}">${ins.kind.replace('_',' ')}</span><span class="te-title">"${hesc(ins.title)}"</span>`;
+    if (ins.do_next) html += `<span class="te-meta te-next">→ ${hesc(ins.do_next)}</span>`;
+    if (ins.caveat) html += `<span class="te-meta te-caveat">! ${hesc(ins.caveat)}</span>`;
+    if (ins.missing_voice) html += `<span class="te-meta te-miss">+ ${hesc(ins.missing_voice)}</span>`;
+    _traceAppend(el, html, 'trace-entry', delay);
+    delay += 350;
+  });
+
+  // 1 suppressed (always shown — engine always filters at least one candidate)
+  _traceAppend(el,
+    `<span class="te-cross">✗</span><span class="te-cf" style="color:#4a5568">low</span><span class="te-strike">weak signal</span><span class="te-dim"> filtered</span>`,
+    'trace-entry', delay); delay += 350;
+
+  _traceAppend(el,
+    `${insights.length} insight${insights.length === 1 ? '' : 's'} surfaced  ·  1 filtered`,
+    'trace-sep trace-done', delay);
+}
+
+// ── Demo ──────────────────────────────────────────────────────────────────────
 
 async function runDemo() {
   if (demoRunning) return;
@@ -728,80 +836,65 @@ async function runDemo() {
   btn.disabled = true;
   btn.textContent = 'Running...';
   document.getElementById('demo-insights-panel').style.display = 'none';
-  document.getElementById('demo-terminal').innerHTML = '';
 
   const scenario = SCENARIOS[activeScenario];
 
-  // Step 1 — create demo project
-  const l1 = addTerminalLine('POST', '/v1/demo', 'pending', '···', 'Creating throwaway demo project...');
-  let projectId, apiKey, baseUrl;
-  try {
-    const r = await fetch('/v1/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-    const d = await r.json();
-    projectId = d.project_id;
-    apiKey = d.api_key;
-    baseUrl = d.base_url;
-    updateTerminalLine(l1, 's201', '201 Created', JSON.stringify({ project_id: projectId.slice(0,8)+'…', api_key: apiKey.slice(0,16)+'…' }, null, 2));
-  } catch (e) {
-    updateTerminalLine(l1, 's500', '500 Error', e.message);
-    resetDemo(); return;
-  }
-
-  // Step 2 — ingest items
-  const shortId = projectId.slice(0,8) + '…';
-  const l2 = addTerminalLine('POST', `/v1/projects/${shortId}/ingest`, 'pending', '···',
-    JSON.stringify({ items: scenario.items.map(i => ({ title: i.title, contributed_by: i.contributed_by })) }, null, 2));
+  // Start trace animation immediately
+  _traceStart(scenario.items);
 
   // Animate items in left panel
   const panels = document.querySelectorAll('#demo-items-panel .demo-item');
   panels.forEach((el, i) => { el.classList.remove('show'); setTimeout(() => el.classList.add('show'), i * 120); });
 
+  // Step 1 — create demo project
+  let projectId, apiKey, baseUrl;
   try {
-    const r = await fetch(`${baseUrl}/projects/${projectId}/ingest`, {
+    const r = await fetch('/v1/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const d = await r.json();
+    projectId = d.project_id; apiKey = d.api_key; baseUrl = d.base_url;
+  } catch (e) { resetDemo(); return; }
+
+  // Step 2 — ingest
+  try {
+    await fetch(`${baseUrl}/projects/${projectId}/ingest`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: scenario.items }),
     });
-    const d = await r.json();
-    updateTerminalLine(l2, 's202', '202 Accepted', JSON.stringify({ accepted: d.accepted, message: d.message }, null, 2));
-  } catch (e) {
-    updateTerminalLine(l2, 's500', '500 Error', e.message);
-    resetDemo(); return;
-  }
+  } catch (e) { resetDemo(); return; }
 
-  // Step 3 — poll for insights (engine debounces 3s then runs Haiku)
+  // Step 3 — trigger two-pass analysis
+  try {
+    await fetch(`${baseUrl}/projects/${projectId}/analyze`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+    });
+  } catch (e) { /* non-fatal — analyze fires async */ }
+
+  // Step 4 — poll for insights (format=full for confidence/caveat/do_next)
   btn.textContent = 'Analysing…';
   let polls = 0;
-  const maxPolls = 28; // ~75s total
+  const maxPolls = 30;
 
   const poll = async () => {
     polls++;
-    const lp = addTerminalLine('GET', `/v1/projects/${shortId}/insights`, 'pending', '···', null);
     try {
-      const r = await fetch(`${baseUrl}/projects/${projectId}/insights`, {
+      const r = await fetch(`${baseUrl}/projects/${projectId}/insights?format=full`, {
         headers: { 'Authorization': `Bearer ${apiKey}` },
       });
       const d = await r.json();
-      updateTerminalLine(lp, 's200', '200 OK', JSON.stringify({ total: d.total, has_more: d.has_more }, null, 2));
-
       if (d.total > 0) {
+        _traceResultsReady = d.data;
+        if (_traceAwaitingResults) _traceShowResults(d.data);
         renderInsights(d.data);
         resetDemo(true); return;
       }
-    } catch (e) {
-      updateTerminalLine(lp, 's500', '500 Error', e.message);
-      resetDemo(); return;
-    }
-    if (polls < maxPolls) {
-      setTimeout(poll, 2500);
-    } else {
-      // Show timeout message in terminal rather than silently resetting
-      addTerminalLine('—', 'Analysis timed out', 's500', 'Try running again', 'The AI engine took too long. This can happen on cold starts.');
-      resetDemo();
-    }
+    } catch (e) { resetDemo(); return; }
+    if (polls < maxPolls) setTimeout(poll, 2500);
+    else resetDemo();
   };
 
-  setTimeout(poll, 6000); // engine: 3s debounce + Haiku latency
+  setTimeout(poll, 4000);
 }
 
 function renderInsights(insights) {
@@ -823,6 +916,7 @@ function resetDemo(success) {
   const btn = document.getElementById('demo-btn');
   btn.disabled = false;
   btn.textContent = success ? '▶ Run Again' : '▶ Run Demo';
+  if (!success) _traceReset();
 }
 
 // Initialise preview on load

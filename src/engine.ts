@@ -25,6 +25,15 @@ const running = new Set<string>();
 
 const pendingAnalysis = new Map<string, { items: Item[]; timer: ReturnType<typeof setTimeout> }>();
 
+/** Cancel any pending incremental analysis for a group (call before explicit analyzeGroup). */
+export function cancelPendingAnalysis(groupId: string): void {
+  const existing = pendingAnalysis.get(groupId);
+  if (existing) {
+    clearTimeout(existing.timer);
+    pendingAnalysis.delete(groupId);
+  }
+}
+
 /** Queue an incremental Wisdom pass. Debounces 3s so burst adds are batched. */
 export function queueIncrementalAnalysis(groupId: string, item: Item, onComplete?: (insights: Insight[]) => void) {
   const existing = pendingAnalysis.get(groupId);

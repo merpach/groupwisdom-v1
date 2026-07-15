@@ -50,7 +50,7 @@ import {
   type Group,
   type User,
 } from "./db.js";
-import { queueIncrementalAnalysis, updateProjectSummary } from "./engine.js";
+import { queueIncrementalAnalysis, updateProjectSummary, analyzeGroup, cancelPendingAnalysis } from "./engine.js";
 
 export const apiv1 = Router();
 
@@ -154,6 +154,19 @@ apiv1.post("/demo", (req, res) => {
     api_key: pk.key,
     base_url: (req.headers["x-forwarded-proto"] ?? req.protocol) + "://" + req.headers.host + "/v1",
   });
+});
+
+// ── Analyze ──────────────────────────────────────────────────────────────────
+// Triggers the full two-pass analysis (Pass 1 + metacognitive Pass 2) on demand.
+
+apiv1.post("/projects/:id/analyze", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  const g = resolveProject(req, a);
+  if (!g) return res.status(404).json({ error: "Project not found." });
+  cancelPendingAnalysis(g.id); // prevent incremental from racing and saving insights without metacognitive data
+  res.status(202).json({ message: "Analysis started." });
+  analyzeGroup(g.id).catch(err => console.error("[analyze]", err.message));
 });
 
 // ── Usage ─────────────────────────────────────────────────────────────────────
