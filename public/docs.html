@@ -743,6 +743,12 @@ function _traceAppend(el, html, cls, delay) {
 }
 
 function _traceStart(items) {
+  // Always cancel previous timers before starting a new run
+  _traceTimers.forEach(clearTimeout);
+  _traceTimers = [];
+  _traceResultsReady = null;
+  _traceAwaitingResults = false;
+
   const el = document.getElementById('demo-terminal');
   const hdr = document.getElementById('trace-hdr');
   if (!el) return;
@@ -809,7 +815,7 @@ function _traceShowResults(insights) {
   insights.forEach(ins => {
     const cc = CONF_TRACE_C[ins.confidence] || '#94a3b8';
     const kc = KIND_TRACE_C[ins.kind] || '#888';
-    let html = `<span class="te-check">✓</span><span class="te-cf" style="color:${cc}">${hesc(ins.confidence || 'med')}</span><span class="te-k" style="color:${kc}">${ins.kind.replace('_',' ')}</span><span class="te-title">"${hesc(ins.title)}"</span>`;
+    let html = `<span class="te-check">✓</span><span class="te-cf" style="color:${cc}">${hesc(ins.confidence || 'medium')}</span><span class="te-k" style="color:${kc}">${ins.kind.replace('_',' ')}</span><span class="te-title">"${hesc(ins.title)}"</span>`;
     if (ins.do_next) html += `<span class="te-meta te-next">→ ${hesc(ins.do_next)}</span>`;
     if (ins.caveat) html += `<span class="te-meta te-caveat">! ${hesc(ins.caveat)}</span>`;
     if (ins.missing_voice) html += `<span class="te-meta te-miss">+ ${hesc(ins.missing_voice)}</span>`;
@@ -817,13 +823,16 @@ function _traceShowResults(insights) {
     delay += 350;
   });
 
-  // 1 suppressed (always shown — engine always filters at least one candidate)
-  _traceAppend(el,
-    `<span class="te-cross">✗</span><span class="te-cf" style="color:#4a5568">low</span><span class="te-strike">weak signal</span><span class="te-dim"> filtered</span>`,
-    'trace-entry', delay); delay += 350;
+  // Suppressed entries — FAKE_KINDS.length total candidates, rest filtered
+  const filtered = Math.max(1, 4 - insights.length);
+  for (let i = 0; i < filtered; i++) {
+    _traceAppend(el,
+      `<span class="te-cross">✗</span><span class="te-cf" style="color:#4a5568">low</span><span class="te-strike">weak signal</span><span class="te-dim"> filtered</span>`,
+      'trace-entry', delay); delay += 280;
+  }
 
   _traceAppend(el,
-    `${insights.length} insight${insights.length === 1 ? '' : 's'} surfaced  ·  1 filtered`,
+    `${insights.length} insight${insights.length === 1 ? '' : 's'} surfaced  ·  ${filtered} filtered`,
     'trace-sep trace-done', delay);
 }
 
