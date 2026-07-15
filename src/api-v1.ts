@@ -98,7 +98,7 @@ function getUserId(authResult: AuthResult): string | null {
 // ── Insight views ─────────────────────────────────────────────────────────────
 
 function insightSimple(ins: any) { return { id: ins.id, title: ins.title, body: ins.body }; }
-function insightFull(ins: any) { return { id: ins.id, kind: ins.kind, title: ins.title, body: ins.body, status: ins.status, created_at: ins.created_at }; }
+function insightFull(ins: any) { return { id: ins.id, kind: ins.kind, title: ins.title, body: ins.body, status: ins.status, created_at: ins.created_at, confidence: ins.confidence ?? null, caveat: ins.caveat ?? null, do_next: ins.do_next ?? null, missing_voice: ins.missing_voice ?? null }; }
 
 // ── Webhook ───────────────────────────────────────────────────────────────────
 

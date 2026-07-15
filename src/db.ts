@@ -115,6 +115,10 @@ CREATE TABLE IF NOT EXISTS usage_events (
 // Migrate: add columns if they don't exist yet
 try { db.exec("ALTER TABLE group_settings ADD COLUMN webhook_secret TEXT DEFAULT NULL"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE group_settings ADD COLUMN engine TEXT NOT NULL DEFAULT 'claude'"); } catch { /* already exists */ }
+try { db.exec("ALTER TABLE insights ADD COLUMN confidence TEXT DEFAULT NULL"); } catch { /* already exists */ }
+try { db.exec("ALTER TABLE insights ADD COLUMN caveat TEXT DEFAULT NULL"); } catch { /* already exists */ }
+try { db.exec("ALTER TABLE insights ADD COLUMN do_next TEXT DEFAULT NULL"); } catch { /* already exists */ }
+try { db.exec("ALTER TABLE insights ADD COLUMN missing_voice TEXT DEFAULT NULL"); } catch { /* already exists */ }
 
 export type User = { id: string; email: string; password_hash: string; name: string; api_key: string; created_at: string };
 export type Group = { id: string; name: string; api_key: string; created_at: string };
@@ -126,6 +130,7 @@ export type Item = {
 export type Insight = {
   id: string; group_id: string; kind: string; title: string; body: string;
   status: string; created_at: string;
+  confidence: string | null; caveat: string | null; do_next: string | null; missing_voice: string | null;
 };
 export type Connector = {
   id: string; group_id: string; name: string; access: string; status: string;
@@ -225,10 +230,15 @@ export const searchItems = (groupId: string, q: string) =>
     "SELECT * FROM items WHERE group_id = ? AND (title LIKE ? OR content LIKE ? OR url LIKE ?) ORDER BY created_at DESC"
   ).all(groupId, `%${q}%`, `%${q}%`, `%${q}%`) as Item[];
 
-export function addInsight(groupId: string, kind: string, title: string, body: string): Insight {
+export function addInsight(
+  groupId: string, kind: string, title: string, body: string,
+  meta?: { confidence?: string; caveat?: string; do_next?: string; missing_voice?: string },
+): Insight {
   const id = randomUUID();
-  db.prepare("INSERT INTO insights (id, group_id, kind, title, body) VALUES (?, ?, ?, ?, ?)")
-    .run(id, groupId, kind, title, body);
+  db.prepare(
+    "INSERT INTO insights (id, group_id, kind, title, body, confidence, caveat, do_next, missing_voice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(id, groupId, kind, title, body,
+    meta?.confidence ?? null, meta?.caveat ?? null, meta?.do_next ?? null, meta?.missing_voice ?? null);
   return db.prepare("SELECT * FROM insights WHERE id = ?").get(id) as Insight;
 }
 export const listInsights = (groupId: string, kind?: string) =>

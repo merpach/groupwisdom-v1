@@ -186,11 +186,24 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
         ? await analyzeWithClaude(groupId, group.name, items, members.map(m => `${m.name}${m.role ? ` (${m.role})` : ""}`), existing)
         : analyzeMock(group.name, items, existing);
 
+    // Metacognitive second pass — filters and annotates candidate insights
+    const candidates = result.insights.filter(ins =>
+      KINDS.includes(ins.kind) &&
+      !existing.some(e => e.title.toLowerCase() === ins.title.toLowerCase())
+    );
+    const annotated = candidates.length > 0
+      ? await metacognitivePass(candidates, group.name, members.map(m => m.name), items.length, engine)
+      : [];
+
     const created: Insight[] = [];
-    for (const ins of result.insights) {
-      if (!KINDS.includes(ins.kind)) continue;
-      if (existing.some(e => e.title.toLowerCase() === ins.title.toLowerCase())) continue;
-      created.push(addInsight(groupId, ins.kind, ins.title, ins.body));
+    for (const ins of annotated) {
+      if (!ins.keep) continue;
+      created.push(addInsight(groupId, ins.kind, ins.title, ins.body, {
+        confidence: ins.confidence,
+        caveat: ins.caveat ?? undefined,
+        do_next: ins.do_next ?? undefined,
+        missing_voice: ins.missing_voice ?? undefined,
+      }));
     }
     if (result.knowledge_markdown) setKnowledgeDoc(groupId, result.knowledge_markdown);
     return created;
@@ -248,6 +261,83 @@ Respond with ONLY valid JSON:
   const text = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
   const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
   return JSON.parse(json) as EngineResult;
+}
+
+type MetaInsight = {
+  kind: string; title: string; body: string;
+  confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean;
+};
+
+async function metacognitivePass(
+  candidates: Array<{ kind: string; title: string; body: string }>,
+  groupName: string,
+  memberNames: string[],
+  itemCount: number,
+  engine: string,
+): Promise<MetaInsight[]> {
+  const prompt = `You are a metacognitive evaluator for a group intelligence engine called GroupWisdom.
+A first-pass AI has generated candidate insights from the shared data of a group called "${groupName}".
+
+Group stats: ${memberNames.length} contributors (${memberNames.join(", ")}), ${itemCount} items total.
+
+Candidate insights:
+${candidates.map((ins, i) => `[${i}] (${ins.kind}) "${ins.title}": ${ins.body}`).join("\n")}
+
+For each candidate, evaluate:
+- confidence: "high" (3+ independent data points), "medium" (2 points), or "low" (1 point or inferred)
+- caveat: one short sentence on what would change this conclusion, or null if solid
+- do_next: one concrete action the group should take, or null if it is purely observational
+- missing_voice: name of a specific contributor whose input would change this, or null
+- keep: false if the insight is too speculative, too thin, or not yet ready to surface — otherwise true
+
+Be strict. It is better to suppress a weak insight than to deliver noise. Only mark keep:true for insights you would confidently tell a team lead right now.
+
+Respond with ONLY valid JSON — an array matching the candidate order:
+[{"id":0,"confidence":"high","caveat":null,"do_next":"...","missing_voice":null,"keep":true},...]`;
+
+  try {
+    let text = "";
+    if (engine === "muse-spark" && process.env.META_MODEL_API_KEY) {
+      const res = await fetch("https://api.meta.ai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.META_MODEL_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "muse-spark-1.1", messages: [{ role: "user", content: prompt }], max_tokens: 800 }),
+      });
+      const data = await res.json() as any;
+      text = data.choices?.[0]?.message?.content ?? "";
+    } else if (process.env.ANTHROPIC_API_KEY) {
+      const client = new Anthropic();
+      const msg = await client.messages.create({
+        model: SUMMARY_MODEL, // Haiku — fast and cheap for structured evaluation
+        max_tokens: 800,
+        messages: [{ role: "user", content: prompt }],
+      });
+      recordUsage("meta", SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "metacognitive_pass");
+      text = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
+    } else {
+      // No API — pass through all candidates with default annotations
+      return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true }));
+    }
+
+    const json = text.slice(text.indexOf("["), text.lastIndexOf("]") + 1);
+    const results = JSON.parse(json) as Array<{ id: number; confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean }>;
+
+    return candidates.map((c, i) => {
+      const r = results.find(x => x.id === i);
+      return {
+        ...c,
+        confidence: r?.confidence ?? "medium",
+        caveat: r?.caveat ?? null,
+        do_next: r?.do_next ?? null,
+        missing_voice: r?.missing_voice ?? null,
+        keep: r?.keep ?? true,
+      };
+    });
+  } catch (err) {
+    console.error("[metacognitive]", (err as Error).message);
+    // On failure, pass through all candidates unfiltered
+    return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true }));
+  }
 }
 
 async function analyzeWithMuseSpark(
