@@ -1266,10 +1266,49 @@ async function _loadDevDetail(projectId, tab = 'insights') {
           <button onclick="navigator.clipboard.writeText(window._qsSnippets.curl).then(()=>toast('Copied'))" style="position:absolute;top:10px;right:10px;font:inherit;font-size:11px;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#555">Copy</button>
         </div>
       </div>
-      <div style="background:#f7f7f7;border-radius:10px;padding:16px;font-size:13px;color:#555;line-height:1.6">
+      <div style="background:#f7f7f7;border-radius:10px;padding:16px;font-size:13px;color:#555;line-height:1.6;margin-bottom:32px">
         <strong style="color:#111">Your key and project ID are already filled in.</strong><br>
         Install the SDK with <code style="background:#eee;padding:1px 5px;border-radius:4px">npm install @groupwisdom/sdk</code>, then paste and run.
         Insights appear in this portal within seconds of ingesting data.
+      </div>
+
+      <div style="border-top:1px solid #f0f0f0;padding-top:28px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div>
+            <div style="font-size:14px;font-weight:700;margin-bottom:3px">How the engine works</div>
+            <div style="font-size:12px;color:#aaa">Two AI passes turn team data into actionable insights — invisibly.</div>
+          </div>
+          <button id="gw-demo-replay" style="font:inherit;font-size:11px;padding:4px 12px;border:1px solid #e4e4e4;border-radius:6px;background:#fff;cursor:pointer;color:#888;flex-shrink:0">Replay</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 72px 1fr 72px 1fr;align-items:stretch;background:#fafafa;border:1px solid #eee;border-radius:10px;overflow:hidden;margin-bottom:16px">
+          <div style="padding:14px 16px;text-align:center">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:4px">Data in</div>
+            <div style="font-size:12px;color:#555;line-height:1.5">Notes, links, and thoughts from your team</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 6px;border-left:1px solid #eee;border-right:1px solid #eee;background:#f5f5f5;gap:2px">
+            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#bbb">Pass 1</div>
+            <div style="font-size:10px;color:#ccc">Haiku</div>
+            <div style="font-size:14px;color:#d4d4d4;line-height:1">&#8594;</div>
+          </div>
+          <div style="padding:14px 16px;text-align:center;border-right:1px solid #eee">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:4px">Candidates</div>
+            <div style="font-size:12px;color:#555;line-height:1.5">Raw insights before evaluation</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 6px;border-right:1px solid #eee;background:#f5f5f5;gap:2px">
+            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#bbb">Pass 2</div>
+            <div style="font-size:10px;color:#ccc">Evaluate</div>
+            <div style="font-size:14px;color:#d4d4d4;line-height:1">&#8594;</div>
+          </div>
+          <div style="padding:14px 16px;text-align:center">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#16a34a;margin-bottom:4px">Insights</div>
+            <div style="font-size:12px;color:#555;line-height:1.5">Filtered, scored, and annotated</div>
+          </div>
+        </div>
+
+        <div style="background:#fafafa;border:1px solid #eee;border-radius:10px;padding:16px 20px">
+          <div id="gw-demo-log" style="min-height:200px;max-height:300px;overflow-y:auto"></div>
+        </div>
       </div>`;
   }
 
@@ -1333,6 +1372,122 @@ async function _loadDevDetail(projectId, tab = 'insights') {
     </div>
     <div style="border-bottom:1px solid #eee;margin-bottom:24px;display:flex;gap:0">${tabs}</div>
     ${body}`;
+  if (tab === 'quickstart') _initPipelineDemo();
+}
+
+function _initPipelineDemo() {
+  const log = document.getElementById('gw-demo-log');
+  if (!log) return;
+
+  const KIND_C = { pattern: '#6366f1', blind_spot: '#f59e0b', connection: '#10b981', question: '#3b82f6', decision: '#8b5cf6' };
+  const CONF_C = { high: '#16a34a', medium: '#d97706', low: '#9ca3af' };
+
+  const steps = [
+    { type: 'sep',        text: 'Receiving team data…',                                     delay: 400 },
+    { type: 'item',       who: 'Alice',  title: 'Q3 enterprise strategy',                        delay: 600 },
+    { type: 'item',       who: 'Bob',    title: 'Notion competitor analysis',                     delay: 400 },
+    { type: 'item',       who: 'Carol',  title: 'Enterprise call — Notion came up again',   delay: 400 },
+    { type: 'item',       who: 'Devon',  title: 'Lost deal postmortem: pricing objection',        delay: 400 },
+    { type: 'sep',        text: 'Pass 1  ·  Haiku scanning 4 items for patterns',           delay: 900 },
+    { type: 'candidate',  kind: 'pattern',    title: 'Notion mentioned across three enterprise calls',      delay: 700 },
+    { type: 'candidate',  kind: 'blind_spot', title: 'No one has responded to pricing objections',          delay: 400 },
+    { type: 'candidate',  kind: 'connection', title: 'Alice and Bob are both tracking Notion',              delay: 400 },
+    { type: 'candidate',  kind: 'pattern',    title: 'Team seems to be slowing down',                       delay: 400 },
+    { type: 'sep',        text: 'Pass 2  ·  Evaluating 4 candidates',                       delay: 900 },
+    { type: 'kept',       kind: 'pattern',    conf: 'high',   title: 'Notion mentioned across three enterprise calls', do_next: 'Share competitive brief before next call',   delay: 700 },
+    { type: 'kept',       kind: 'blind_spot', conf: 'medium', title: 'No one has responded to pricing objections',    caveat: 'One deal closed without issue',              delay: 400 },
+    { type: 'kept',       kind: 'connection', conf: 'high',   title: 'Alice and Bob are both tracking Notion',        missing: 'Sales lead input needed',                   delay: 400 },
+    { type: 'suppressed', kind: 'pattern',    title: 'Team seems to be slowing down',                                                                                       delay: 400 },
+    { type: 'done',       text: '3 insights surfaced  ·  1 filtered',                       delay: 700 },
+  ];
+
+  let timers = [];
+
+  function hesc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function makeEntry(step) {
+    const div = document.createElement('div');
+    const base = 'opacity:0;transform:translateY(5px);transition:opacity 0.35s,transform 0.35s;';
+
+    if (step.type === 'sep') {
+      div.style.cssText = base + 'padding:9px 0 5px;margin-top:3px;font-size:11px;font-weight:500;color:#aaa;border-top:1px solid #ebebeb;letter-spacing:.02em';
+      div.textContent = step.text;
+    } else if (step.type === 'item') {
+      div.style.cssText = base + 'padding:3px 0;font-size:12px;display:flex;align-items:baseline;gap:6px;font-family:ui-monospace,monospace';
+      div.innerHTML = '<span style="color:#d4d4d4">&#9656;</span>'
+        + '<span style="color:#999">' + hesc(step.who) + '</span>'
+        + '<span style="color:#bbb"> added </span>'
+        + '<span style="color:#333;font-weight:500">“' + hesc(step.title) + '”</span>';
+    } else if (step.type === 'candidate') {
+      const kc = KIND_C[step.kind] || '#888';
+      div.style.cssText = base + 'padding:3px 0;font-size:12px;display:flex;align-items:baseline;gap:6px;font-family:ui-monospace,monospace';
+      div.innerHTML = '<span style="color:#c4b5fd">&#10022;</span>'
+        + '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:' + kc + '">' + step.kind.replace('_',' ') + '</span>'
+        + '<span style="color:#555">“' + hesc(step.title) + '”</span>';
+    } else if (step.type === 'kept') {
+      const kc = KIND_C[step.kind] || '#888';
+      const cc = CONF_C[step.conf] || '#888';
+      let extras = '';
+      if (step.do_next)  extras += '<span style="color:#1d4ed8;font-size:11px;margin-left:4px">→ ' + hesc(step.do_next) + '</span>';
+      if (step.caveat)   extras += '<span style="color:#6b7280;font-size:11px;margin-left:4px">! ' + hesc(step.caveat) + '</span>';
+      if (step.missing)  extras += '<span style="color:#7c3aed;font-size:11px;margin-left:4px">+ ' + hesc(step.missing) + '</span>';
+      div.style.cssText = base + 'padding:3px 0;font-size:12px;display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;font-family:ui-monospace,monospace';
+      div.innerHTML = '<span style="color:#16a34a;flex-shrink:0">&#10003;</span>'
+        + '<span style="font-size:10px;font-weight:700;color:' + cc + ';text-transform:uppercase">' + step.conf + '</span>'
+        + '<span style="font-size:10px;font-weight:700;color:' + kc + ';text-transform:uppercase;letter-spacing:.05em">' + step.kind.replace('_',' ') + '</span>'
+        + '<span style="color:#111;font-weight:500">“' + hesc(step.title) + '”</span>'
+        + extras;
+    } else if (step.type === 'suppressed') {
+      div.style.cssText = base + 'padding:3px 0;font-size:12px;display:flex;align-items:baseline;gap:5px;font-family:ui-monospace,monospace';
+      div.innerHTML = '<span style="color:#ef4444;flex-shrink:0">&#10007;</span>'
+        + '<span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase">low</span>'
+        + '<span style="color:#ccc;text-decoration:line-through">“' + hesc(step.title) + '”</span>'
+        + '<span style="color:#bbb;font-size:11px"> insufficient signal</span>';
+    } else if (step.type === 'done') {
+      div.style.cssText = base + 'padding:10px 0 0;margin-top:3px;font-size:13px;font-weight:600;color:#16a34a;border-top:1px solid #ebebeb';
+      div.textContent = step.text;
+    }
+
+    return div;
+  }
+
+  function run() {
+    log.innerHTML = '';
+    let t = 0;
+    steps.forEach(function(step) {
+      t += step.delay;
+      timers.push(setTimeout(function() {
+        if (!document.getElementById('gw-demo-log')) return;
+        const el = makeEntry(step);
+        log.appendChild(el);
+        log.scrollTop = log.scrollHeight;
+        requestAnimationFrame(function() {
+          requestAnimationFrame(function() {
+            el.style.opacity = '1';
+            el.style.transform = 'translateY(0)';
+          });
+        });
+      }, t));
+    });
+    timers.push(setTimeout(function() {
+      timers.forEach(clearTimeout);
+      timers = [];
+      run();
+    }, t + 3200));
+  }
+
+  const replayBtn = document.getElementById('gw-demo-replay');
+  if (replayBtn) {
+    replayBtn.onclick = function() {
+      timers.forEach(clearTimeout);
+      timers = [];
+      run();
+    };
+  }
+
+  run();
 }
 
 window.devSelectProject = async function(id) {
