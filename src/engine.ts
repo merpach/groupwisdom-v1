@@ -15,7 +15,7 @@ import {
   type Item, type Insight,
 } from "./db.js";
 
-const MODEL = process.env.GW_MODEL || "claude-sonnet-4-6";
+const MODEL = process.env.GW_MODEL || "claude-haiku-4-5-20251001"; // set GW_MODEL=claude-fable-5 to upgrade
 const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
 const KINDS = ["connection", "blind_spot", "conflict", "pattern", "question", "decision"];
 
@@ -192,8 +192,13 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
       !existing.some(e => e.title.toLowerCase() === ins.title.toLowerCase())
     );
     const annotated = candidates.length > 0
-      ? await metacognitivePass(candidates, group.name, members.map(m => m.name), items.length, engine)
+      ? await metacognitivePass(candidates, group.name, members.map(m => m.name), items.length, engine, groupId)
       : [];
+
+    const suppressed = annotated.filter(ins => !ins.keep);
+    if (suppressed.length) {
+      console.log(`[metacognitive] suppressed ${suppressed.length} weak insight(s) for group ${groupId}:`, suppressed.map(ins => `"${ins.title}" (confidence: ${ins.confidence})`).join(", "));
+    }
 
     const created: Insight[] = [];
     for (const ins of annotated) {
@@ -274,6 +279,7 @@ async function metacognitivePass(
   memberNames: string[],
   itemCount: number,
   engine: string,
+  groupId?: string,
 ): Promise<MetaInsight[]> {
   const prompt = `You are a metacognitive evaluator for a group intelligence engine called GroupWisdom.
 A first-pass AI has generated candidate insights from the shared data of a group called "${groupName}".
@@ -312,7 +318,7 @@ Respond with ONLY valid JSON — an array matching the candidate order:
         max_tokens: 800,
         messages: [{ role: "user", content: prompt }],
       });
-      recordUsage("meta", SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "metacognitive_pass");
+      recordUsage(groupId ?? "meta", SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "metacognitive_pass");
       text = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
     } else {
       // No API — pass through all candidates with default annotations
