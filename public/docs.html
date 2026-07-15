@@ -107,6 +107,12 @@
   .detail-toggle { display: flex; gap: 2px; margin-bottom: 10px; background: #f1f5f9; border-radius: 6px; padding: 3px; }
   .detail-toggle button { flex: 1; padding: 5px 0; border: none; background: transparent; border-radius: 4px; font-size: 11.5px; color: #64748b; cursor: pointer; font-family: inherit; transition: background .15s, color .15s; }
   .detail-toggle button.active { background: #fff; color: #0f172a; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .engine-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .engine-toggle-label { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: #94a3b8; white-space: nowrap; }
+  .engine-toggle-btns { display: flex; gap: 2px; background: #f1f5f9; border-radius: 6px; padding: 3px; flex: 1; }
+  .engine-toggle-btns button { flex: 1; padding: 5px 0; border: none; background: transparent; border-radius: 4px; font-size: 11.5px; color: #64748b; cursor: pointer; font-family: inherit; transition: background .15s, color .15s; }
+  .engine-toggle-btns button.active { background: #fff; color: #0f172a; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .engine-toggle-btns button.muse.active { background: #1a0533; color: #c084fc; }
   .demo-waiting { color: #888; font-size: 12.5px; margin-top: 8px; }
   /* Terminal */
   .t-empty { color: #3a3a3a; font-size: 12px; font-family: "SF Mono","Fira Mono",monospace; }
@@ -226,6 +232,13 @@
       <div class="demo-panel">
         <div class="demo-panel-hdr light">DATA GOING IN — <span id="demo-scenario-label">4 items from 3 contributors</span></div>
         <div class="demo-panel-body" id="demo-items-panel" style="min-height:180px"></div>
+      </div>
+      <div class="engine-toggle">
+        <span class="engine-toggle-label">Engine</span>
+        <div class="engine-toggle-btns">
+          <button class="active" onclick="setDemoEngine('claude')">Claude Haiku</button>
+          <button class="muse" onclick="setDemoEngine('muse-spark')">Muse Spark</button>
+        </div>
       </div>
       <button class="demo-run-btn" id="demo-btn" onclick="runDemo()">▶ Run Demo</button>
       <div class="demo-panel" id="demo-insights-panel" style="display:none">
@@ -776,6 +789,13 @@ const CONF_TRACE_C = { high: '#4ade80', medium: '#fbbf24', low: '#94a3b8' };
 let _traceTimers = [];
 let _traceResultsReady = null;
 let _traceAwaitingResults = false;
+let activeEngine = 'claude';
+
+function setDemoEngine(engine) {
+  activeEngine = engine;
+  document.querySelectorAll('.engine-toggle-btns button').forEach((btn, i) =>
+    btn.classList.toggle('active', i === (engine === 'claude' ? 0 : 1)));
+}
 
 function hesc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -833,7 +853,8 @@ function _traceStart(items) {
 
   // Phase 2 — Pass 1
   t += 500;
-  _traceAppend(el, `Pass 1  ·  Haiku scanning ${items.length} items`, 'trace-sep', t); t += 600;
+  const engineLabel = activeEngine === 'muse-spark' ? 'Muse Spark' : 'Haiku';
+  _traceAppend(el, `Pass 1  ·  ${engineLabel} scanning ${items.length} items`, 'trace-sep', t); t += 600;
   FAKE_KINDS.forEach((kind, i) => {
     const weak = i === FAKE_KINDS.length - 1;
     const kc = KIND_TRACE_C[kind] || '#888';
@@ -922,6 +943,17 @@ async function runDemo() {
     const d = await r.json();
     projectId = d.project_id; apiKey = d.api_key; baseUrl = d.base_url;
   } catch (e) { resetDemo(); return; }
+
+  // Step 1b — set engine if not default
+  if (activeEngine !== 'claude') {
+    try {
+      await fetch(`${baseUrl}/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ engine: activeEngine }),
+      });
+    } catch (e) { /* non-fatal */ }
+  }
 
   // Step 2 — ingest
   try {
