@@ -11,7 +11,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import {
   listItems, listItemsWithMembers, listMembers, listInsights, addInsight, setInsightStatus,
   setKnowledgeDoc, getGroup, setProjectSummary, setUserContext, listUserContexts,
-  getMemberByUserId, listItemsByMember, recordUsage, isGroupOverBudget,
+  getMemberByUserId, listItemsByMember, recordUsage, isGroupOverBudget, getGroupEngine,
   type Item, type Insight,
 } from "./db.js";
 
@@ -142,9 +142,12 @@ export async function previewAnalysis(groupId: string): Promise<ProposedInsight[
   const members = listMembers(groupId);
   const existing = listInsights(groupId);
 
-  const result = process.env.ANTHROPIC_API_KEY
-    ? await analyzeWithClaude(groupId, group.name, items, members.map(m => `${m.name} (${m.role})`), existing)
-    : analyzeMock(group.name, items, existing);
+  const engine = getGroupEngine(groupId);
+  const result = engine === "muse-spark" && process.env.META_MODEL_API_KEY
+    ? await analyzeWithMuseSpark(groupId, group.name, items, members.map(m => `${m.name} (${m.role})`), existing)
+    : process.env.ANTHROPIC_API_KEY
+      ? await analyzeWithClaude(groupId, group.name, items, members.map(m => `${m.name} (${m.role})`), existing)
+      : analyzeMock(group.name, items, existing);
 
   return result.insights.filter(ins =>
     KINDS.includes(ins.kind) &&
@@ -176,9 +179,12 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
       return [];
     }
 
-    const result = process.env.ANTHROPIC_API_KEY
-      ? await analyzeWithClaude(groupId, group.name, items, members.map(m => `${m.name}${m.role ? ` (${m.role})` : ""}`), existing)
-      : analyzeMock(group.name, items, existing);
+    const engine = getGroupEngine(groupId);
+    const result = engine === "muse-spark" && process.env.META_MODEL_API_KEY
+      ? await analyzeWithMuseSpark(groupId, group.name, items, members.map(m => `${m.name}${m.role ? ` (${m.role})` : ""}`), existing)
+      : process.env.ANTHROPIC_API_KEY
+        ? await analyzeWithClaude(groupId, group.name, items, members.map(m => `${m.name}${m.role ? ` (${m.role})` : ""}`), existing)
+        : analyzeMock(group.name, items, existing);
 
     const created: Insight[] = [];
     for (const ins of result.insights) {
@@ -240,6 +246,59 @@ Respond with ONLY valid JSON:
   });
   recordUsage(groupId, MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "full_analysis");
   const text = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
+  const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+  return JSON.parse(json) as EngineResult;
+}
+
+async function analyzeWithMuseSpark(
+  groupId: string, groupName: string, items: (Item & { member_name?: string | null })[], members: string[], existing: Insight[],
+): Promise<EngineResult> {
+  const apiKey = process.env.META_MODEL_API_KEY;
+  if (!apiKey) throw new Error("META_MODEL_API_KEY not set");
+
+  const itemsText = items
+    .map(i => `- [${i.type}]${i.member_name ? ` [by ${i.member_name}]` : ""} "${i.title}" ${i.url ? `(${i.url}) ` : ""}— ${i.content}`.trim())
+    .join("\n");
+  const existingText = existing.map(e => `- [${e.kind}] ${e.title}`).join("\n") || "(none)";
+
+  const prompt = `You are the GroupWisdom insight engine: the shared brain of a group called "${groupName}".
+Members: ${members.join(", ") || "(unknown)"}
+
+Everything the group has shared (newest first, with contributor name where known):
+${itemsText}
+
+Insights already surfaced (do NOT repeat these):
+${existingText}
+
+Tasks:
+1. Surface NEW insights only where there is real signal. Allowed kinds:
+   - connection: two shared things link in an unexpected way
+   - blind_spot: something obvious the group has not looked at
+   - conflict: two pieces of information contradict each other
+   - pattern: multiple data points imply a conclusion no one stated
+   - question: something the group should be considering but is not
+   - decision: something the group has decided, and what led to it
+   0-4 insights. Quality over quantity. Each: short title + 1-2 sentence body, max 25 words. Direct, no qualifiers.
+   When two different contributors are researching overlapping topics, always surface that as a pattern — name both contributors explicitly.
+2. Rewrite the group's living knowledge-base document as clean markdown:
+   a title, a one-line italic summary, then sections that organize what is known, noting who contributed key findings.
+   Include open questions. Keep it under 400 words.
+
+Respond with ONLY valid JSON:
+{"insights":[{"kind":"...","title":"...","body":"..."}],"knowledge_markdown":"..."}`;
+
+  const res = await fetch("https://api.meta.ai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "muse-spark-1.1",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 3000,
+    }),
+  });
+  if (!res.ok) throw new Error(`Muse Spark error ${res.status}: ${await res.text()}`);
+  const data = await res.json() as any;
+  const text = data.choices?.[0]?.message?.content ?? "";
   const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
   return JSON.parse(json) as EngineResult;
 }

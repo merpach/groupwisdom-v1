@@ -39,6 +39,8 @@ import {
   getGroupWebhook,
   getGroupWebhookSecret,
   setGroupWebhook,
+  getGroupEngine,
+  setGroupEngine,
   createProjectApiKey,
   listProjectApiKeys,
   getByProjectApiKey,
@@ -127,6 +129,7 @@ function projectView(groupId: string) {
     name: g.name,
     created_at: g.created_at,
     webhook_url: getGroupWebhook(groupId),
+    engine: getGroupEngine(groupId),
     counts: { items: items.length, insights: insights.length },
   };
 }
@@ -200,6 +203,7 @@ apiv1.patch("/projects/:id", (req, res) => {
   if (!g) return res.status(404).json({ error: "Project not found." });
   let webhookSecret: string | null | undefined;
   if ("webhook_url" in req.body) webhookSecret = setGroupWebhook(g.id, req.body.webhook_url || null);
+  if (req.body?.engine && ["claude", "muse-spark"].includes(req.body.engine)) setGroupEngine(g.id, req.body.engine);
   const view = projectView(g.id);
   res.json(webhookSecret ? { ...view, webhook_secret: webhookSecret } : view);
 });

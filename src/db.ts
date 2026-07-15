@@ -112,8 +112,9 @@ CREATE TABLE IF NOT EXISTS usage_events (
 );
 `);
 
-// Migrate: add webhook_secret if it doesn't exist yet
+// Migrate: add columns if they don't exist yet
 try { db.exec("ALTER TABLE group_settings ADD COLUMN webhook_secret TEXT DEFAULT NULL"); } catch { /* already exists */ }
+try { db.exec("ALTER TABLE group_settings ADD COLUMN engine TEXT NOT NULL DEFAULT 'claude'"); } catch { /* already exists */ }
 
 export type User = { id: string; email: string; password_hash: string; name: string; api_key: string; created_at: string };
 export type Group = { id: string; name: string; api_key: string; created_at: string };
@@ -289,6 +290,16 @@ export const getInviteByToken = (token: string) =>
   db.prepare("SELECT * FROM invites WHERE token = ?").get(token) as Invite | undefined;
 export const acceptInvite = (token: string) =>
   db.prepare("UPDATE invites SET status = 'accepted' WHERE token = ?").run(token);
+
+export const getGroupEngine = (groupId: string): string =>
+  ((db.prepare("SELECT engine FROM group_settings WHERE group_id = ?").get(groupId) as { engine: string } | undefined)?.engine ?? "claude");
+
+export const setGroupEngine = (groupId: string, engine: string) => {
+  db.prepare(
+    "INSERT INTO group_settings (group_id, engine, updated_at) VALUES (?, ?, datetime('now')) " +
+    "ON CONFLICT(group_id) DO UPDATE SET engine = excluded.engine, updated_at = datetime('now')"
+  ).run(groupId, engine);
+};
 
 export const getGroupWebhook = (groupId: string): string | null =>
   ((db.prepare("SELECT webhook_url FROM group_settings WHERE group_id = ?").get(groupId) as { webhook_url: string | null } | undefined)?.webhook_url ?? null);

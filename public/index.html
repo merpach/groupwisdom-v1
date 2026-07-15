@@ -1271,6 +1271,15 @@ async function _loadDevDetail(projectId, tab = 'insights') {
         </div>
       </div>
       <div style="margin-bottom:28px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">AI Engine</div>
+        <p style="font-size:13px;color:#888;margin-bottom:10px">Choose which AI model runs analysis on this project. Claude is the default.</p>
+        <div style="display:flex;gap:8px">
+          <button onclick="devSetEngine('${project.id}','claude')" style="font:inherit;font-size:13px;padding:9px 18px;border-radius:8px;cursor:pointer;border:1px solid ${(project.engine||'claude')==='claude'?'#111':'#e0e0e0'};background:${(project.engine||'claude')==='claude'?'#111':'#fff'};color:${(project.engine||'claude')==='claude'?'#fff':'#555'}">Claude (default)</button>
+          <button onclick="devSetEngine('${project.id}','muse-spark')" style="font:inherit;font-size:13px;padding:9px 18px;border-radius:8px;cursor:pointer;border:1px solid ${project.engine==='muse-spark'?'#111':'#e0e0e0'};background:${project.engine==='muse-spark'?'#111':'#fff'};color:${project.engine==='muse-spark'?'#fff':'#555'}">Muse Spark</button>
+        </div>
+        <div id="dev-engine-msg" style="font-size:12px;color:#1d7a46;margin-top:8px;display:none"></div>
+      </div>
+      <div style="margin-bottom:28px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">Webhook URL</div>
         <p style="font-size:13px;color:#888;margin-bottom:8px">GroupWisdom will POST new insights here automatically after each analysis.</p>
         <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -1380,6 +1389,19 @@ window.devAddItem = async function(projectId) {
     headers: { 'Authorization': 'Bearer ' + state.user.api_key }
   }).then(r => r.json()).catch(() => _devProjects);
   await _loadDevDetail(projectId, 'add');
+};
+
+window.devSetEngine = async function(projectId, engine) {
+  await fetch('/v1/projects/' + projectId, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ engine }),
+  });
+  const p = _devProjects.find(p => p.id === projectId);
+  if (p) p.engine = engine;
+  await _loadDevDetail(projectId, 'settings');
+  const msg = document.getElementById('dev-engine-msg');
+  if (msg) { msg.textContent = 'Engine updated to ' + (engine === 'muse-spark' ? 'Muse Spark' : 'Claude') + '.'; msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 2500); }
 };
 
 window.devSaveWebhook = async function(projectId) {
