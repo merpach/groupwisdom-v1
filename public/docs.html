@@ -94,6 +94,19 @@
   .demo-insight-kind { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #888; margin-bottom: 3px; }
   .demo-insight-title { font-weight: 600; color: #111; margin-bottom: 3px; font-size: 13px; }
   .demo-insight-body { color: #555; line-height: 1.55; font-size: 12.5px; }
+  .demo-insight-do-next { font-size: 12px; color: #2563eb; margin-top: 6px; }
+  .demo-insight-do-next::before { content: '→ '; }
+  .demo-insight-caveat { font-size: 11.5px; color: #6b7280; margin-top: 4px; font-style: italic; }
+  .demo-insight-caveat::before { content: '! '; color: #9ca3af; }
+  .demo-insight-miss { font-size: 11.5px; color: #7c3aed; margin-top: 3px; }
+  .demo-insight-miss::before { content: '+ missing: '; font-weight: 600; }
+  .demo-insight-confidence { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: 3px; margin-bottom: 5px; }
+  .demo-insight-confidence.high { background: #dcfce7; color: #166534; }
+  .demo-insight-confidence.medium { background: #fef9c3; color: #854d0e; }
+  .demo-insight-confidence.low { background: #fee2e2; color: #991b1b; }
+  .detail-toggle { display: flex; gap: 2px; margin-bottom: 10px; background: #f1f5f9; border-radius: 6px; padding: 3px; }
+  .detail-toggle button { flex: 1; padding: 5px 0; border: none; background: transparent; border-radius: 4px; font-size: 11.5px; color: #64748b; cursor: pointer; font-family: inherit; transition: background .15s, color .15s; }
+  .detail-toggle button.active { background: #fff; color: #0f172a; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
   .demo-waiting { color: #888; font-size: 12.5px; margin-top: 8px; }
   /* Terminal */
   .t-empty { color: #3a3a3a; font-size: 12px; font-family: "SF Mono","Fira Mono",monospace; }
@@ -215,6 +228,13 @@
       <button class="demo-run-btn" id="demo-btn" onclick="runDemo()">▶ Run Demo</button>
       <div class="demo-panel" id="demo-insights-panel" style="display:none">
         <div class="demo-panel-hdr light">INSIGHTS BACK FROM THE API</div>
+        <div style="padding: 10px 14px 0">
+          <div class="detail-toggle">
+            <button class="active" onclick="setDetailLevel(1)">Title only</button>
+            <button onclick="setDetailLevel(2)">+ Action</button>
+            <button onclick="setDetailLevel(3)">Full detail</button>
+          </div>
+        </div>
         <div class="demo-panel-body" id="demo-insights-body"></div>
       </div>
     </div>
@@ -719,6 +739,8 @@ let _traceTimers = [];
 let _traceResultsReady = null;
 let _traceAwaitingResults = false;
 
+function hesc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
 function _traceReset() {
   _traceTimers.forEach(clearTimeout);
   _traceTimers = [];
@@ -906,18 +928,54 @@ async function runDemo() {
   setTimeout(poll, 4000);
 }
 
+let _lastInsights = [];
+let _detailLevel = 1;
+
+function setDetailLevel(level) {
+  _detailLevel = level;
+  document.querySelectorAll('.detail-toggle button').forEach((btn, i) =>
+    btn.classList.toggle('active', i + 1 === level));
+  if (_lastInsights.length) _renderInsightCards(false);
+}
+
 function renderInsights(insights) {
+  _lastInsights = insights;
+  _detailLevel = 1;
+  document.querySelectorAll('.detail-toggle button').forEach((btn, i) =>
+    btn.classList.toggle('active', i === 0));
   const panel = document.getElementById('demo-insights-panel');
-  const body = document.getElementById('demo-insights-body');
   panel.style.display = 'block';
-  body.innerHTML = insights.map(i =>
-    `<div class="demo-insight">
-      <div class="demo-insight-title">${i.title}</div>
-      <div class="demo-insight-body">${i.body}</div>
-    </div>`
-  ).join('');
-  setTimeout(() => body.querySelectorAll('.demo-insight').forEach((el, i) =>
-    setTimeout(() => el.classList.add('show'), i * 150)), 50);
+  _renderInsightCards(true);
+}
+
+function _renderInsightCards(animate) {
+  const body = document.getElementById('demo-insights-body');
+  body.innerHTML = _lastInsights.map(ins => {
+    const conf = (ins.confidence || 'medium').toLowerCase();
+    let html = `<div class="demo-insight ${ins.kind || ''}">`;
+    if (_detailLevel >= 3 && ins.confidence) {
+      html += `<div><span class="demo-insight-confidence ${conf}">${conf}</span></div>`;
+    }
+    html += `<div class="demo-insight-title">${hesc(ins.title)}</div>`;
+    html += `<div class="demo-insight-body">${hesc(ins.body)}</div>`;
+    if (_detailLevel >= 2 && ins.do_next) {
+      html += `<div class="demo-insight-do-next">${hesc(ins.do_next)}</div>`;
+    }
+    if (_detailLevel >= 3 && ins.caveat) {
+      html += `<div class="demo-insight-caveat">${hesc(ins.caveat)}</div>`;
+    }
+    if (_detailLevel >= 3 && ins.missing_voice) {
+      html += `<div class="demo-insight-miss">${hesc(ins.missing_voice)}</div>`;
+    }
+    html += `</div>`;
+    return html;
+  }).join('');
+  if (animate) {
+    setTimeout(() => body.querySelectorAll('.demo-insight').forEach((el, i) =>
+      setTimeout(() => el.classList.add('show'), i * 150)), 50);
+  } else {
+    body.querySelectorAll('.demo-insight').forEach(el => el.classList.add('show'));
+  }
 }
 
 function resetDemo(success) {
