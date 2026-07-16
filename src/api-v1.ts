@@ -106,15 +106,21 @@ async function fireWebhook(groupId: string, insights: any[]) {
   const url = getGroupWebhook(groupId);
   if (!url) return;
   const secret = getGroupWebhookSecret(groupId);
-  const body = JSON.stringify({ event: "insights.created", group_id: groupId, insights: insights.map(insightSimple) });
+  const body = JSON.stringify({ event: "insights.created", group_id: groupId, insights: insights.map(insightFull) });
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (secret) {
     headers["X-GroupWisdom-Signature"] = "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
   }
-  try {
-    await fetch(url, { method: "POST", headers, body });
-  } catch (err: any) {
-    console.error("[webhook] delivery failed:", err.message);
+  const delays = [0, 5000, 30000];
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (delays[attempt] > 0) await new Promise(r => setTimeout(r, delays[attempt]));
+    try {
+      const res = await fetch(url, { method: "POST", headers, body });
+      if (res.ok) return;
+      console.warn(`[webhook] attempt ${attempt + 1} got ${res.status} — ${attempt < delays.length - 1 ? "retrying" : "giving up"}`);
+    } catch (err: any) {
+      console.warn(`[webhook] attempt ${attempt + 1} failed: ${err.message} — ${attempt < delays.length - 1 ? "retrying" : "giving up"}`);
+    }
   }
 }
 
