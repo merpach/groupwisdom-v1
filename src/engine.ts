@@ -212,7 +212,10 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
     const created: Insight[] = [];
     for (const ins of annotated) {
       if (!ins.keep) continue;
-      created.push(addInsight(groupId, ins.kind, ins.title, ins.body, {
+      const title = ins.revised_title ?? ins.title;
+      const body = ins.revised_body ?? ins.body;
+      if (ins.revised_title) console.log(`[metacognitive] revised title for "${ins.title}" → "${ins.revised_title}"`);
+      created.push(addInsight(groupId, ins.kind, title, body, {
         confidence: ins.confidence,
         caveat: ins.caveat ?? undefined,
         do_next: ins.do_next ?? undefined,
@@ -280,6 +283,7 @@ Respond with ONLY valid JSON:
 type MetaInsight = {
   kind: string; title: string; body: string;
   confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean;
+  revised_title: string | null; revised_body: string | null;
 };
 
 async function metacognitivePass(
@@ -304,11 +308,14 @@ For each candidate, evaluate:
 - do_next: one concrete action the group should take, or null if it is purely observational
 - missing_voice: name of a specific contributor whose input would change this, or null
 - keep: false if the insight is too speculative, too thin, or not yet ready to surface — otherwise true
+- revised_title: a sharper version of the title if the original is vague, buries the finding, or understates the evidence — otherwise null. Must be under 12 words.
+- revised_body: a revised body if you can materially improve clarity, precision, or incorporate the caveat naturally — otherwise null. Keep it to 1-2 sentences.
 
-Be strict. It is better to suppress a weak insight than to deliver noise. Only mark keep:true for insights you would confidently tell a team lead right now.
+Only revise when you can genuinely improve the text. Null means the original is good enough.
+Be strict on keep. It is better to suppress a weak insight than to deliver noise.
 
 Respond with ONLY valid JSON — an array matching the candidate order:
-[{"id":0,"confidence":"high","caveat":null,"do_next":"...","missing_voice":null,"keep":true},...]`;
+[{"id":0,"confidence":"high","caveat":null,"do_next":"...","missing_voice":null,"keep":true,"revised_title":null,"revised_body":null},...]`;
 
   try {
     let text = "";
@@ -316,7 +323,7 @@ Respond with ONLY valid JSON — an array matching the candidate order:
       const res = await fetch("https://api.meta.ai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.META_MODEL_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "muse-spark-1.1", messages: [{ role: "user", content: prompt }], max_tokens: 800 }),
+        body: JSON.stringify({ model: "muse-spark-1.1", messages: [{ role: "user", content: prompt }], max_tokens: 1200 }),
       });
       const data = await res.json() as any;
       text = data.choices?.[0]?.message?.content ?? "";
@@ -324,18 +331,18 @@ Respond with ONLY valid JSON — an array matching the candidate order:
       const client = new Anthropic();
       const msg = await client.messages.create({
         model: SUMMARY_MODEL, // Haiku — fast and cheap for structured evaluation
-        max_tokens: 800,
+        max_tokens: 1200,
         messages: [{ role: "user", content: prompt }],
       });
       recordUsage(groupId ?? "meta", SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "metacognitive_pass");
       text = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
     } else {
       // No API — pass through all candidates with default annotations
-      return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true }));
+      return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, revised_title: null, revised_body: null }));
     }
 
     const json = text.slice(text.indexOf("["), text.lastIndexOf("]") + 1);
-    const results = JSON.parse(json) as Array<{ id: number; confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean }>;
+    const results = JSON.parse(json) as Array<{ id: number; confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean; revised_title: string | null; revised_body: string | null }>;
 
     return candidates.map((c, i) => {
       const r = results.find(x => x.id === i);
@@ -346,12 +353,13 @@ Respond with ONLY valid JSON — an array matching the candidate order:
         do_next: r?.do_next ?? null,
         missing_voice: r?.missing_voice ?? null,
         keep: r?.keep ?? true,
+        revised_title: r?.revised_title ?? null,
+        revised_body: r?.revised_body ?? null,
       };
     });
   } catch (err) {
     console.error("[metacognitive]", (err as Error).message);
-    // On failure, pass through all candidates unfiltered
-    return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true }));
+    return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, revised_title: null, revised_body: null }));
   }
 }
 
