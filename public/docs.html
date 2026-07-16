@@ -212,7 +212,7 @@
   <p style="color:#888;font-size:15px">Send your team's data. Get AI-powered insights back.</p>
 
   <div class="intro-card">
-    <p>POST items to a project → GroupWisdom runs analysis with Claude (Haiku for speed, Sonnet for depth) → insights are POSTed to your <code>webhook_url</code> and available via GET anytime.</p>
+    <p>POST items to a project → GroupWisdom runs a two-pass analysis (Pass 1 identifies candidates, Pass 2 evaluates and sharpens them) → insights are POSTed to your <code>webhook_url</code> and available via GET anytime.</p>
   </div>
 
   <!-- DEMO -->
@@ -297,7 +297,8 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
     <tr><td>gw.updateProject(projectId, { webhook_url })</td><td>Update a project's webhook URL.</td></tr>
     <tr><td>gw.ingest(projectId, item | item[])</td><td>Send one or more items. Triggers analysis. Each item can include <code>contributed_by</code>.</td></tr>
     <tr><td>gw.listItems(projectId)</td><td>List all items in a project.</td></tr>
-    <tr><td>gw.listInsights(projectId, kind?, { format? })</td><td>Get insights. Default returns <code>{ id, title, body }</code>. Pass <code>format: "full"</code> to include <code>kind</code>, <code>status</code>, and <code>created_at</code>.</td></tr>
+    <tr><td>gw.listInsights(projectId, kind?, { format? })</td><td>Get insights. Default returns <code>{ id, title, body }</code>. Pass <code>format: "full"</code> to include <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, and <code>missing_voice</code>.</td></tr>
+    <tr><td>gw.analyze(projectId)</td><td>Trigger a full two-pass analysis immediately, bypassing the automatic debounce. Returns when the request is accepted — analysis runs in the background.</td></tr>
   </table>
   <p>Full TypeScript types are included — your editor will autocomplete every field.</p>
 
@@ -362,15 +363,16 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
 
   <h2 id="update-project">Update project</h2>
   <div class="endpoint"><span class="method patch">PATCH</span><span class="path">/v1/projects/:id</span></div>
-  <p>Update the webhook URL or name. Only fields you send are changed.</p>
+  <p>Update project settings. Only fields you send are changed.</p>
   <table>
     <tr><th>Field</th><th>Type</th><th>Description</th></tr>
     <tr><td>webhook_url</td><td>string | null</td><td>Set to <code>null</code> to remove the webhook</td></tr>
+    <tr><td>engine</td><td>string</td><td><code>claude</code> (default) or <code>muse-spark</code> — sets which model runs Pass 1 and Pass 2 analysis for this project</td></tr>
   </table>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X PATCH https://groupwisdom.up.railway.app/v1/projects/proj_abc123 \
   -H "Authorization: Bearer gw_yourkey" \
   -H "Content-Type: application/json" \
-  -d '{"webhook_url": "https://new-server.com/hook"}'</pre>
+  -d '{"engine": "muse-spark"}'</pre>
 
   <!-- Ingest -->
   <h2 id="ingest">Ingest items</h2>
@@ -385,6 +387,7 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
     <tr><td>content</td><td>string</td><td>Full text, notes, or description</td></tr>
     <tr><td>url</td><td>string</td><td>Link to source</td></tr>
     <tr><td>type</td><td>string</td><td><code>note</code> · <code>link</code> · <code>file</code> · <code>thought</code> (default: <code>note</code>)</td></tr>
+    <tr><td>contributed_by</td><td>string</td><td>Name of the person who contributed this item. Used by the engine to track whose perspective is present — and to identify <code>missing_voice</code> in insights. Highly recommended.</td></tr>
   </table>
   <p style="font-size:12px;color:#888">* At least one of <code>title</code>, <code>content</code>, or <code>url</code> is required per item.</p>
 
@@ -395,7 +398,8 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
   -d '{
     "title": "Users keep abandoning checkout on mobile",
     "content": "Support tickets up 30% this month. Affects iOS more than Android.",
-    "type": "note"
+    "type": "note",
+    "contributed_by": "Sarah"
   }'</pre>
 
   <h3>Bulk ingest</h3>
@@ -450,7 +454,7 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
   <table>
     <tr><th>Pass</th><th>What happens</th></tr>
     <tr><td><strong>Pass 1 — Candidate scan</strong></td><td>A fast Haiku model reads all items in the project and identifies candidate insights — patterns, blind spots, connections, and questions that might be worth surfacing.</td></tr>
-    <tr><td><strong>Pass 2 — Metacognitive evaluation</strong></td><td>A second model call reviews every candidate and decides: is this strong enough to surface? It assigns a confidence level, writes a concrete next action (<code>do_next</code>), notes any caveats, and flags whose perspective is missing (<code>missing_voice</code>). Weak candidates are suppressed entirely.</td></tr>
+    <tr><td><strong>Pass 2 — Metacognitive evaluation</strong></td><td>A second model call reviews every candidate and decides: is this strong enough to surface? It assigns a confidence level, writes a concrete next action (<code>do_next</code>), notes any caveats, and flags whose perspective is missing (<code>missing_voice</code>). It also rewrites the title and body when it can sharpen vague language or strengthen the finding. Weak candidates are suppressed entirely.</td></tr>
   </table>
   <p>Only insights that survive both passes are saved. The result is fewer, higher-quality insights rather than a list of everything the model noticed.</p>
   <p>Insights are generated automatically after every <code>/ingest</code> call. You can also trigger a fresh full analysis on demand — see <a href="#trigger-analysis">Trigger analysis</a>.</p>
@@ -590,6 +594,7 @@ app.post("/groupwisdom-hook", express.raw({ type: "application/json" }), (req, r
   <p>Your <code>webhook_secret</code> is returned when you set a <code>webhook_url</code> via PATCH. Store it securely — it is only shown once.</p>
 
   <h2 id="webhook-payload-shape">Payload shape</h2>
+  <p>Webhook payloads include the full insight shape — equivalent to <code>?format=full</code> — so you have all metacognitive fields available without a follow-up GET.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>POST https://your-server.com/groupwisdom-hook
 Content-Type: application/json
 X-GroupWisdom-Signature: sha256=abc123...
@@ -600,8 +605,15 @@ X-GroupWisdom-Signature: sha256=abc123...
   "insights": [
     {
       "id": "ins_xyz",
+      "kind": "pattern",
       "title": "Mobile payment friction is a recurring theme",
-      "body": "Four of six items point to the same checkout drop-off."
+      "body": "Four of six items point to the same checkout drop-off.",
+      "status": "new",
+      "created_at": "2026-07-15T14:30:00Z",
+      "confidence": "high",
+      "do_next": "Run a short usability session on the checkout flow with 3-5 users.",
+      "caveat": null,
+      "missing_voice": "An iOS engineer who can speak to platform-specific constraints."
     }
   ]
 }</pre>
