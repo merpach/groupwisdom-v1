@@ -1,7 +1,7 @@
 /**
  * The insight engine.
  * Looks at everything the group has shared and surfaces:
- * connections, blind spots, conflicts, patterns, questions worth asking, decisions.
+ * convergences, opportunities, tensions, patterns, directions, decisions.
  * Also maintains the group's living knowledge-base markdown document.
  *
  * Uses the Claude API when ANTHROPIC_API_KEY is set; otherwise falls back to
@@ -17,7 +17,7 @@ import {
 
 const MODEL = process.env.GW_MODEL || "claude-haiku-4-5-20251001"; // set GW_MODEL=claude-fable-5 to upgrade
 const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
-const KINDS = ["connection", "blind_spot", "conflict", "pattern", "question", "decision"];
+const KINDS = ["convergence", "opportunity", "tension", "pattern", "direction", "decision"];
 
 const running = new Set<string>();
 
@@ -254,14 +254,14 @@ ${existingText}
 
 Tasks:
 1. Surface NEW insights only where there is real signal. Allowed kinds:
-   - connection: two shared things link in an unexpected way
-   - blind_spot: something obvious the group has not looked at
-   - conflict: two pieces of information contradict each other
-   - pattern: multiple data points imply a conclusion no one stated
-   - question: something the group should be considering but is not
-   - decision: something the group has decided, and what led to it
-   0-4 insights. Quality over quantity. Each: short title + 1-2 sentence body, max 25 words. Direct, no qualifiers.
-   When two different contributors are researching overlapping topics, always surface that as a pattern — name both contributors explicitly, e.g. "Sarah and James are both investigating X from different angles."
+   - convergence: two members arrived at the same finding from different angles — name both
+   - opportunity: something the group's existing research is pointing toward that nobody has pursued yet
+   - tension: two perspectives worth bringing together to reach a stronger conclusion
+   - pattern: a theme emerging across multiple members' contributions
+   - direction: the natural next question the group's collective work is building toward
+   - decision: something the group has collectively arrived at, and what led to it
+   0-4 insights. Quality over quantity. Each: short title + 1-2 sentence body, max 25 words. Direct, no qualifiers. Frame everything in terms of what the group is building together, not what is missing.
+   When two different contributors are researching overlapping topics, always surface that as a convergence — name both contributors explicitly, e.g. "Sarah and James are both building toward X from different angles."
 2. Rewrite the group's living knowledge-base document as clean markdown:
    a title, a one-line italic summary, then sections that organize what is known, noting who contributed key findings.
    Include open questions. Keep it under 400 words.
@@ -385,14 +385,14 @@ ${existingText}
 
 Tasks:
 1. Surface NEW insights only where there is real signal. Allowed kinds:
-   - connection: two shared things link in an unexpected way
-   - blind_spot: something obvious the group has not looked at
-   - conflict: two pieces of information contradict each other
-   - pattern: multiple data points imply a conclusion no one stated
-   - question: something the group should be considering but is not
-   - decision: something the group has decided, and what led to it
-   0-4 insights. Quality over quantity. Each: short title + 1-2 sentence body, max 25 words. Direct, no qualifiers.
-   When two different contributors are researching overlapping topics, always surface that as a pattern — name both contributors explicitly.
+   - convergence: two members arrived at the same finding from different angles — name both
+   - opportunity: something the group's existing research is pointing toward that nobody has pursued yet
+   - tension: two perspectives worth bringing together to reach a stronger conclusion
+   - pattern: a theme emerging across multiple members' contributions
+   - direction: the natural next question the group's collective work is building toward
+   - decision: something the group has collectively arrived at, and what led to it
+   0-4 insights. Quality over quantity. Each: short title + 1-2 sentence body, max 25 words. Direct, no qualifiers. Frame everything in terms of what the group is building together, not what is missing.
+   When two different contributors are researching overlapping topics, always surface that as a convergence — name both contributors explicitly.
 2. Rewrite the group's living knowledge-base document as clean markdown:
    a title, a one-line italic summary, then sections that organize what is known, noting who contributed key findings.
    Include open questions. Keep it under 400 words.
@@ -432,12 +432,12 @@ function analyzeMock(groupName: string, items: Item[], existing: Insight[]): Eng
   if (top) {
     const t = `The group keeps coming back to "${top[0]}"`;
     if (!has(t)) insights.push({
-      kind: "pattern", title: t,
+      kind: "pattern" as const, title: t,
       body: `${top[1].length} of ${items.length} shared items mention "${top[0]}". A shared focus is emerging that no one has named yet.`,
     });
   }
 
-  // connection: newest item shares a word with an older one
+  // convergence: newest item shares a word with an older one
   const newest = items[0];
   if (newest && items.length >= 2) {
     const words = new Set((newest.title + " " + newest.content).toLowerCase().match(/[a-zà-ö]{6,}/g) ?? []);
@@ -446,28 +446,28 @@ function analyzeMock(groupName: string, items: Item[], existing: Insight[]): Eng
     if (other) {
       const t = `"${newest.title}" relates to "${other.title}"`;
       if (!has(t)) insights.push({
-        kind: "connection", title: t,
+        kind: "convergence" as const, title: t,
         body: "Two items shared by different moments overlap. Worth looking at them side by side.",
       });
     }
   }
 
-  // blind spot: everything is the same type
+  // opportunity: everything is the same type — broader input could strengthen the work
   const types = new Set(items.map(i => i.type));
   if (items.length >= 4 && types.size === 1) {
-    const t = `Everything shared so far is a ${[...types][0]}`;
+    const t = `The group's contributions are all ${[...types][0]}s`;
     if (!has(t)) insights.push({
-      kind: "blind_spot", title: t,
-      body: "No other kinds of input yet. Files, links, or raw thoughts might fill in what is missing.",
+      kind: "opportunity" as const, title: t,
+      body: "Adding files, links, or raw thoughts alongside could deepen what the group is building together.",
     });
   }
 
-  // question: standing prompt once enough material exists
+  // direction: nudge toward capturing decisions once enough material exists
   if (items.length >= 5) {
-    const t = "What has the group decided so far?";
+    const t = "The group is building toward a shared conclusion";
     if (!has(t)) insights.push({
-      kind: "question", title: t,
-      body: "A lot has been shared but nothing is marked as decided. Worth stating decisions explicitly so they are not lost.",
+      kind: "direction" as const, title: t,
+      body: "A lot has been contributed — capturing what the group has collectively arrived at would strengthen the work.",
     });
   }
 

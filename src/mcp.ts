@@ -146,9 +146,9 @@ server.tool(
 
 server.tool(
   "get_group_insights",
-  "Get insights the engine has surfaced for a project: connections, blind spots, conflicts, patterns, questions, decisions.",
+  "Get wisdom the engine has surfaced for a project: convergences, opportunities, tensions, patterns, directions, decisions.",
   {
-    kind: z.enum(["connection", "blind_spot", "conflict", "pattern", "question", "decision"]).optional(),
+    kind: z.enum(["convergence", "opportunity", "tension", "pattern", "direction", "decision"]).optional(),
     project: projectParam,
   },
   async ({ kind, project }) => {
