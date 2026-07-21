@@ -260,7 +260,8 @@ Tasks:
    - pattern: a theme emerging across multiple members' contributions
    - direction: the natural next question the group's collective work is building toward
    - decision: something the group has collectively arrived at, and what led to it
-   0-4 insights. Quality over quantity. Each: short title + 1-2 sentence body, max 25 words. Direct, no qualifiers. Frame everything in terms of what the group is building together, not what is missing.
+   0-4 insights. Quality over quantity. Each: short title + a body of 1-2 sentences (up to ~45 words). Direct, no qualifiers. Frame everything in terms of what the group is building together, not what is missing.
+   CRUCIAL — transfer knowledge, never point to it: when one member's work is relevant to another's, state that member's actual finding inline so the reader inherits it directly and lands two steps ahead. Never write "check with", "pull in", "coordinate with", or "look at" someone's work — deliver the finding itself, attributed by name.
    When two different contributors are researching overlapping topics, always surface that as a convergence — name both contributors explicitly, e.g. "Sarah and James are both building toward X from different angles."
 2. Rewrite the group's living knowledge-base document as clean markdown:
    a title, a one-line italic summary, then sections that organize what is known, noting who contributed key findings.
@@ -305,11 +306,11 @@ ${candidates.map((ins, i) => `[${i}] (${ins.kind}) "${ins.title}": ${ins.body}`)
 For each candidate, evaluate:
 - confidence: "high" (3+ independent data points), "medium" (2 points), or "low" (1 point or inferred)
 - caveat: one short sentence on what would change this conclusion, or null if solid
-- do_next: one concrete action the group should take, or null if it is purely observational
-- missing_voice: name of a specific contributor whose input would change this, or null
+- do_next: NOT a task or instruction. This field delivers inherited work: name the specific completed finding from another member that this reader can now build directly on, stated so they inherit it and skip that step. e.g. "Maya already mapped the morale timeline — it shows the drop came after Stalingrad, so you can start from that causality." Never assign work ("check", "map", "verify", "coordinate"); if there is no existing member work to hand over, use null.
+- missing_voice: name of a contributor whose existing work would strengthen this reader's, or null
 - keep: false if the insight is too speculative, too thin, or not yet ready to surface — otherwise true
 - revised_title: a sharper version of the title if the original is vague, buries the finding, or understates the evidence — otherwise null. Must be under 12 words.
-- revised_body: a revised body if you can materially improve clarity, precision, or incorporate the caveat naturally — otherwise null. Keep it to 1-2 sentences.
+- revised_body: a revised body if you can materially improve clarity, precision, incorporate the caveat naturally, or fold in another member's actual finding so the reader inherits it directly rather than being pointed to it — otherwise null. Keep it to 1-2 sentences.
 
 Only revise when you can genuinely improve the text. Null means the original is good enough.
 Be strict on keep. It is better to suppress a weak insight than to deliver noise.
@@ -391,7 +392,8 @@ Tasks:
    - pattern: a theme emerging across multiple members' contributions
    - direction: the natural next question the group's collective work is building toward
    - decision: something the group has collectively arrived at, and what led to it
-   0-4 insights. Quality over quantity. Each: short title + 1-2 sentence body, max 25 words. Direct, no qualifiers. Frame everything in terms of what the group is building together, not what is missing.
+   0-4 insights. Quality over quantity. Each: short title + a body of 1-2 sentences (up to ~45 words). Direct, no qualifiers. Frame everything in terms of what the group is building together, not what is missing.
+   CRUCIAL — transfer knowledge, never point to it: when one member's work is relevant to another's, state that member's actual finding inline so the reader inherits it directly and lands two steps ahead. Never write "check with", "pull in", "coordinate with", or "look at" someone's work — deliver the finding itself, attributed by name.
    When two different contributors are researching overlapping topics, always surface that as a convergence — name both contributors explicitly.
 2. Rewrite the group's living knowledge-base document as clean markdown:
    a title, a one-line italic summary, then sections that organize what is known, noting who contributed key findings.

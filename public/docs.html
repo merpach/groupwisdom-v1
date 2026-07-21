@@ -387,7 +387,7 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
     <tr><td>content</td><td>string</td><td>Full text, notes, or description</td></tr>
     <tr><td>url</td><td>string</td><td>Link to source</td></tr>
     <tr><td>type</td><td>string</td><td><code>note</code> · <code>link</code> · <code>file</code> · <code>thought</code> (default: <code>note</code>)</td></tr>
-    <tr><td>contributed_by</td><td>string</td><td>Name of the person who contributed this item. Used by the engine to track whose perspective is present — and to identify <code>missing_voice</code> in insights. Highly recommended.</td></tr>
+    <tr><td>contributed_by</td><td>string</td><td>Name of the person who contributed this item. The engine uses it to attribute findings by name — so one member's completed work can be handed directly to another (<code>do_next</code>, <code>missing_voice</code>). Highly recommended.</td></tr>
   </table>
   <p style="font-size:12px;color:#888">* At least one of <code>title</code>, <code>content</code>, or <code>url</code> is required per item.</p>
 
@@ -454,7 +454,7 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
   <table>
     <tr><th>Pass</th><th>What happens</th></tr>
     <tr><td><strong>Pass 1 — Candidate scan</strong></td><td>A fast Haiku model reads all items in the project and identifies candidate insights — patterns, blind spots, connections, and questions that might be worth surfacing.</td></tr>
-    <tr><td><strong>Pass 2 — Metacognitive evaluation</strong></td><td>A second model call reviews every candidate and decides: is this strong enough to surface? It assigns a confidence level, writes a concrete next action (<code>do_next</code>), notes any caveats, and flags whose perspective is missing (<code>missing_voice</code>). It also rewrites the title and body when it can sharpen vague language or strengthen the finding. Weak candidates are suppressed entirely.</td></tr>
+    <tr><td><strong>Pass 2 — Metacognitive evaluation</strong></td><td>A second model call reviews every candidate and decides: is this strong enough to surface? It assigns a confidence level, hands over the completed work a member can build on (<code>do_next</code>), notes any caveats, and names whose existing research would strengthen this one (<code>missing_voice</code>). It also rewrites the title and body when it can sharpen vague language or fold in another member's finding so the reader inherits it directly. Weak candidates are suppressed entirely.</td></tr>
   </table>
   <p>Only insights that survive both passes are saved. The result is fewer, higher-quality insights rather than a list of everything the model noticed.</p>
   <p>Insights are generated automatically after every <code>/ingest</code> call. You can also trigger a fresh full analysis on demand — see <a href="#trigger-analysis">Trigger analysis</a>.</p>
@@ -497,9 +497,9 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?format
       "status": "new",
       "created_at": "2026-07-15T14:30:00Z",
       "confidence": "high",
-      "do_next": "Run a short usability session on the checkout flow with 3-5 users.",
+      "do_next": "Priya already ran a checkout usability study last quarter — she found the drop-off centers on the card-entry step, so you can start from there.",
       "caveat": "All data is from support tickets — may overrepresent frustrated users.",
-      "missing_voice": "A product manager or designer with context on past payment work."
+      "missing_voice": "Priya, whose past payment research maps directly onto this and is ready to fold in."
     }
   ],
   ...
@@ -509,12 +509,12 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?format
   <table>
     <tr><th>Field</th><th>Values</th><th>Description</th></tr>
     <tr><td>confidence</td><td><code>high</code> · <code>medium</code> · <code>low</code></td><td>How strongly the evidence supports this insight. High = 3+ independent data points; medium = 2; low = 1 or inferred.</td></tr>
-    <tr><td>do_next</td><td>string or null</td><td>A concrete action the group should take. Null if the insight is purely observational.</td></tr>
+    <tr><td>do_next</td><td>string or null</td><td>Inherited work, not a task: the completed finding from another member that this reader can build directly on, stated so they skip that step. Null if there's no existing member work to hand over.</td></tr>
     <tr><td>caveat</td><td>string or null</td><td>A condition or limitation that could invalidate the insight if ignored.</td></tr>
-    <tr><td>missing_voice</td><td>string or null</td><td>A perspective or role not represented in the current data that would strengthen or challenge the insight.</td></tr>
+    <tr><td>missing_voice</td><td>string or null</td><td>A member whose existing work would strengthen this reader's — so their research can be folded in directly.</td></tr>
   </table>
   <p>These fields are always present in <code>format=full</code> responses — they may be <code>null</code> when not applicable.</p>
-  <p>You decide what to show your users. A simple card might render only <code>title</code> and <code>body</code>. A richer view might add <code>do_next</code> as a call-to-action button. A team dashboard might show all fields including confidence and missing voices.</p>
+  <p>You decide what to show your users. A simple card might render only <code>title</code> and <code>body</code>. A richer view might surface <code>do_next</code> as the inherited finding a member can build on. A team dashboard might show all fields including confidence and missing voices.</p>
 
   <!-- Trigger analysis -->
   <h2 id="trigger-analysis">Trigger analysis</h2>
@@ -611,9 +611,9 @@ X-GroupWisdom-Signature: sha256=abc123...
       "status": "new",
       "created_at": "2026-07-15T14:30:00Z",
       "confidence": "high",
-      "do_next": "Run a short usability session on the checkout flow with 3-5 users.",
+      "do_next": "Priya already ran a checkout usability study last quarter — she found the drop-off centers on the card-entry step, so you can start from there.",
       "caveat": null,
-      "missing_voice": "An iOS engineer who can speak to platform-specific constraints."
+      "missing_voice": "Priya, whose past payment research maps directly onto this and is ready to fold in."
     }
   ]
 }</pre>
