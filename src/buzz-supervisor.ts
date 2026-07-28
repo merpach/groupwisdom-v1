@@ -32,6 +32,8 @@ import {
   getUserById,
   markBuzzConnected,
   markBuzzConnectionError,
+  getBuzzCursor,
+  setBuzzCursor,
   type BuzzConnection,
 } from "./db.js";
 
@@ -88,6 +90,12 @@ export function startConnection(conn: BuzzConnection): { ok: boolean; error?: st
       groupwisdomApiKey: owner.api_key,
       groupwisdomBaseUrl: selfApiBase(),
       authTag,
+      // Durable cursor: the container filesystem does not survive a deploy, and a
+      // lost cursor means re-ingesting (and re-billing) messages already handled.
+      cursorStore: {
+        load: () => getBuzzCursor(conn.id),
+        save: (state) => setBuzzCursor(conn.id, state),
+      },
       onLog: (msg) => {
         console.log(`[buzz:${conn.id.slice(0, 8)}] ${msg}`);
         if (msg.startsWith("authenticated")) markBuzzConnected(conn.id);

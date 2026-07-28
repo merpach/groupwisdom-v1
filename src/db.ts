@@ -122,6 +122,11 @@ CREATE TABLE IF NOT EXISTS buzz_connections (
   last_connected_at TEXT DEFAULT NULL,
   last_error TEXT DEFAULT NULL
 );
+CREATE TABLE IF NOT EXISTS buzz_cursors (
+  connection_id TEXT PRIMARY KEY,
+  state TEXT NOT NULL DEFAULT '{}',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS usage_events (
   id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL,
@@ -536,4 +541,23 @@ export function setBuzzConnectionEnabled(id: string, enabled: boolean) {
 
 export function deleteBuzzConnection(id: string) {
   db.prepare("DELETE FROM buzz_connections WHERE id = ?").run(id);
+}
+
+// ── Buzz cursors ─────────────────────────────────────────────────────────────
+// Which messages a connection has already processed. This lives in the database
+// rather than on disk because hosted filesystems are ephemeral: on Railway every
+// deploy wipes the container, and a cursor lost that way causes the same Buzz
+// messages to be ingested — and billed — again on the next boot.
+
+export const getBuzzCursor = (connectionId: string): string | null => {
+  const row = db.prepare("SELECT state FROM buzz_cursors WHERE connection_id = ?")
+    .get(connectionId) as { state: string } | undefined;
+  return row?.state ?? null;
+};
+
+export function setBuzzCursor(connectionId: string, state: string) {
+  db.prepare(
+    `INSERT INTO buzz_cursors (connection_id, state, updated_at) VALUES (?, ?, datetime('now'))
+     ON CONFLICT(connection_id) DO UPDATE SET state = excluded.state, updated_at = datetime('now')`
+  ).run(connectionId, state);
 }

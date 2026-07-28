@@ -49,6 +49,16 @@ export interface BuzzConfig {
   dryRun?: boolean;
   /** Where to persist the per-channel cursor so no message is lost across restarts. */
   cursorFile?: string;
+  /**
+   * Durable cursor storage. Supply this when running somewhere with an ephemeral
+   * filesystem (Railway wipes the container on every deploy) — otherwise the
+   * cursor is lost on restart and messages are re-ingested and re-billed.
+   * Defaults to the file at `cursorFile`.
+   */
+  cursorStore?: {
+    load(): string | null;
+    save(state: string): void;
+  };
   onLog?: (msg: string) => void;
 }
 
@@ -138,10 +148,14 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   // ── Cursor: so a restart never loses messages posted while we were down ─────
   // Shape: { channels: { <uuid>: <last created_at> }, processed: [<event id>, …] }
   const cursorPath = cfg.cursorFile ?? DEFAULT_CURSOR_FILE;
+  const store = cfg.cursorStore ?? {
+    load: () => { try { return readFileSync(cursorPath, "utf8"); } catch { return null; } },
+    save: (state: string) => writeFileSync(cursorPath, state),
+  };
   let cursors: Record<string, number> = {};
   let processedIds: string[] = [];
   try {
-    const saved = JSON.parse(readFileSync(cursorPath, "utf8"));
+    const saved = JSON.parse(store.load() ?? "");
     cursors = saved.channels ?? {};
     processedIds = saved.processed ?? [];
     const n = Object.keys(cursors).length;
@@ -151,7 +165,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
 
   function saveCursor() {
     try {
-      writeFileSync(cursorPath, JSON.stringify({ channels: cursors, processed: processedIds }, null, 2));
+      store.save(JSON.stringify({ channels: cursors, processed: processedIds }));
     } catch (e) {
       log(`cursor save failed: ${(e as Error).message}`);
     }
