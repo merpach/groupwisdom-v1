@@ -200,11 +200,21 @@ export function createGroup(name: string): Group {
 }
 
 export function deleteGroup(id: string) {
+  // Every table referencing groups(id) must be cleared first, or the final
+  // DELETE fails a foreign-key constraint and the whole request 500s. This
+  // previously missed summaries, settings, contexts, invites, keys and Buzz
+  // workspaces, so any project that had been analysed could not be deleted.
   db.prepare("DELETE FROM insights WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM items WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM members WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM connectors WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM knowledge_docs WHERE group_id = ?").run(id);
+  db.prepare("DELETE FROM project_summaries WHERE group_id = ?").run(id);
+  db.prepare("DELETE FROM user_context WHERE group_id = ?").run(id);
+  db.prepare("DELETE FROM group_settings WHERE group_id = ?").run(id);
+  db.prepare("DELETE FROM invites WHERE group_id = ?").run(id);
+  db.prepare("DELETE FROM project_api_keys WHERE project_id = ?").run(id);
+  db.prepare("DELETE FROM buzz_workspaces WHERE project_id = ?").run(id);
   db.prepare("DELETE FROM groups WHERE id = ?").run(id);
 }
 
