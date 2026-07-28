@@ -26,6 +26,50 @@ Buzz is a **Nostr relay** speaking **NIP-29 (relay-based groups)**. Everything i
 
 ---
 
+## 1b. Multi-tenancy: how *anyone* installs GroupWisdom (NIP-AA)
+
+The naive integration requires a relay operator to enrol GroupWisdom's key as a member of
+each community — which doesn't scale and isn't something a product can ask for. Buzz solves
+this natively with two of its own NIPs:
+
+- **NIP-OA (Owner Attestation)** — an owner key signs a credential authorizing an agent key
+  to act on its behalf. The agent remains the author of its events; this is authorization
+  evidence, not impersonation.
+- **NIP-AA (Agent Authentication)** — a relay grants an agent access *derived from its
+  owner's membership* ("virtual membership"), with no membership record for the agent.
+
+So GroupWisdom holds **one** keypair. Any Buzz user signs an attestation, and GroupWisdom
+can then join *their* community with zero operator involvement. If that user later leaves,
+the agent's next connection fails automatically — revocation is free.
+
+**The signing construction** (`src/adapters/nip-oa.ts`, verified against the spec vector in
+`crates/buzz-sdk/src/nip_oa.rs`):
+
+```
+preimage = "nostr:agent-auth:" || <agent-pubkey-hex> || ":" || <conditions>
+message  = SHA256(preimage)
+sig      = BIP-340 Schnorr over `message`, signed by the OWNER
+tag      = ["auth", <owner-pubkey-hex>, <conditions>, <sig-hex>]
+```
+
+The tag is attached to the agent's NIP-42 `kind:22242` AUTH event. Conditions may bound the
+grant in time (`created_at<…`), giving expiring authorizations.
+
+**The install flow:**
+
+```bash
+# The user runs this once. Their secret key signs locally and is never transmitted.
+npm run buzz:authorize -- <their-nsec> <groupwisdom-agent-pubkey>
+# → ["auth","<their-pubkey>","","<sig>"]        ← set as BUZZ_AUTH_TAG
+```
+
+**Verified live** against `wss://groupwisdom.communities.buzz.xyz`, same fresh key both times:
+
+| Attempt | Result |
+|---|---|
+| Brand-new key, no attestation | `REJECTED — restricted: not a relay member` |
+| Same key + owner attestation | `GRANTED` → discovered all channels |
+
 ## 2. Integration architecture
 
 GroupWisdom runs as **one agent identity** (a keypair) with two modes on the same connection:

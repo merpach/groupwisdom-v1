@@ -27,13 +27,21 @@ import WebSocket from "ws";
 import { finalizeEvent, getPublicKey, type Event, type EventTemplate } from "nostr-tools/pure";
 import { makeAuthEvent } from "nostr-tools/nip42";
 import { decode as nip19decode } from "nostr-tools/nip19";
+import { verifyAuthTag, type AuthTag } from "./nip-oa.js";
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
 export interface BuzzConfig {
   relayUrl: string;              // e.g. wss://your-community.communities.buzz.xyz
   privateKey: string;            // nsec1... or 64-char hex — the agent's Nostr identity
-  groupwisdomApiKey: string;     // gw_... — your personal GroupWisdom API key
+  groupwisdomApiKey: string;     // gw_... — the GroupWisdom API key for this workspace
+  /**
+   * NIP-OA attestation from a member of this community, authorizing our agent key.
+   * When present, the relay grants access derived from that owner's membership
+   * (NIP-AA "virtual membership") — so GroupWisdom can join any community whose
+   * user authorized it, with no operator enrolling us as a member.
+   */
+  authTag?: AuthTag;
   groupwisdomBaseUrl?: string;   // default: the production GroupWisdom API
   /** Channels to watch. If omitted, every channel the identity can see is auto-discovered. */
   channels?: string[];
@@ -86,6 +94,12 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   const gwBase = cfg.groupwisdomBaseUrl ?? DEFAULT_GW_BASE_URL;
   log(`agent pubkey ${pk.slice(0, 12)}… connecting to ${cfg.relayUrl}`);
   log(`GroupWisdom API: ${gwBase}`);
+
+  // Fail fast on a bad attestation rather than surfacing it as an opaque auth rejection.
+  if (cfg.authTag) {
+    const owner = verifyAuthTag(cfg.authTag, pk);   // throws with a specific reason
+    log(`NIP-AA attestation valid — authorized by owner ${owner.slice(0, 12)}…`);
+  }
 
   // ── GroupWisdom HTTP client — real API calls, your key, your account ────────
   async function gwFetch(path: string, init?: RequestInit): Promise<any> {
@@ -333,12 +347,17 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     switch (type) {
       case "AUTH": {
         // NIP-42 proactive challenge → sign a kind:22242 auth event and reply.
+        // If we hold a NIP-OA attestation, attach it: the relay then grants access
+        // via the owner's membership (NIP-AA) rather than requiring us to be enrolled.
         const challenge = frame[1] as string;
         const authTmpl = makeAuthEvent(cfg.relayUrl, challenge);
+        if (cfg.authTag) authTmpl.tags = [...authTmpl.tags, cfg.authTag];
         const signed = finalizeEvent(authTmpl, sk);
         authPending = signed.id;
         send(["AUTH", signed]);
-        log("authenticating (NIP-42)…");
+        log(cfg.authTag
+          ? `authenticating (NIP-42 + NIP-AA, authorized by ${cfg.authTag[1].slice(0, 8)}…)`
+          : "authenticating (NIP-42)…");
         break;
       }
       case "OK": {

@@ -17,6 +17,7 @@
  *   BUZZ_DRY_RUN          1/true — connect and log, but never ingest or post
  */
 import { startBuzzAdapter } from "./adapters/buzz.js";
+import { parseAuthTag } from "./adapters/nip-oa.js";
 
 const relayUrl = process.env.BUZZ_RELAY_URL;
 const privateKey = process.env.BUZZ_PRIVATE_KEY;
@@ -40,11 +41,25 @@ const channels = (process.env.BUZZ_CHANNELS ?? "")
 const dryRun = /^(1|true|yes)$/i.test(process.env.BUZZ_DRY_RUN ?? "");
 if (dryRun) console.log("[buzz] DRY RUN — will connect and log, but never ingest or post wisdom back");
 
+// Optional NIP-OA attestation: lets GroupWisdom join a community it was never
+// enrolled in, using access derived from the authorizing member (NIP-AA).
+// Mint one with `npm run buzz:authorize`.
+let authTag;
+if (process.env.BUZZ_AUTH_TAG) {
+  try {
+    authTag = parseAuthTag(process.env.BUZZ_AUTH_TAG);
+  } catch (e) {
+    console.error(`BUZZ_AUTH_TAG is not a valid attestation: ${(e as Error).message}`);
+    process.exit(1);
+  }
+}
+
 const handle = startBuzzAdapter({
   relayUrl,
   privateKey,
   groupwisdomApiKey,
   groupwisdomBaseUrl: process.env.GROUPWISDOM_BASE_URL,
+  authTag,
   channels,
   dryRun,
 });
