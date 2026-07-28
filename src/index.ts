@@ -7,6 +7,7 @@ import { WebSocketServer } from "ws";
 import bcrypt from "bcrypt";
 import { api, setNotifier } from "./api.js";
 import { apiv1, setV1Notifier } from "./api-v1.js";
+import { buzzHook } from "./buzz-hook.js";
 import { runningRouter, CLUB_GROUP_ID } from "./running.js";
 import { handleMcpRequest } from "./mcp-http.js";
 import { getUserByEmail, createUser } from "./db.js";
@@ -71,6 +72,7 @@ app.use(session({
 app.use(express.json({ limit: "2mb" }));
 app.use("/api", api);
 app.use("/v1", apiv1);
+app.use("/buzz", buzzHook);
 app.use("/running/api", runningRouter);
 
 // Remote MCP endpoint — used by Claude.ai connectors

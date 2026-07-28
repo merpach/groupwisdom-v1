@@ -100,6 +100,17 @@ CREATE TABLE IF NOT EXISTS project_api_keys (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   last_used_at TEXT DEFAULT NULL
 );
+CREATE TABLE IF NOT EXISTS buzz_workspaces (
+  id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL,           -- Buzz channel UUID
+  channel_name TEXT NOT NULL DEFAULT '',
+  relay_url TEXT NOT NULL DEFAULT '',
+  project_id TEXT NOT NULL REFERENCES groups(id),
+  ingest_token TEXT NOT NULL UNIQUE,  -- secret proving a webhook really came from this channel's workflow
+  return_hook_url TEXT DEFAULT NULL,  -- Buzz /hooks/{id} that posts wisdom back into the channel
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_seen_at TEXT DEFAULT NULL
+);
 CREATE TABLE IF NOT EXISTS usage_events (
   id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL,
@@ -418,4 +429,54 @@ export function isGroupOverBudget(groupId: string): boolean {
   const ownerId = getGroupOwnerUserId(groupId);
   if (!ownerId) return false;
   return getUserTotalCostUsd(ownerId) >= USER_BUDGET_USD;
+}
+
+// ── Buzz workspaces ──────────────────────────────────────────────────────────
+// One row per Buzz channel that has installed the GroupWisdom workflow.
+// The ingest_token is what the channel's workflow presents when POSTing
+// messages to us, so a webhook can be attributed to exactly one channel.
+
+export type BuzzWorkspace = {
+  id: string; channel_id: string; channel_name: string; relay_url: string;
+  project_id: string; ingest_token: string; return_hook_url: string | null;
+  created_at: string; last_seen_at: string | null;
+};
+
+export function createBuzzWorkspace(opts: {
+  channelId: string; channelName?: string; relayUrl?: string;
+  projectId: string; returnHookUrl?: string | null;
+}): BuzzWorkspace {
+  const id = randomUUID();
+  const token = "bzw_" + randomBytes(24).toString("hex");
+  db.prepare(
+    `INSERT INTO buzz_workspaces (id, channel_id, channel_name, relay_url, project_id, ingest_token, return_hook_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, opts.channelId, opts.channelName ?? "", opts.relayUrl ?? "", opts.projectId, token, opts.returnHookUrl ?? null);
+  return db.prepare("SELECT * FROM buzz_workspaces WHERE id = ?").get(id) as BuzzWorkspace;
+}
+
+export const getBuzzWorkspaceByToken = (token: string): BuzzWorkspace | undefined =>
+  db.prepare("SELECT * FROM buzz_workspaces WHERE ingest_token = ?").get(token) as BuzzWorkspace | undefined;
+
+export const getBuzzWorkspaceByChannel = (channelId: string): BuzzWorkspace | undefined =>
+  db.prepare("SELECT * FROM buzz_workspaces WHERE channel_id = ?").get(channelId) as BuzzWorkspace | undefined;
+
+export const listBuzzWorkspacesForProjects = (projectIds: string[]): BuzzWorkspace[] => {
+  if (!projectIds.length) return [];
+  const marks = projectIds.map(() => "?").join(",");
+  return db.prepare(
+    `SELECT * FROM buzz_workspaces WHERE project_id IN (${marks}) ORDER BY created_at DESC`
+  ).all(...projectIds) as BuzzWorkspace[];
+};
+
+export function setBuzzWorkspaceReturnHook(id: string, url: string | null) {
+  db.prepare("UPDATE buzz_workspaces SET return_hook_url = ? WHERE id = ?").run(url, id);
+}
+
+export function touchBuzzWorkspace(id: string) {
+  db.prepare("UPDATE buzz_workspaces SET last_seen_at = datetime('now') WHERE id = ?").run(id);
+}
+
+export function deleteBuzzWorkspace(id: string) {
+  db.prepare("DELETE FROM buzz_workspaces WHERE id = ?").run(id);
 }
