@@ -384,7 +384,12 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
         const [, id, ok, msg] = frame as [string, string, boolean, string];
         if (id === authPending) {
           authPending = null;
-          if (ok) { log("authenticated"); watched.clear(); subscribeAll(); }  // clear so pre-auth (rejected) subs re-send
+          if (ok) {
+            log("authenticated");
+            watched.clear();          // pre-auth subs were rejected; re-send them
+            publishProfile();         // must be post-auth or the relay rejects it
+            subscribeAll();
+          }
           else log(`auth rejected: ${msg}`);
         }
         break;
@@ -424,7 +429,6 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   }
 
   function subscribeAll() {
-    publishProfile();
     subscribeProfiles();
     subscribeMembership();
     discoverChannels();                                       // finds every channel, incl. self-created ones
@@ -448,6 +452,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
 
   function reconnect() {
     watched.clear();
+    profilePublished = false;
     log(`reconnecting in ${backoff}ms`);
     setTimeout(connect, backoff);
     backoff = Math.min(backoff * 2, 30000);
