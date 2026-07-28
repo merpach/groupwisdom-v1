@@ -123,13 +123,27 @@ Respond ONLY with valid JSON:
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
   const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
   let result: { new: Array<{ kind: string; title: string; body: string }>; dismiss: string[] };
-  try { result = JSON.parse(json); } catch { return []; }
+  try {
+    result = JSON.parse(json);
+  } catch (err: any) {
+    // Silently returning [] here made a non-responding engine indistinguishable
+    // from one that legitimately had nothing to say. Say which it was.
+    console.warn(`[wisdom] could not parse engine response for group ${groupId}: ${err.message}\n  raw: ${raw.slice(0, 300)}`);
+    return [];
+  }
 
   const created: Insight[] = [];
   for (const ins of (result.new ?? [])) {
-    if (!KINDS.includes(ins.kind)) continue;
+    // The model occasionally labels wisdom with a kind outside our set (e.g. "insight").
+    // Dropping it loses a genuinely good finding over a label mismatch, so fall back to
+    // the most general kind instead and record that we did.
+    let kind = ins.kind;
+    if (!KINDS.includes(kind)) {
+      console.warn(`[wisdom] relabelled unknown kind "${ins.kind}" → "pattern" for "${ins.title}"`);
+      kind = "pattern";
+    }
     if (existing.some(e => e.title.toLowerCase() === ins.title.toLowerCase())) continue;
-    const saved = addInsight(groupId, ins.kind, ins.title, ins.body);
+    const saved = addInsight(groupId, kind, ins.title, ins.body);
     setInsightStatus(saved.id, "acknowledged"); // auto-accept live insights
     created.push({ ...saved, status: "acknowledged" });
   }
