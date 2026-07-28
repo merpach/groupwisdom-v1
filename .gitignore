@@ -4,3 +4,5 @@ dist/
 *.db-shm
 *.db-wal
 .env
+.buzz-agent.env
+.buzz-cursor.json
