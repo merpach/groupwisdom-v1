@@ -132,18 +132,46 @@ Respond ONLY with valid JSON:
     return [];
   }
 
+  // Pass 1 produced candidates. Normalise them before the second pass.
+  const candidates = (result.new ?? [])
+    .map(ins => {
+      // The model occasionally labels wisdom with a kind outside our set (e.g. "insight").
+      // Dropping it loses a genuinely good finding over a label mismatch, so fall back to
+      // the most general kind instead and record that we did.
+      if (!KINDS.includes(ins.kind)) {
+        console.warn(`[wisdom] relabelled unknown kind "${ins.kind}" → "pattern" for "${ins.title}"`);
+        return { ...ins, kind: "pattern" };
+      }
+      return ins;
+    })
+    .filter(ins => !existing.some(e => e.title.toLowerCase() === ins.title.toLowerCase()));
+
+  // Pass 2 — the metacognitive evaluator. This runs here too, not just in the full
+  // analysis: live sources (Buzz channels, the API) go through the incremental path,
+  // and without this they produced wisdom with no confidence, caveat, do_next or
+  // missing_voice at all — the second pass simply never ran on them.
+  const annotated = candidates.length
+    ? await metacognitivePass(
+        candidates, group.name, listMembers(groupId).map(m => m.name),
+        allWithMembers.length, getGroupEngine(groupId), groupId,
+      )
+    : [];
+
+  const suppressed = annotated.filter(ins => !ins.keep);
+  if (suppressed.length) {
+    console.log(`[metacognitive] suppressed ${suppressed.length} weak insight(s) for group ${groupId}: ` +
+      suppressed.map(ins => `"${ins.title}" (confidence: ${ins.confidence})`).join(", "));
+  }
+
   const created: Insight[] = [];
-  for (const ins of (result.new ?? [])) {
-    // The model occasionally labels wisdom with a kind outside our set (e.g. "insight").
-    // Dropping it loses a genuinely good finding over a label mismatch, so fall back to
-    // the most general kind instead and record that we did.
-    let kind = ins.kind;
-    if (!KINDS.includes(kind)) {
-      console.warn(`[wisdom] relabelled unknown kind "${ins.kind}" → "pattern" for "${ins.title}"`);
-      kind = "pattern";
-    }
-    if (existing.some(e => e.title.toLowerCase() === ins.title.toLowerCase())) continue;
-    const saved = addInsight(groupId, kind, ins.title, ins.body);
+  for (const ins of annotated) {
+    if (!ins.keep) continue;
+    const saved = addInsight(groupId, ins.kind, ins.revised_title ?? ins.title, ins.revised_body ?? ins.body, {
+      confidence: ins.confidence,
+      caveat: ins.caveat ?? undefined,
+      do_next: ins.do_next ?? undefined,
+      missing_voice: ins.missing_voice ?? undefined,
+    });
     setInsightStatus(saved.id, "acknowledged"); // auto-accept live insights
     created.push({ ...saved, status: "acknowledged" });
   }
