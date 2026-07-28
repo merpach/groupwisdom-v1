@@ -121,6 +121,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   const channelToProject = new Map<string, string>();
   const projectToChannel = new Map<string, string>();
   const channelNames = new Map<string, string>();           // channel uuid → human name (from kind:39000)
+  const profileNames = new Map<string, string>();           // pubkey → display name (from kind:0)
+  const profileRequested = new Set<string>();               // pubkeys we've already asked about
   const projectReady = new Map<string, Promise<string>>();  // in-flight project creation/lookup, deduped
   const seenInsightIds = new Map<string, Set<string>>();    // projectId → wisdom ids already posted to Buzz
   const recentEventIds = new Map<string, string[]>();       // projectId → recent nostr event ids (for #e citations)
@@ -224,6 +226,23 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     log(`watching channel ${channelNames.get(channel) ?? channel.slice(0, 8)}`);
   }
 
+  // Names make wisdom readable: without this, findings are attributed to raw
+  // pubkey prefixes ("411dfdb2's checkout metrics") instead of people.
+  function subscribeProfiles() {
+    send(["REQ", "profiles", { kinds: [0] }]);
+  }
+
+  function requestProfile(pubkey: string) {
+    if (profileNames.has(pubkey) || profileRequested.has(pubkey)) return;
+    profileRequested.add(pubkey);
+    send(["REQ", `prof:${pubkey.slice(0, 8)}`, { kinds: [0], authors: [pubkey] }]);
+  }
+
+  /** Display name for a contributor, falling back to a short pubkey. */
+  function contributorName(pubkey: string): string {
+    return profileNames.get(pubkey) ?? pubkey.slice(0, 8);
+  }
+
   function subscribeMembership() {
     // Learn when we're added to a NEW channel going forward (relay-signed, filtered to our pubkey).
     send(["REQ", "membership", { kinds: [44100], "#p": [pk] }]);
@@ -244,8 +263,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
       kind: 0,
       created_at: Math.floor(Date.now() / 1000),
       content: JSON.stringify({
-        name: "GroupWisdom",
-        display_name: "GroupWisdom",
+        name: "Wisdom Agent",
+        display_name: "Wisdom Agent",
         about: "Reads what the channel has found and hands each member what the group already knows.",
       }),
       tags: [],
@@ -313,6 +332,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     if (!channel) return;
     if (ev.created_at < floorFor(channel)) return;        // predates our first sight of this channel
     const content = ev.content ?? "";
+    requestProfile(ev.pubkey);
 
     if (cfg.dryRun) {
       log(`[dry-run] would ingest into ${channel.slice(0, 8)}… from ${ev.pubkey.slice(0, 8)}…: "${content.slice(0, 50)}"`);
@@ -328,11 +348,11 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
           title: content.slice(0, 60) || "(message)",
           content,
           type: "note",
-          contributed_by: ev.pubkey.slice(0, 8),
+          contributed_by: contributorName(ev.pubkey),
         }),
       });
       markProcessed(channel, ev);   // only after the API accepted it, so a failure retries on restart
-      log(`ingested → GroupWisdom | ${channelNames.get(channel) ?? channel.slice(0, 8)} | from ${ev.pubkey.slice(0, 8)}…: "${content.slice(0, 50)}"`);
+      log(`ingested → GroupWisdom | ${channelNames.get(channel) ?? channel.slice(0, 8)} | from ${contributorName(ev.pubkey)}: "${content.slice(0, 50)}"`);
       schedulePoll(projectId, ev.id);
     } catch (e) {
       log(`ingest failed for ${channel.slice(0, 8)}…: ${(e as Error).message}`);
@@ -375,6 +395,12 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
         else if (ev.kind === 44100) {
           const channel = ev.tags.find(t => t[0] === "h")?.[1];
           if (channel) subscribeChannel(channel);
+        } else if (ev.kind === 0) {
+          try {
+            const meta = JSON.parse(ev.content || "{}");
+            const name = meta.display_name || meta.name;
+            if (name) profileNames.set(ev.pubkey, String(name).slice(0, 40));
+          } catch { /* malformed profile — keep the pubkey fallback */ }
         } else if (ev.kind === 39000) {
           // Discovery: every channel this identity can see, including ones it created
           // itself (which never get a kind:44100 membership event).
@@ -399,6 +425,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
 
   function subscribeAll() {
     publishProfile();
+    subscribeProfiles();
     subscribeMembership();
     discoverChannels();                                       // finds every channel, incl. self-created ones
     for (const c of cfg.channels ?? []) subscribeChannel(c);   // optional explicit override/restriction
