@@ -65,9 +65,19 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
   // Build a map of member_id → name for new items (they come in as plain Items)
   const memberNames = new Map(allWithMembers.filter(i => i.member_name).map(i => [i.id, i.member_name!]));
 
+  // How much of each item the incremental prompt may see. 120 characters was far
+  // too little: anything substantial — an agent's reply, a pasted document, a
+  // detailed finding — was cut off after roughly one sentence, and the engine
+  // then reported (correctly) that it could not assess the truncated content.
+  const ITEM_CONTENT_LIMIT = 1500;
+
   const fmt = (i: Item & { member_name?: string | null }) => {
     const by = i.member_name ? ` [by ${i.member_name}]` : "";
-    return `[${i.type}]${by} "${i.title}"${i.url ? ` (${i.url})` : ""} — ${i.content?.slice(0, 120) || ""}`;
+    const content = i.content ?? "";
+    const shown = content.length > ITEM_CONTENT_LIMIT
+      ? content.slice(0, ITEM_CONTENT_LIMIT) + " …[truncated]"
+      : content;
+    return `[${i.type}]${by} "${i.title}"${i.url ? ` (${i.url})` : ""} — ${shown}`;
   };
 
   const newText = newItems.map(i => fmt({ ...i, member_name: memberNames.get(i.id) ?? null })).join("\n");
