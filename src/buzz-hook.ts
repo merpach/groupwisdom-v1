@@ -42,7 +42,17 @@ import {
   type Insight,
   type BuzzWorkspace,
 } from "./db.js";
+import {
+  createBuzzConnection,
+  listBuzzConnectionsForUser,
+  getBuzzConnection,
+  setBuzzConnectionEnabled,
+  deleteBuzzConnection,
+} from "./db.js";
 import { queueIncrementalAnalysis } from "./engine.js";
+import { startConnection, stopConnection, isConnectionRunning } from "./buzz-supervisor.js";
+import { getPublicKey } from "nostr-tools/pure";
+import { decode as nip19decode } from "nostr-tools/nip19";
 
 export const buzzHook = Router();
 
@@ -239,4 +249,103 @@ buzzHook.delete("/workspaces/:id", (req, res) => {
   if (found.error === 404 || !found.ws) return res.status(404).json({ error: "Workspace not found." });
   deleteBuzzWorkspace(found.ws.id);
   res.json({ deleted: true, id: found.ws.id });
+});
+
+// ── Connected communities (the hosted path) ──────────────────────────────────
+// A user connects their Buzz community once; the supervisor keeps it running
+// across restarts and deploys. Nothing runs on the user's machine.
+
+function agentPubkey(): string | null {
+  const nsec = process.env.BUZZ_AGENT_NSEC || process.env.BUZZ_PRIVATE_KEY;
+  if (!nsec) return null;
+  try {
+    const sk = nsec.startsWith("nsec")
+      ? (nip19decode(nsec).data as Uint8Array)
+      : Uint8Array.from(Buffer.from(nsec.trim(), "hex"));
+    return getPublicKey(sk);
+  } catch { return null; }
+}
+
+/** Who to authorize. A user needs this to mint their NIP-OA attestation. */
+buzzHook.get("/agent", (_req, res) => {
+  const pubkey = agentPubkey();
+  if (!pubkey) return res.status(503).json({ error: "Buzz agent identity is not configured on this server." });
+  res.json({
+    agent_pubkey: pubkey,
+    how_to_authorize:
+      "Sign a NIP-OA attestation for this pubkey with your Buzz identity, then POST it to " +
+      "/buzz/connect together with your relay URL. Your secret key never leaves your machine.",
+  });
+});
+
+buzzHook.post("/connect", (req, res) => {
+  const user = authUser(req);
+  if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
+  if (!agentPubkey()) return res.status(503).json({ error: "Buzz agent identity is not configured on this server." });
+
+  const { relay_url, auth_tag, label } = req.body ?? {};
+  if (!relay_url) return res.status(400).json({ error: "relay_url is required (e.g. wss://your-community.communities.buzz.xyz)." });
+
+  const conn = createBuzzConnection({
+    userId: user.id,
+    relayUrl: String(relay_url),
+    authTag: auth_tag ? (typeof auth_tag === "string" ? auth_tag : JSON.stringify(auth_tag)) : null,
+    label: label ? String(label) : "",
+  });
+
+  const started = startConnection(conn);
+  res.status(started.ok ? 201 : 502).json({
+    connection_id: conn.id,
+    relay_url: conn.relay_url,
+    connected: started.ok,
+    error: started.error ?? null,
+    note: started.ok
+      ? "Connected. Every message in your channels now flows into a GroupWisdom project, and wisdom posts back into the chat."
+      : "Saved, but could not connect. Check the attestation and relay URL.",
+  });
+});
+
+buzzHook.get("/connections", (req, res) => {
+  const user = authUser(req);
+  if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
+  res.json(listBuzzConnectionsForUser(user.id).map(c => ({
+    id: c.id,
+    relay_url: c.relay_url,
+    label: c.label,
+    enabled: Boolean(c.enabled),
+    running: isConnectionRunning(c.id),
+    last_connected_at: c.last_connected_at,
+    last_error: c.last_error,
+    created_at: c.created_at,
+  })));
+});
+
+function ownedConnection(req: any) {
+  const user = authUser(req);
+  if (!user) return { error: 401 as const };
+  const conn = getBuzzConnection(req.params.id);
+  if (!conn || conn.user_id !== user.id) return { error: 404 as const };
+  return { conn };
+}
+
+buzzHook.patch("/connections/:id", (req, res) => {
+  const found = ownedConnection(req);
+  if (found.error === 401) return res.status(401).json({ error: "Invalid or missing API key." });
+  if (!found.conn) return res.status(404).json({ error: "Connection not found." });
+  if ("enabled" in (req.body ?? {})) {
+    const enabled = Boolean(req.body.enabled);
+    setBuzzConnectionEnabled(found.conn.id, enabled);
+    if (enabled) startConnection({ ...found.conn, enabled: 1 });
+    else stopConnection(found.conn.id);
+  }
+  res.json({ updated: true, id: found.conn.id, running: isConnectionRunning(found.conn.id) });
+});
+
+buzzHook.delete("/connections/:id", (req, res) => {
+  const found = ownedConnection(req);
+  if (found.error === 401) return res.status(401).json({ error: "Invalid or missing API key." });
+  if (!found.conn) return res.status(404).json({ error: "Connection not found." });
+  stopConnection(found.conn.id);
+  deleteBuzzConnection(found.conn.id);
+  res.json({ deleted: true, id: found.conn.id });
 });

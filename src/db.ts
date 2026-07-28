@@ -111,6 +111,17 @@ CREATE TABLE IF NOT EXISTS buzz_workspaces (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   last_seen_at TEXT DEFAULT NULL
 );
+CREATE TABLE IF NOT EXISTS buzz_connections (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  relay_url TEXT NOT NULL,
+  auth_tag TEXT DEFAULT NULL,         -- NIP-OA attestation authorising our agent key
+  label TEXT NOT NULL DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_connected_at TEXT DEFAULT NULL,
+  last_error TEXT DEFAULT NULL
+);
 CREATE TABLE IF NOT EXISTS usage_events (
   id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL,
@@ -479,4 +490,50 @@ export function touchBuzzWorkspace(id: string) {
 
 export function deleteBuzzWorkspace(id: string) {
   db.prepare("DELETE FROM buzz_workspaces WHERE id = ?").run(id);
+}
+
+// ── Buzz connections ─────────────────────────────────────────────────────────
+// One row per connected Buzz community. The supervisor opens a relay connection
+// for each enabled row on boot, so a community stays connected across restarts
+// and deploys with nothing running on anyone's machine.
+
+export type BuzzConnection = {
+  id: string; user_id: string; relay_url: string; auth_tag: string | null;
+  label: string; enabled: number; created_at: string;
+  last_connected_at: string | null; last_error: string | null;
+};
+
+export function createBuzzConnection(opts: {
+  userId: string; relayUrl: string; authTag?: string | null; label?: string;
+}): BuzzConnection {
+  const id = randomUUID();
+  db.prepare(
+    "INSERT INTO buzz_connections (id, user_id, relay_url, auth_tag, label) VALUES (?, ?, ?, ?, ?)"
+  ).run(id, opts.userId, opts.relayUrl, opts.authTag ?? null, opts.label ?? "");
+  return db.prepare("SELECT * FROM buzz_connections WHERE id = ?").get(id) as BuzzConnection;
+}
+
+export const listEnabledBuzzConnections = (): BuzzConnection[] =>
+  db.prepare("SELECT * FROM buzz_connections WHERE enabled = 1 ORDER BY created_at").all() as BuzzConnection[];
+
+export const listBuzzConnectionsForUser = (userId: string): BuzzConnection[] =>
+  db.prepare("SELECT * FROM buzz_connections WHERE user_id = ? ORDER BY created_at DESC").all(userId) as BuzzConnection[];
+
+export const getBuzzConnection = (id: string): BuzzConnection | undefined =>
+  db.prepare("SELECT * FROM buzz_connections WHERE id = ?").get(id) as BuzzConnection | undefined;
+
+export function markBuzzConnected(id: string) {
+  db.prepare("UPDATE buzz_connections SET last_connected_at = datetime('now'), last_error = NULL WHERE id = ?").run(id);
+}
+
+export function markBuzzConnectionError(id: string, error: string) {
+  db.prepare("UPDATE buzz_connections SET last_error = ? WHERE id = ?").run(error.slice(0, 500), id);
+}
+
+export function setBuzzConnectionEnabled(id: string, enabled: boolean) {
+  db.prepare("UPDATE buzz_connections SET enabled = ? WHERE id = ?").run(enabled ? 1 : 0, id);
+}
+
+export function deleteBuzzConnection(id: string) {
+  db.prepare("DELETE FROM buzz_connections WHERE id = ?").run(id);
 }

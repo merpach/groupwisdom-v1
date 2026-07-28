@@ -8,6 +8,7 @@ import bcrypt from "bcrypt";
 import { api, setNotifier } from "./api.js";
 import { apiv1, setV1Notifier } from "./api-v1.js";
 import { buzzHook } from "./buzz-hook.js";
+import { startBuzzSupervisor } from "./buzz-supervisor.js";
 import { runningRouter, CLUB_GROUP_ID } from "./running.js";
 import { handleMcpRequest } from "./mcp-http.js";
 import { getUserByEmail, createUser } from "./db.js";
@@ -153,4 +154,6 @@ const port = Number(process.env.PORT || 3000);
 server.listen(port, () => {
   console.log(`GroupWisdom running at http://localhost:${port}`);
   console.log(`Insight engine: ${process.env.ANTHROPIC_API_KEY ? "Claude API (" + (process.env.GW_MODEL || "claude-sonnet-4-6") + ")" : "mock mode (set ANTHROPIC_API_KEY for real analysis)"}`);
+  // Reconnect every Buzz community that has been connected. No-op when none are.
+  try { startBuzzSupervisor(); } catch (err: any) { console.error("[buzz] supervisor failed to start:", err.message); }
 });
