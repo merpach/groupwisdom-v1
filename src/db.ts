@@ -146,6 +146,10 @@ try { db.exec("ALTER TABLE insights ADD COLUMN confidence TEXT DEFAULT NULL"); }
 try { db.exec("ALTER TABLE insights ADD COLUMN caveat TEXT DEFAULT NULL"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE insights ADD COLUMN do_next TEXT DEFAULT NULL"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE insights ADD COLUMN missing_voice TEXT DEFAULT NULL"); } catch { /* already exists */ }
+// Buzz: which channels a connection watches (JSON array; NULL means every channel it can see)
+try { db.exec("ALTER TABLE buzz_connections ADD COLUMN channels TEXT DEFAULT NULL"); } catch { /* already exists */ }
+// Buzz: channels the agent has seen, so the setup page can offer them as choices
+try { db.exec("ALTER TABLE buzz_connections ADD COLUMN discovered TEXT DEFAULT NULL"); } catch { /* already exists */ }
 
 export type User = { id: string; email: string; password_hash: string; name: string; api_key: string; created_at: string };
 export type Group = { id: string; name: string; api_key: string; created_at: string };
@@ -516,6 +520,10 @@ export type BuzzConnection = {
   id: string; user_id: string; relay_url: string; auth_tag: string | null;
   label: string; enabled: number; created_at: string;
   last_connected_at: string | null; last_error: string | null;
+  /** JSON array of channel uuids to watch. NULL = every channel the agent can see. */
+  channels: string | null;
+  /** JSON array of {id,name} the agent has discovered, for the setup UI. */
+  discovered: string | null;
 };
 
 export function createBuzzConnection(opts: {
@@ -570,4 +578,15 @@ export function setBuzzCursor(connectionId: string, state: string) {
     `INSERT INTO buzz_cursors (connection_id, state, updated_at) VALUES (?, ?, datetime('now'))
      ON CONFLICT(connection_id) DO UPDATE SET state = excluded.state, updated_at = datetime('now')`
   ).run(connectionId, state);
+}
+
+/** Limit a connection to specific channels. Pass null to watch everything. */
+export function setBuzzConnectionChannels(id: string, channels: string[] | null) {
+  db.prepare("UPDATE buzz_connections SET channels = ? WHERE id = ?")
+    .run(channels && channels.length ? JSON.stringify(channels) : null, id);
+}
+
+/** Record what the agent can see, so the setup page can offer real choices. */
+export function setBuzzConnectionDiscovered(id: string, channels: Array<{ id: string; name: string }>) {
+  db.prepare("UPDATE buzz_connections SET discovered = ? WHERE id = ?").run(JSON.stringify(channels), id);
 }

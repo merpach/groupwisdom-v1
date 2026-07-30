@@ -48,6 +48,7 @@ import {
   listBuzzConnectionsForUser,
   getBuzzConnection,
   setBuzzConnectionEnabled,
+  setBuzzConnectionChannels,
   deleteBuzzConnection,
 } from "./db.js";
 import { queueIncrementalAnalysis } from "./engine.js";
@@ -289,7 +290,7 @@ buzzHook.post("/connect", async (req, res) => {
   if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
   if (!agentPubkey()) return res.status(503).json({ error: "Buzz agent identity is not configured on this server." });
 
-  const { relay_url, auth_tag, label } = req.body ?? {};
+  const { relay_url, auth_tag, label, channels } = req.body ?? {};
   if (!relay_url) return res.status(400).json({ error: "relay_url is required (e.g. wss://your-community.communities.buzz.xyz)." });
 
   const conn = createBuzzConnection({
@@ -298,8 +299,11 @@ buzzHook.post("/connect", async (req, res) => {
     authTag: auth_tag ? (typeof auth_tag === "string" ? auth_tag : JSON.stringify(auth_tag)) : null,
     label: label ? String(label) : "",
   });
+  if (Array.isArray(channels) && channels.length) {
+    setBuzzConnectionChannels(conn.id, channels.map(String));
+  }
 
-  const started = startConnection(conn);
+  const started = startConnection(getBuzzConnection(conn.id) ?? conn);
   if (!started.ok) {
     return res.status(502).json({
       connection_id: conn.id, relay_url: conn.relay_url, connected: false,
@@ -325,6 +329,7 @@ buzzHook.post("/connect", async (req, res) => {
 buzzHook.get("/connections", (req, res) => {
   const user = authUser(req);
   if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
+  const safeParse = (raw: string | null) => { try { return raw ? JSON.parse(raw) : null; } catch { return null; } };
   res.json(listBuzzConnectionsForUser(user.id).map(c => ({
     id: c.id,
     relay_url: c.relay_url,
@@ -334,6 +339,9 @@ buzzHook.get("/connections", (req, res) => {
     last_connected_at: c.last_connected_at,
     last_error: c.last_error,
     created_at: c.created_at,
+    // null = watching every channel it can see
+    channels: safeParse(c.channels),
+    discovered: safeParse(c.discovered) ?? [],
   })));
 });
 
@@ -349,11 +357,21 @@ buzzHook.patch("/connections/:id", (req, res) => {
   const found = ownedConnection(req);
   if (found.error === 401) return res.status(401).json({ error: "Invalid or missing API key." });
   if (!found.conn) return res.status(404).json({ error: "Connection not found." });
+  let restart = false;
+  if ("channels" in (req.body ?? {})) {
+    const list = req.body.channels;
+    setBuzzConnectionChannels(found.conn.id, Array.isArray(list) && list.length ? list.map(String) : null);
+    restart = true;   // the allowlist is applied when the adapter subscribes
+  }
   if ("enabled" in (req.body ?? {})) {
     const enabled = Boolean(req.body.enabled);
     setBuzzConnectionEnabled(found.conn.id, enabled);
-    if (enabled) startConnection({ ...found.conn, enabled: 1 });
-    else stopConnection(found.conn.id);
+    if (!enabled) { stopConnection(found.conn.id); restart = false; }
+    else restart = true;
+  }
+  if (restart) {
+    const fresh = getBuzzConnection(found.conn.id);
+    if (fresh?.enabled) startConnection(fresh);
   }
   res.json({ updated: true, id: found.conn.id, running: isConnectionRunning(found.conn.id) });
 });

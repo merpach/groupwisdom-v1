@@ -34,6 +34,7 @@ import {
   markBuzzConnectionError,
   getBuzzCursor,
   setBuzzCursor,
+  setBuzzConnectionDiscovered,
   type BuzzConnection,
 } from "./db.js";
 
@@ -69,6 +70,14 @@ export function waitForConnectionResult(id: string, timeoutMs = 9000): Promise<S
 
 export function connectionStatus(id: string): Status | undefined {
   return status.get(id);
+}
+
+function parseChannels(raw: string | null): string[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) && arr.length ? arr.map(String) : undefined;
+  } catch { return undefined; }
 }
 
 function agentKey(): string | null {
@@ -121,6 +130,12 @@ export function startConnection(conn: BuzzConnection): { ok: boolean; error?: st
       groupwisdomApiKey: owner.api_key,
       groupwisdomBaseUrl: selfApiBase(),
       authTag,
+      // Restrict to chosen channels when set, so a busy workspace can't be
+      // ingested (and billed) in full just because the agent can see it.
+      channels: parseChannels(conn.channels),
+      onChannelsDiscovered: (chans) => {
+        try { setBuzzConnectionDiscovered(conn.id, chans); } catch { /* best effort */ }
+      },
       // Durable cursor: the container filesystem does not survive a deploy, and a
       // lost cursor means re-ingesting (and re-billing) messages already handled.
       cursorStore: {

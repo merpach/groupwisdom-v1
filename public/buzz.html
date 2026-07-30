@@ -47,6 +47,11 @@
   .conn-main { flex: 1; min-width: 0; }
   .conn-url { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; overflow-wrap: anywhere; }
   .conn-meta { font-size: 12px; color: #888; margin-top: 2px; }
+  .chans { border: 1px solid #eee; border-top: none; border-radius: 0 0 10px 10px; padding: 12px 16px 14px; margin: -10px 0 10px; }
+  .chans h4 { font-size: 12px; font-weight: 600; color: #666; margin-bottom: 8px; }
+  .chan { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; }
+  .chan input { width: auto; }
+  .chans .hint { font-size: 12px; color: #999; margin-top: 8px; }
   details { margin-top: 22px; }
   summary { cursor: pointer; color: #666; font-size: 13px; }
   details p { color: #666; font-size: 13px; margin: 10px 0; }
@@ -124,7 +129,15 @@ async function loadConnections() {
   const { ok, body } = await j("/buzz/connections");
   const wrap = $("connected");
   if (!ok || !Array.isArray(body) || !body.length) { wrap.innerHTML = ""; return; }
-  wrap.innerHTML = body.map(c => `
+  wrap.innerHTML = body.map(c => {
+    const watchingAll = !c.channels || !c.channels.length;
+    const chanRows = (c.discovered || []).map(ch => `
+      <label class="chan">
+        <input type="checkbox" data-conn="${c.id}" data-chan="${ch.id}"
+          ${watchingAll || c.channels.includes(ch.id) ? "checked" : ""}>
+        <span>${ch.name}</span>
+      </label>`).join("");
+    return `
     <div class="conn">
       <div class="dot ${c.running ? "on" : "off"}"></div>
       <div class="conn-main">
@@ -132,7 +145,26 @@ async function loadConnections() {
         <div class="conn-meta">${c.running ? "Connected" : (c.last_error || "Not connected")}${c.last_connected_at ? " · since " + c.last_connected_at + " UTC" : ""}</div>
       </div>
       <button data-id="${c.id}" class="disconnect">Disconnect</button>
-    </div>`).join("");
+    </div>
+    ${chanRows ? `<div class="chans">
+      <h4>Channels being read</h4>${chanRows}
+      <div class="hint">${watchingAll ? "Reading every channel. Untick any you'd rather it ignored." : "Only the ticked channels are read."}</div>
+    </div>` : ""}`;
+  }).join("");
+
+  wrap.querySelectorAll('.chan input').forEach(cb => cb.onchange = async () => {
+    const connId = cb.dataset.conn;
+    const boxes = [...wrap.querySelectorAll(`.chan input[data-conn="${connId}"]`)];
+    const picked = boxes.filter(b => b.checked).map(b => b.dataset.chan);
+    if (!picked.length) { cb.checked = true; return; }              // never leave it watching nothing
+    boxes.forEach(b => b.disabled = true);
+    // All ticked means "watch everything", so send null rather than a frozen list.
+    await j("/buzz/connections/" + connId, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channels: picked.length === boxes.length ? [] : picked }),
+    });
+    loadConnections();
+  });
   wrap.querySelectorAll(".disconnect").forEach(b => b.onclick = async () => {
     b.disabled = true;
     await j("/buzz/connections/" + b.dataset.id, { method: "DELETE" });

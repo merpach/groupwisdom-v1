@@ -43,8 +43,14 @@ export interface BuzzConfig {
    */
   authTag?: AuthTag;
   groupwisdomBaseUrl?: string;   // default: the production GroupWisdom API
-  /** Channels to watch. If omitted, every channel the identity can see is auto-discovered. */
+  /**
+   * Restrict to these channel uuids. When set, discovery is used only to learn
+   * channel names — nothing outside the list is watched, ingested, or billed.
+   * When omitted, every channel the identity can see is watched.
+   */
   channels?: string[];
+  /** Called as channels are discovered, so a host can offer them as choices. */
+  onChannelsDiscovered?: (channels: Array<{ id: string; name: string }>) => void;
   /** Read-only: never ingest or post. For safe connection tests. */
   dryRun?: boolean;
   /** Where to persist the per-channel cursor so no message is lost across restarts. */
@@ -228,7 +234,16 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     ws?.send(JSON.stringify(msg));
   }
 
+  const allowlist = new Set(cfg.channels ?? []);
+  const isAllowed = (channel: string) => allowlist.size === 0 || allowlist.has(channel);
+
+  function reportDiscovered() {
+    if (!cfg.onChannelsDiscovered) return;
+    cfg.onChannelsDiscovered([...channelNames].map(([id, name]) => ({ id, name })));
+  }
+
   function subscribeChannel(channel: string) {
+    if (!isAllowed(channel)) return;   // outside the allowlist: never watched or billed
     if (watched.has(channel)) return;
     watched.add(channel);
     // No project is created here — ensureProject() runs lazily on the first real message
@@ -295,7 +310,15 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     const tmpl: EventTemplate = {
       kind: 9,
       created_at: Math.floor(Date.now() / 1000),
-      content: `${wisdom.title}\n\n${wisdom.body}`,
+      // do_next carries the transfer — the completed work this reader can build on.
+      // It was being generated and then dropped, which meant the most useful part of
+      // each finding never reached the channel.
+      content: [
+        wisdom.title,
+        "",
+        wisdom.body,
+        ...(wisdom.do_next ? ["", `→ ${wisdom.do_next}`] : []),
+      ].join("\n"),
       tags: [
         ["h", channel],
         ...sources.map(id => ["e", id]),
@@ -344,6 +367,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     if (processedSet.has(ev.id)) return;                  // already ingested (restart replay)
     const channel = ev.tags.find(t => t[0] === "h")?.[1];
     if (!channel) return;
+    if (!isAllowed(channel)) return;                      // outside the allowlist
     if (ev.created_at < floorFor(channel)) return;        // predates our first sight of this channel
     const content = ev.content ?? "";
     requestProfile(ev.pubkey);
@@ -425,8 +449,13 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
           // itself (which never get a kind:44100 membership event).
           const channel = ev.tags.find(t => t[0] === "d")?.[1];
           const name = ev.tags.find(t => t[0] === "name")?.[1];
-          if (channel && name) channelNames.set(channel, name);
-          if (channel) subscribeChannel(channel);
+          if (channel) {
+            // Learn every channel's name even when restricted, so the setup page
+            // can list them as choices; subscribeChannel enforces the allowlist.
+            channelNames.set(channel, name ?? channel.slice(0, 8));
+            reportDiscovered();
+            subscribeChannel(channel);
+          }
         }
         break;
       }
