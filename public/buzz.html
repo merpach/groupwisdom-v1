@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect Buzz · GroupWisdom</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; font-size: 14px; color: #111; background: #fff; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .shell { max-width: 640px; margin: 0 auto; padding: 0 20px 80px; }
+  header { display: flex; align-items: center; padding: 20px 0 16px; border-bottom: 1px solid #eee; margin-bottom: 28px; }
+  .logo { font-size: 15px; font-weight: 700; letter-spacing: -.2px; }
+  .logo a { color: #111; text-decoration: none; }
+  .spacer { flex: 1; }
+  .muted { color: #888; }
+
+  h1 { font-size: 22px; letter-spacing: -.3px; margin-bottom: 6px; }
+  .lede { color: #666; margin-bottom: 28px; }
+
+  .step { border: 1px solid #eee; border-radius: 10px; padding: 18px; margin-bottom: 14px; }
+  .step.done { border-color: #cfe8d4; background: #fbfdfb; }
+  .step-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+  .num { width: 22px; height: 22px; border-radius: 50%; background: #111; color: #fff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step.done .num { background: #2f8f4e; }
+  .step-title { font-weight: 600; }
+  .step p { color: #555; margin-bottom: 12px; }
+
+  .copy-row { display: flex; gap: 8px; align-items: stretch; }
+  code.npub { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: #fafafa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 9px 11px; overflow-wrap: anywhere; }
+  input { font: inherit; font-size: 14px; padding: 9px 12px; border: 1px solid #e0e0e0; border-radius: 8px; background: #fafafa; color: #111; width: 100%; }
+  input:focus { outline: none; border-color: #aaa; background: #fff; }
+  button { font: inherit; font-size: 13px; padding: 9px 15px; border-radius: 8px; border: 1px solid #ddd; background: #fff; cursor: pointer; color: #111; white-space: nowrap; }
+  button:hover:not(:disabled) { background: #f5f5f5; }
+  button.primary { background: #111; color: #fff; border-color: #111; }
+  button.primary:hover:not(:disabled) { background: #333; }
+  button:disabled { opacity: .5; cursor: default; }
+
+  .row { display: flex; gap: 8px; }
+  .note { font-size: 13px; color: #888; margin-top: 10px; }
+  .msg { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 13px; display: none; }
+  .msg.err { display: block; background: #fdf3f2; border: 1px solid #f3d4d0; color: #a03028; }
+  .msg.ok  { display: block; background: #f2faf4; border: 1px solid #cfe8d4; color: #1f6f3d; }
+
+  .conn { border: 1px solid #eee; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot.on { background: #2f8f4e; } .dot.off { background: #c9403a; }
+  .conn-main { flex: 1; min-width: 0; }
+  .conn-url { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; overflow-wrap: anywhere; }
+  .conn-meta { font-size: 12px; color: #888; margin-top: 2px; }
+  details { margin-top: 22px; }
+  summary { cursor: pointer; color: #666; font-size: 13px; }
+  details p { color: #666; font-size: 13px; margin: 10px 0; }
+  pre { background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 10px; font-size: 12px; overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="logo"><a href="/">GroupWisdom</a></div>
+    <div class="spacer"></div>
+    <div class="muted" id="who"></div>
+  </header>
+
+  <h1>Connect a Buzz community</h1>
+  <p class="lede">Every message in your channels becomes shared context, and wisdom is posted back into the chat. Nothing to install and nothing to keep running.</p>
+
+  <div id="connected"></div>
+
+  <div class="step" id="step1">
+    <div class="step-head"><div class="num">1</div><div class="step-title">Invite the Wisdom Agent to your community</div></div>
+    <p>In Buzz, invite this identity the same way you'd invite a teammate.</p>
+    <div class="copy-row">
+      <code class="npub" id="npub">loading…</code>
+      <button id="copy">Copy</button>
+    </div>
+    <div class="note">It joins as a member, so you can see and remove it like anyone else.</div>
+  </div>
+
+  <div class="step" id="step2">
+    <div class="step-head"><div class="num">2</div><div class="step-title">Point GroupWisdom at your community</div></div>
+    <p>Paste your community's address — it's the domain you use for Buzz.</p>
+    <div class="row">
+      <input id="relay" placeholder="your-community.communities.buzz.xyz" autocomplete="off">
+      <button class="primary" id="connect">Connect</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <details>
+    <summary>Advanced: connect without adding a member</summary>
+    <p>If you'd rather not have the agent appear in your member list, you can authorise it cryptographically instead. It then operates on your permission without joining. This needs your Buzz secret key, which never leaves your machine:</p>
+    <pre>npm run buzz:authorize -- &lt;your-nsec&gt; <span id="advpub">…</span></pre>
+    <p>Paste the resulting attestation here, then press Connect above.</p>
+    <input id="authtag" placeholder='["auth", …]' autocomplete="off">
+  </details>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let agentNpub = "";
+
+async function j(url, opts) {
+  const r = await fetch(url, { credentials: "same-origin", ...opts });
+  const text = await r.text();
+  let body = null; try { body = text ? JSON.parse(text) : null; } catch {}
+  return { ok: r.ok, status: r.status, body };
+}
+
+function show(kind, text) {
+  const m = $("msg");
+  m.className = "msg " + kind;
+  m.textContent = text;
+}
+
+async function loadAgent() {
+  const { ok, body } = await j("/buzz/agent");
+  if (!ok) { $("npub").textContent = "Agent not configured on this server."; return; }
+  agentNpub = body.agent_npub || body.agent_pubkey;
+  $("npub").textContent = agentNpub;
+  $("advpub").textContent = body.agent_pubkey;
+}
+
+async function loadConnections() {
+  const { ok, body } = await j("/buzz/connections");
+  const wrap = $("connected");
+  if (!ok || !Array.isArray(body) || !body.length) { wrap.innerHTML = ""; return; }
+  wrap.innerHTML = body.map(c => `
+    <div class="conn">
+      <div class="dot ${c.running ? "on" : "off"}"></div>
+      <div class="conn-main">
+        <div class="conn-url">${c.relay_url.replace(/^wss?:\/\//, "")}</div>
+        <div class="conn-meta">${c.running ? "Connected" : (c.last_error || "Not connected")}${c.last_connected_at ? " · since " + c.last_connected_at + " UTC" : ""}</div>
+      </div>
+      <button data-id="${c.id}" class="disconnect">Disconnect</button>
+    </div>`).join("");
+  wrap.querySelectorAll(".disconnect").forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    await j("/buzz/connections/" + b.dataset.id, { method: "DELETE" });
+    loadConnections();
+  });
+}
+
+$("copy").onclick = async () => {
+  try { await navigator.clipboard.writeText(agentNpub); $("copy").textContent = "Copied"; }
+  catch { $("copy").textContent = "Select it"; }
+  setTimeout(() => $("copy").textContent = "Copy", 1600);
+};
+
+$("connect").onclick = async () => {
+  let relay = $("relay").value.trim();
+  if (!relay) return show("err", "Enter your community address first.");
+  if (!/^wss?:\/\//.test(relay)) relay = "wss://" + relay.replace(/^\/+/, "");
+  const authTag = $("authtag").value.trim();
+
+  $("connect").disabled = true;
+  show("ok", "Connecting…");
+  const { ok, body } = await j("/buzz/connect", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ relay_url: relay, ...(authTag ? { auth_tag: authTag } : {}) }),
+  });
+  $("connect").disabled = false;
+
+  if (ok && body?.connected) {
+    show("ok", "Connected. Post a few messages in your channels and wisdom will appear in the chat.");
+    $("step1").classList.add("done"); $("step2").classList.add("done");
+    loadConnections();
+    return;
+  }
+  const err = body?.error || "Could not connect.";
+  if (/not a relay member|restricted/i.test(err)) {
+    show("err", "The agent isn't a member of that community yet. Finish step 1 — invite " + agentNpub + " — then press Connect again.");
+  } else if (/agent identity is not configured/i.test(err)) {
+    show("err", "This GroupWisdom server has no Buzz agent configured yet.");
+  } else {
+    show("err", err);
+  }
+  loadConnections();
+};
+
+(async () => {
+  const me = await j("/api/me");
+  if (!me.ok || !me.body?.email) {
+    document.querySelector(".shell").innerHTML =
+      '<header><div class="logo"><a href="/">GroupWisdom</a></div></header>' +
+      '<h1>Sign in first</h1><p class="lede">You need to be signed in to connect a Buzz community. <a href="/">Go to GroupWisdom</a>.</p>';
+    return;
+  }
+  $("who").textContent = me.body.email;
+  await loadAgent();
+  await loadConnections();
+})();
+</script>
+</body>
+</html>

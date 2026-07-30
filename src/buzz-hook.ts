@@ -26,6 +26,7 @@
 import { Router } from "express";
 import {
   getUserByApiKey,
+  getUserById,
   getGroupsForUser,
   getGroup,
   createGroup,
@@ -50,9 +51,9 @@ import {
   deleteBuzzConnection,
 } from "./db.js";
 import { queueIncrementalAnalysis } from "./engine.js";
-import { startConnection, stopConnection, isConnectionRunning } from "./buzz-supervisor.js";
+import { startConnection, stopConnection, isConnectionRunning, waitForConnectionResult } from "./buzz-supervisor.js";
 import { getPublicKey } from "nostr-tools/pure";
-import { decode as nip19decode } from "nostr-tools/nip19";
+import { decode as nip19decode, npubEncode } from "nostr-tools/nip19";
 
 export const buzzHook = Router();
 
@@ -61,8 +62,11 @@ const MAX_CONTENT = 4000;
 // ── Auth (personal API key, same convention as /v1) ──────────────────────────
 
 function authUser(req: any) {
+  // API key for programmatic callers; browser session for the setup page, which
+  // has a logged-in user but no key in hand.
   const key = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "").trim();
-  return key ? getUserByApiKey(key) : undefined;
+  if (key) return getUserByApiKey(key);
+  return req.session?.userId ? getUserById(req.session.userId) : undefined;
 }
 
 // ── Wisdom → back into the Buzz channel ──────────────────────────────────────
@@ -272,13 +276,15 @@ buzzHook.get("/agent", (_req, res) => {
   if (!pubkey) return res.status(503).json({ error: "Buzz agent identity is not configured on this server." });
   res.json({
     agent_pubkey: pubkey,
+    // npub is the form a user pastes into Buzz to invite the agent.
+    agent_npub: npubEncode(pubkey),
     how_to_authorize:
       "Sign a NIP-OA attestation for this pubkey with your Buzz identity, then POST it to " +
       "/buzz/connect together with your relay URL. Your secret key never leaves your machine.",
   });
 });
 
-buzzHook.post("/connect", (req, res) => {
+buzzHook.post("/connect", async (req, res) => {
   const user = authUser(req);
   if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
   if (!agentPubkey()) return res.status(503).json({ error: "Buzz agent identity is not configured on this server." });
@@ -294,14 +300,25 @@ buzzHook.post("/connect", (req, res) => {
   });
 
   const started = startConnection(conn);
-  res.status(started.ok ? 201 : 502).json({
+  if (!started.ok) {
+    return res.status(502).json({
+      connection_id: conn.id, relay_url: conn.relay_url, connected: false,
+      error: started.error ?? null,
+      note: "Saved, but could not start. Check the attestation and relay URL.",
+    });
+  }
+
+  // Starting the adapter is not the same as reaching the community, so wait for
+  // the handshake to actually succeed before telling the user it worked.
+  const result = await waitForConnectionResult(conn.id);
+  res.status(result.authed ? 201 : 502).json({
     connection_id: conn.id,
     relay_url: conn.relay_url,
-    connected: started.ok,
-    error: started.error ?? null,
-    note: started.ok
+    connected: result.authed,
+    error: result.error ?? null,
+    note: result.authed
       ? "Connected. Every message in your channels now flows into a GroupWisdom project, and wisdom posts back into the chat."
-      : "Saved, but could not connect. Check the attestation and relay URL.",
+      : "Saved, but could not connect.",
   });
 });
 

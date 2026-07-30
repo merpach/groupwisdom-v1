@@ -41,6 +41,36 @@ type Handle = { stop: () => void };
 
 const running = new Map<string, Handle>();   // connection id → adapter handle
 
+/**
+ * Live authentication state per connection. The adapter connects asynchronously,
+ * so "we started it" is not the same as "it works" — without this, connecting to
+ * a community that does not exist, or that the agent cannot join, reported
+ * success and left the user waiting for wisdom that could never arrive.
+ */
+type Status = { authed: boolean; error?: string };
+const status = new Map<string, Status>();
+
+/** Resolve once the connection has authenticated or demonstrably failed. */
+export function waitForConnectionResult(id: string, timeoutMs = 9000): Promise<Status> {
+  const started = Date.now();
+  return new Promise(resolve => {
+    const tick = () => {
+      const s = status.get(id);
+      if (s?.authed) return resolve(s);
+      if (s?.error) return resolve(s);
+      if (Date.now() - started > timeoutMs) {
+        return resolve({ authed: false, error: "timed out waiting for the community to respond" });
+      }
+      setTimeout(tick, 250);
+    };
+    tick();
+  });
+}
+
+export function connectionStatus(id: string): Status | undefined {
+  return status.get(id);
+}
+
 function agentKey(): string | null {
   return process.env.BUZZ_AGENT_NSEC || process.env.BUZZ_PRIVATE_KEY || null;
 }
@@ -55,6 +85,7 @@ function selfApiBase(): string {
 /** Open (or reopen) the connection for one community. */
 export function startConnection(conn: BuzzConnection): { ok: boolean; error?: string } {
   stopConnection(conn.id);
+  status.set(conn.id, { authed: false });
 
   const nsec = agentKey();
   if (!nsec) {
@@ -98,8 +129,19 @@ export function startConnection(conn: BuzzConnection): { ok: boolean; error?: st
       },
       onLog: (msg) => {
         console.log(`[buzz:${conn.id.slice(0, 8)}] ${msg}`);
-        if (msg.startsWith("authenticated")) markBuzzConnected(conn.id);
-        if (msg.startsWith("auth rejected")) markBuzzConnectionError(conn.id, msg);
+        if (msg.startsWith("authenticated")) {
+          status.set(conn.id, { authed: true });
+          markBuzzConnected(conn.id);
+        } else if (msg.startsWith("auth rejected")) {
+          status.set(conn.id, { authed: false, error: msg.replace(/^auth rejected:\s*/, "") });
+          markBuzzConnectionError(conn.id, msg);
+        } else if (msg.startsWith("ws error") || msg.startsWith("reconnecting")) {
+          // Only record as an error while we have never authenticated; an
+          // established connection dropping is normal and self-heals.
+          if (!status.get(conn.id)?.authed) {
+            status.set(conn.id, { authed: false, error: "could not reach that community" });
+          }
+        }
       },
     });
     running.set(conn.id, handle);
@@ -117,10 +159,12 @@ export function stopConnection(id: string) {
     handle.stop();
     running.delete(id);
   }
+  status.delete(id);
 }
 
+/** Running *and* authenticated — what a user means by "connected". */
 export function isConnectionRunning(id: string): boolean {
-  return running.has(id);
+  return running.has(id) && Boolean(status.get(id)?.authed);
 }
 
 export function restartConnection(id: string) {
