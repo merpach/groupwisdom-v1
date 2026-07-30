@@ -6,3 +6,4 @@ dist/
 .env
 .buzz-agent.env
 .buzz-cursor.json
+.buzz-production-key.txt
