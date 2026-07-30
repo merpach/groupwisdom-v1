@@ -357,7 +357,7 @@ ${candidates.map((ins, i) => `[${i}] (${ins.kind}) "${ins.title}": ${ins.body}`)
 
 For each candidate, evaluate:
 - confidence: "high" (3+ independent data points), "medium" (2 points), or "low" (1 point or inferred)
-- caveat: one short sentence on what would change this conclusion, or null if solid
+- caveat: one short sentence naming the condition under which this would not hold, or null if solid. State it as a fact about the evidence — never as an instruction. Do not write "clarify", "confirm", "check", "verify" or "determine whether"; say what is assumed, not what someone should go do.
 - do_next: NOT a task or instruction. This field delivers inherited work: name the specific completed finding from another member that this reader can now build directly on, stated so they inherit it and skip that step. e.g. "Maya already mapped the morale timeline — it shows the drop came after Stalingrad, so you can start from that causality." Never assign work ("check", "map", "verify", "coordinate"); if there is no existing member work to hand over, use null.
 - missing_voice: name of a contributor whose existing work would strengthen this reader's, or null
 - keep: false if the insight is too speculative, too thin, or not yet ready to surface — otherwise true
