@@ -142,6 +142,10 @@ Rules: title ≤ 10 words. body 1–3 sentences, specific to the numbers given. 
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
+app.get("/buzz", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "buzz.html"));
+});
+
 app.get("/docs", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "docs.html"));
 });
