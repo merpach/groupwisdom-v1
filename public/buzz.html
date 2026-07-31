@@ -6,56 +6,87 @@
 <title>Connect Buzz · GroupWisdom</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; font-size: 14px; color: #111; background: #fff; line-height: 1.5; -webkit-font-smoothing: antialiased; }
-  .shell { max-width: 640px; margin: 0 auto; padding: 0 20px 80px; }
-  header { display: flex; align-items: center; padding: 20px 0 16px; border-bottom: 1px solid #eee; margin-bottom: 28px; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; font-size: 14px; color: #111; background: #fff; -webkit-font-smoothing: antialiased; }
+  a { color: #111; }
+
+  .shell { max-width: 720px; margin: 0 auto; padding: 0 24px 120px; }
+  header { display: flex; align-items: center; padding: 20px 0 16px; border-bottom: 1px solid #eee; margin-bottom: 44px; }
   .logo { font-size: 15px; font-weight: 700; letter-spacing: -.2px; }
-  .logo a { color: #111; text-decoration: none; }
+  .logo a { text-decoration: none; }
   .spacer { flex: 1; }
-  .muted { color: #888; }
+  .who { color: #888; font-size: 13px; }
 
-  h1 { font-size: 22px; letter-spacing: -.3px; margin-bottom: 6px; }
-  .lede { color: #666; margin-bottom: 28px; }
+  /* Hero */
+  .eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .11em; color: #bbb; margin-bottom: 10px; }
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: -.4px; line-height: 1.2; margin-bottom: 12px; }
+  .lede { color: #555; font-size: 15px; line-height: 1.65; max-width: 60ch; }
 
-  .step { border: 1px solid #eee; border-radius: 10px; padding: 18px; margin-bottom: 14px; }
-  .step.done { border-color: #cfe8d4; background: #fbfdfb; }
-  .step-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
-  .num { width: 22px; height: 22px; border-radius: 50%; background: #111; color: #fff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .step.done .num { background: #2f8f4e; }
-  .step-title { font-weight: 600; }
-  .step p { color: #555; margin-bottom: 12px; }
+  h2 { font-size: 17px; font-weight: 700; margin: 52px 0 14px; padding-top: 44px; border-top: 1px solid #eee; letter-spacing: -.2px; }
+  h2.tight { padding-top: 0; border-top: none; margin-top: 44px; }
+  p { color: #444; line-height: 1.7; margin-bottom: 12px; }
+  p.sub { color: #777; font-size: 13px; }
 
-  .copy-row { display: flex; gap: 8px; align-items: stretch; }
-  code.npub { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: #fafafa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 9px 11px; overflow-wrap: anywhere; }
-  input { font: inherit; font-size: 14px; padding: 9px 12px; border: 1px solid #e0e0e0; border-radius: 8px; background: #fafafa; color: #111; width: 100%; }
-  input:focus { outline: none; border-color: #aaa; background: #fff; }
-  button { font: inherit; font-size: 13px; padding: 9px 15px; border-radius: 8px; border: 1px solid #ddd; background: #fff; cursor: pointer; color: #111; white-space: nowrap; }
+  /* Flow diagram */
+  .flow { margin: 30px 0 8px; }
+  .flow svg { width: 100%; height: auto; display: block; }
+
+  /* Steps */
+  .step { border: 1px solid #e8e8e8; border-radius: 10px; padding: 20px 22px; margin-bottom: 12px; transition: border-color .15s; }
+  .step.done { border-color: #cfe4d5; background: #fcfefc; }
+  .step-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  .num { width: 21px; height: 21px; border-radius: 50%; background: #111; color: #fff; font-size: 11px; font-weight: 700;
+         display: flex; align-items: center; justify-content: center; flex-shrink: 0; transform: translateY(2px); }
+  .step.done .num { background: #1d7a46; }
+  .step-title { font-weight: 700; font-size: 14.5px; }
+  .step p { color: #555; font-size: 13.5px; margin-bottom: 14px; }
+
+  .field { display: flex; gap: 8px; align-items: stretch; }
+  code.mono { flex: 1; font-family: "SF Mono", "Fira Mono", monospace; font-size: 12px; background: #fafafa;
+              border: 1px solid #e8e8e8; border-radius: 8px; padding: 10px 12px; overflow-wrap: anywhere; color: #333; }
+  input { font: inherit; font-size: 14px; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; background: #fafafa; color: #111; width: 100%; }
+  input:focus { outline: none; border-color: #999; background: #fff; }
+  button { font: inherit; font-size: 13px; padding: 10px 16px; border-radius: 8px; border: 1px solid #ddd;
+           background: #fff; cursor: pointer; color: #111; white-space: nowrap; transition: background .12s; }
   button:hover:not(:disabled) { background: #f5f5f5; }
-  button.primary { background: #111; color: #fff; border-color: #111; }
+  button.primary { background: #111; color: #fff; border-color: #111; font-weight: 500; }
   button.primary:hover:not(:disabled) { background: #333; }
-  button:disabled { opacity: .5; cursor: default; }
+  button:disabled { opacity: .45; cursor: default; }
+  .hint { font-size: 12.5px; color: #999; margin-top: 11px; line-height: 1.55; }
 
-  .row { display: flex; gap: 8px; }
-  .note { font-size: 13px; color: #888; margin-top: 10px; }
-  .msg { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 13px; display: none; }
-  .msg.err { display: block; background: #fdf3f2; border: 1px solid #f3d4d0; color: #a03028; }
-  .msg.ok  { display: block; background: #f2faf4; border: 1px solid #cfe8d4; color: #1f6f3d; }
+  .msg { margin-top: 13px; padding: 11px 13px; border-radius: 8px; font-size: 13px; line-height: 1.55; display: none; }
+  .msg.err { display: block; background: #fdf4f3; border: 1px solid #f0d6d2; color: #9c3128; }
+  .msg.ok  { display: block; background: #f3faf5; border: 1px solid #cfe4d5; color: #1d7a46; }
 
-  .conn { border: 1px solid #eee; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .dot.on { background: #2f8f4e; } .dot.off { background: #c9403a; }
+  /* Connections */
+  .conn { border: 1px solid #e8e8e8; border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+  .conn-top { display: flex; align-items: center; gap: 12px; padding: 15px 18px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot.on { background: #1d7a46; box-shadow: 0 0 0 3px #e6f2ea; }
+  .dot.off { background: #c9403a; box-shadow: 0 0 0 3px #fbeae9; }
   .conn-main { flex: 1; min-width: 0; }
-  .conn-url { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; overflow-wrap: anywhere; }
-  .conn-meta { font-size: 12px; color: #888; margin-top: 2px; }
-  .chans { border: 1px solid #eee; border-top: none; border-radius: 0 0 10px 10px; padding: 12px 16px 14px; margin: -10px 0 10px; }
-  .chans h4 { font-size: 12px; font-weight: 600; color: #666; margin-bottom: 8px; }
-  .chan { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; }
+  .conn-url { font-family: "SF Mono", "Fira Mono", monospace; font-size: 12.5px; overflow-wrap: anywhere; }
+  .conn-meta { font-size: 12px; color: #888; margin-top: 3px; }
+  .chans { border-top: 1px solid #f0f0f0; background: #fcfcfc; padding: 14px 18px 16px; }
+  .chans h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #999; margin-bottom: 10px; }
+  .chan { display: flex; align-items: center; gap: 9px; padding: 4px 0; font-size: 13.5px; color: #333; cursor: pointer; }
   .chan input { width: auto; }
-  .chans .hint { font-size: 12px; color: #999; margin-top: 8px; }
-  details { margin-top: 22px; }
-  summary { cursor: pointer; color: #666; font-size: 13px; }
-  details p { color: #666; font-size: 13px; margin: 10px 0; }
-  pre { background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 10px; font-size: 12px; overflow-x: auto; }
+
+  /* Example wisdom card */
+  .example { border: 1px solid #e8e8e8; border-left: 3px solid #111; border-radius: 8px; padding: 16px 18px; background: #fff; margin: 6px 0 14px; }
+  .example .from { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #999; margin-bottom: 8px; }
+  .example .t { font-weight: 700; margin-bottom: 6px; font-size: 14.5px; }
+  .example .b { color: #444; line-height: 1.65; font-size: 13.5px; }
+  .example .n { color: #1d7a46; line-height: 1.6; font-size: 13.5px; margin-top: 10px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 18px; font-size: 13px; }
+  th { text-align: left; font-weight: 700; color: #111; border-bottom: 1px solid #e8e8e8; padding: 8px 10px 8px 0; }
+  td { color: #555; border-bottom: 1px solid #f2f2f2; padding: 9px 10px 9px 0; vertical-align: top; line-height: 1.55; }
+
+  details { border: 1px solid #eee; border-radius: 8px; padding: 14px 16px; margin-top: 14px; }
+  summary { cursor: pointer; color: #555; font-size: 13.5px; font-weight: 500; }
+  details p { font-size: 13px; color: #666; margin: 12px 0 10px; }
+  pre { background: #111; color: #e8e8e8; border-radius: 8px; padding: 14px 16px; font-size: 12px;
+        line-height: 1.6; overflow-x: auto; margin: 8px 0 12px; font-family: "SF Mono", "Fira Mono", monospace; }
 </style>
 </head>
 <body>
@@ -63,41 +94,102 @@
   <header>
     <div class="logo"><a href="/">GroupWisdom</a></div>
     <div class="spacer"></div>
-    <div class="muted" id="who"></div>
+    <div class="who" id="who"></div>
   </header>
 
-  <h1>Connect a Buzz community</h1>
-  <p class="lede">Every message in your channels becomes shared context, and wisdom is posted back into the chat. Nothing to install and nothing to keep running.</p>
+  <div class="eyebrow">Buzz integration</div>
+  <h1>Put GroupWisdom in your Buzz channels</h1>
+  <p class="lede">Everything your team posts becomes shared context. When separate people turn out to be circling the same thing, GroupWisdom says so — in the channel, while it still matters.</p>
+
+  <div class="flow">
+    <svg viewBox="0 0 680 132" role="img" aria-label="Messages from your channel flow into GroupWisdom, which posts wisdom back into the same channel.">
+      <defs>
+        <marker id="ar" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#ccc"/>
+        </marker>
+      </defs>
+      <rect x="1" y="20" width="196" height="92" rx="9" fill="#fafafa" stroke="#e8e8e8"/>
+      <text x="17" y="42" font-size="10" font-weight="700" letter-spacing="1" fill="#bbb" font-family="-apple-system,sans-serif">YOUR CHANNEL</text>
+      <text x="17" y="64" font-size="12.5" fill="#555" font-family="-apple-system,sans-serif">Sarah: checkout 22% faster</text>
+      <text x="17" y="83" font-size="12.5" fill="#555" font-family="-apple-system,sans-serif">James: users prefer one-tap</text>
+      <text x="17" y="102" font-size="12.5" fill="#555" font-family="-apple-system,sans-serif">Priya: support load halved</text>
+
+      <line x1="205" y1="66" x2="240" y2="66" stroke="#ccc" stroke-width="1.5" marker-end="url(#ar)"/>
+
+      <rect x="248" y="20" width="176" height="92" rx="9" fill="#111"/>
+      <text x="336" y="52" font-size="12.5" font-weight="700" fill="#fff" text-anchor="middle" font-family="-apple-system,sans-serif">GroupWisdom</text>
+      <text x="336" y="72" font-size="11" fill="#999" text-anchor="middle" font-family="-apple-system,sans-serif">reads across everyone,</text>
+      <text x="336" y="88" font-size="11" fill="#999" text-anchor="middle" font-family="-apple-system,sans-serif">keeps only what holds up</text>
+
+      <line x1="432" y1="66" x2="467" y2="66" stroke="#ccc" stroke-width="1.5" marker-end="url(#ar)"/>
+
+      <rect x="475" y="20" width="204" height="92" rx="9" fill="#fff" stroke="#e8e8e8"/>
+      <rect x="475" y="20" width="3" height="92" fill="#1d7a46"/>
+      <text x="492" y="42" font-size="10" font-weight="700" letter-spacing="1" fill="#bbb" font-family="-apple-system,sans-serif">BACK IN THE CHANNEL</text>
+      <text x="492" y="63" font-size="12" font-weight="700" fill="#111" font-family="-apple-system,sans-serif">One-tap is ready to ship</text>
+      <text x="492" y="82" font-size="11.5" fill="#666" font-family="-apple-system,sans-serif">Three people proved it from</text>
+      <text x="492" y="98" font-size="11.5" fill="#666" font-family="-apple-system,sans-serif">three angles without noticing.</text>
+    </svg>
+  </div>
 
   <div id="connected"></div>
 
+  <h2 class="tight">Setting it up</h2>
+  <p class="sub">Two steps, about a minute. Nothing to install, and nothing keeps running on your machine.</p>
+
   <div class="step" id="step1">
     <div class="step-head"><div class="num">1</div><div class="step-title">Invite the Wisdom Agent to your community</div></div>
-    <p>In Buzz, invite this identity the same way you'd invite a teammate.</p>
-    <div class="copy-row">
-      <code class="npub" id="npub">loading…</code>
+    <p>In Buzz, invite this identity exactly as you'd invite a teammate.</p>
+    <div class="field">
+      <code class="mono" id="npub">loading…</code>
       <button id="copy">Copy</button>
     </div>
-    <div class="note">It joins as a member, so you can see and remove it like anyone else.</div>
+    <div class="hint">It appears in your member list, so you can see what it has access to and remove it at any time.</div>
   </div>
 
   <div class="step" id="step2">
     <div class="step-head"><div class="num">2</div><div class="step-title">Point GroupWisdom at your community</div></div>
-    <p>Paste your community's address — it's the domain you use for Buzz.</p>
-    <div class="row">
-      <input id="relay" placeholder="your-community.communities.buzz.xyz" autocomplete="off">
+    <p>Your community address is the domain you use for Buzz.</p>
+    <div class="field">
+      <input id="relay" placeholder="your-community.communities.buzz.xyz" autocomplete="off" spellcheck="false">
       <button class="primary" id="connect">Connect</button>
     </div>
     <div class="msg" id="msg"></div>
   </div>
 
   <details>
-    <summary>Advanced: connect without adding a member</summary>
-    <p>If you'd rather not have the agent appear in your member list, you can authorise it cryptographically instead. It then operates on your permission without joining. This needs your Buzz secret key, which never leaves your machine:</p>
+    <summary>Rather not add it to your member list?</summary>
+    <p>You can authorise it cryptographically instead — it then works on your permission without joining the community. Your Buzz secret key signs locally and is never sent anywhere:</p>
     <pre>npm run buzz:authorize -- &lt;your-nsec&gt; <span id="advpub">…</span></pre>
-    <p>Paste the resulting attestation here, then press Connect above.</p>
-    <input id="authtag" placeholder='["auth", …]' autocomplete="off">
+    <p>Paste the resulting attestation below, then press Connect above.</p>
+    <input id="authtag" placeholder='["auth", …]' autocomplete="off" spellcheck="false">
   </details>
+
+  <h2>What it reads</h2>
+  <p>By default it reads every channel it can see. Once connected, each one appears above with a tick box — untick anything you'd rather it stayed out of.</p>
+  <p>Worth doing deliberately: every message it reads is analysed, and analysis costs money. Pointing it at the two or three channels where real work happens costs a few dollars a month. Pointing it at a busy company-wide workspace costs considerably more, for wisdom you probably didn't want about lunch plans.</p>
+  <p>It never reads direct messages, and never a channel it hasn't been added to.</p>
+
+  <h2>What comes back</h2>
+  <p>Wisdom is posted into the channel as an ordinary message from <strong>Wisdom Agent</strong>. It only speaks when separate contributions add up to something none of them said alone:</p>
+
+  <div class="example">
+    <div class="from">Wisdom Agent</div>
+    <div class="t">One-tap payment is ready for rollout</div>
+    <div class="b">Sarah's redesign tested 22% faster, James's interviews show a clear preference, and Priya's pilot halved support tickets — three independent angles on the same conclusion.</div>
+    <div class="n">→ Sarah has already validated the speed gain, so you can build the rollout case from her numbers rather than re-running it.</div>
+  </div>
+
+  <p class="sub">That last line is the point of the whole thing: it hands you a teammate's finished work instead of assigning you more.</p>
+
+  <h2>If something doesn't work</h2>
+  <table>
+    <tr><th style="width:38%">What you see</th><th>What it means</th></tr>
+    <tr><td>“Isn't a member of that community yet”</td><td>Step 1 hasn't gone through. Invite the npub above, then press Connect again.</td></tr>
+    <tr><td>“Could not reach that community”</td><td>The address is wrong, or that community isn't reachable. Check it against the domain you use in Buzz.</td></tr>
+    <tr><td>Connected, but no wisdom</td><td>Normal. It needs at least two related messages before there's anything to connect, and it stays quiet rather than padding.</td></tr>
+    <tr><td>It read the wrong channels</td><td>Untick them above — it applies immediately.</td></tr>
+  </table>
 </div>
 
 <script>
@@ -111,6 +203,8 @@ async function j(url, opts) {
   return { ok: r.ok, status: r.status, body };
 }
 
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
 function show(kind, text) {
   const m = $("msg");
   m.className = "msg " + kind;
@@ -119,7 +213,7 @@ function show(kind, text) {
 
 async function loadAgent() {
   const { ok, body } = await j("/buzz/agent");
-  if (!ok) { $("npub").textContent = "Agent not configured on this server."; return; }
+  if (!ok) { $("npub").textContent = "No Buzz agent configured on this server."; return; }
   agentNpub = body.agent_npub || body.agent_pubkey;
   $("npub").textContent = agentNpub;
   $("advpub").textContent = body.agent_pubkey;
@@ -129,45 +223,46 @@ async function loadConnections() {
   const { ok, body } = await j("/buzz/connections");
   const wrap = $("connected");
   if (!ok || !Array.isArray(body) || !body.length) { wrap.innerHTML = ""; return; }
-  wrap.innerHTML = body.map(c => {
-    const watchingAll = !c.channels || !c.channels.length;
-    const chanRows = (c.discovered || []).map(ch => `
+
+  wrap.innerHTML = "<h2 class='tight'>Your community</h2>" + body.map(c => {
+    const all = !c.channels || !c.channels.length;
+    const rows = (c.discovered || []).map(ch => `
       <label class="chan">
-        <input type="checkbox" data-conn="${c.id}" data-chan="${ch.id}"
-          ${watchingAll || c.channels.includes(ch.id) ? "checked" : ""}>
-        <span>${ch.name}</span>
+        <input type="checkbox" data-conn="${esc(c.id)}" data-chan="${esc(ch.id)}"
+          ${all || c.channels.includes(ch.id) ? "checked" : ""}>
+        <span>${esc(ch.name)}</span>
       </label>`).join("");
     return `
     <div class="conn">
-      <div class="dot ${c.running ? "on" : "off"}"></div>
-      <div class="conn-main">
-        <div class="conn-url">${c.relay_url.replace(/^wss?:\/\//, "")}</div>
-        <div class="conn-meta">${c.running ? "Connected" : (c.last_error || "Not connected")}${c.last_connected_at ? " · since " + c.last_connected_at + " UTC" : ""}</div>
+      <div class="conn-top">
+        <div class="dot ${c.running ? "on" : "off"}"></div>
+        <div class="conn-main">
+          <div class="conn-url">${esc(c.relay_url.replace(/^wss?:\/\//, ""))}</div>
+          <div class="conn-meta">${c.running ? "Connected and listening" : esc(c.last_error || "Not connected")}</div>
+        </div>
+        <button data-id="${esc(c.id)}" class="disconnect">Disconnect</button>
       </div>
-      <button data-id="${c.id}" class="disconnect">Disconnect</button>
-    </div>
-    ${chanRows ? `<div class="chans">
-      <h4>Channels being read</h4>${chanRows}
-      <div class="hint">${watchingAll ? "Reading every channel. Untick any you'd rather it ignored." : "Only the ticked channels are read."}</div>
-    </div>` : ""}`;
+      ${rows ? `<div class="chans"><h4>Channels it reads</h4>${rows}</div>` : ""}
+    </div>`;
   }).join("");
 
-  wrap.querySelectorAll('.chan input').forEach(cb => cb.onchange = async () => {
-    const connId = cb.dataset.conn;
-    const boxes = [...wrap.querySelectorAll(`.chan input[data-conn="${connId}"]`)];
-    const picked = boxes.filter(b => b.checked).map(b => b.dataset.chan);
-    if (!picked.length) { cb.checked = true; return; }              // never leave it watching nothing
-    boxes.forEach(b => b.disabled = true);
-    // All ticked means "watch everything", so send null rather than a frozen list.
-    await j("/buzz/connections/" + connId, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channels: picked.length === boxes.length ? [] : picked }),
-    });
-    loadConnections();
-  });
   wrap.querySelectorAll(".disconnect").forEach(b => b.onclick = async () => {
     b.disabled = true;
     await j("/buzz/connections/" + b.dataset.id, { method: "DELETE" });
+    loadConnections();
+  });
+
+  wrap.querySelectorAll(".chan input").forEach(cb => cb.onchange = async () => {
+    const id = cb.dataset.conn;
+    const boxes = [...wrap.querySelectorAll(`.chan input[data-conn="${id}"]`)];
+    const picked = boxes.filter(b => b.checked).map(b => b.dataset.chan);
+    if (!picked.length) { cb.checked = true; return; }        // never leave it reading nothing
+    boxes.forEach(b => b.disabled = true);
+    // All ticked means "read everything", so send an empty list rather than freezing today's set.
+    await j("/buzz/connections/" + id, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channels: picked.length === boxes.length ? [] : picked }),
+    });
     loadConnections();
   });
 }
@@ -194,14 +289,14 @@ $("connect").onclick = async () => {
   $("connect").disabled = false;
 
   if (ok && body?.connected) {
-    show("ok", "Connected. Post a few messages in your channels and wisdom will appear in the chat.");
+    show("ok", "Connected. Post a couple of related things in your channels and wisdom will appear in the chat.");
     $("step1").classList.add("done"); $("step2").classList.add("done");
     loadConnections();
     return;
   }
   const err = body?.error || "Could not connect.";
   if (/not a relay member|restricted/i.test(err)) {
-    show("err", "The agent isn't a member of that community yet. Finish step 1 — invite " + agentNpub + " — then press Connect again.");
+    show("err", "The agent isn't a member of that community yet — finish step 1 by inviting " + agentNpub + ", then press Connect again.");
   } else if (/agent identity is not configured/i.test(err)) {
     show("err", "This GroupWisdom server has no Buzz agent configured yet.");
   } else {
@@ -215,7 +310,9 @@ $("connect").onclick = async () => {
   if (!me.ok || !me.body?.email) {
     document.querySelector(".shell").innerHTML =
       '<header><div class="logo"><a href="/">GroupWisdom</a></div></header>' +
-      '<h1>Sign in first</h1><p class="lede">You need to be signed in to connect a Buzz community. <a href="/">Go to GroupWisdom</a>.</p>';
+      '<div class="eyebrow">Buzz integration</div>' +
+      '<h1>Sign in to connect Buzz</h1>' +
+      '<p class="lede">You need a GroupWisdom account to connect a community, so wisdom lands in projects you own. <a href="/">Sign in</a>.</p>';
     return;
   }
   $("who").textContent = me.body.email;
