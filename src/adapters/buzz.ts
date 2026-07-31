@@ -133,15 +133,11 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     return json;
   }
 
-  // channel uuid → project id, and the reverse, so wisdom knows where to post
-  const channelToProject = new Map<string, string>();
-  const projectToChannel = new Map<string, string>();
   const channelNames = new Map<string, string>();           // channel uuid → human name (from kind:39000)
   const profileNames = new Map<string, string>();           // pubkey → display name (from kind:0)
   const profileRequested = new Set<string>();               // pubkeys we've already asked about
-  const projectReady = new Map<string, Promise<string>>();  // in-flight project creation/lookup, deduped
   const seenInsightIds = new Map<string, Set<string>>();    // projectId → wisdom ids already posted to Buzz
-  const recentEventIds = new Map<string, string[]>();       // projectId → recent nostr event ids (for #e citations)
+  const recentEventIds = new Map<string, string[]>();       // channel → recent nostr event ids (for #e citations)
   const pollTimers = new Map<string, NodeJS.Timeout[]>();   // projectId → pending poll timers
   const watched = new Set<string>();
 
@@ -196,21 +192,26 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   }
 
   // Get-or-create the GroupWisdom project for a Buzz channel — real API calls, deduped.
-  function ensureProject(channel: string): Promise<string> {
-    const existing = channelToProject.get(channel);
-    if (existing) return Promise.resolve(existing);
-    const inFlight = projectReady.get(channel);
-    if (inFlight) return inFlight;
+  /**
+   * The community this connection serves, as a readable label. Projects are keyed
+   * on this rather than on channel name: two communities both having a "general"
+   * channel would otherwise share one project and blend their content together.
+   */
+  const communityLabel = (() => {
+    const host = (() => { try { return new URL(cfg.relayUrl.replace(/^ws/, "http")).host; } catch { return cfg.relayUrl; } })();
+    return host.replace(/\.communities\.buzz\.xyz$/i, "");
+  })();
 
-    // Prefer the channel's human name (learned from kind:39000) so projects are
-    // recognisable in the GroupWisdom dashboard; fall back to the uuid prefix.
-    const name = `Buzz: ${channelNames.get(channel) ?? channel.slice(0, 8)}`;
-    const promise = (async () => {
+  let communityProject: Promise<string> | null = null;
+
+  /** One GroupWisdom project for the whole community. */
+  function ensureProject(): Promise<string> {
+    if (communityProject) return communityProject;
+    const name = `Buzz: ${communityLabel}`;
+    communityProject = (async () => {
       const projects = await gwFetch("/projects");
       const found = projects.find((p: any) => p.name === name);
       const project = found ?? await gwFetch("/projects", { method: "POST", body: JSON.stringify({ name }) });
-      channelToProject.set(channel, project.id);
-      projectToChannel.set(project.id, channel);
 
       // Pre-seed seen ids with anything already there (e.g. from a prior run) so we
       // never re-post old wisdom as if it were new.
@@ -220,14 +221,13 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
       log(`project ready: "${name}" → ${project.id.slice(0, 8)}…`);
       return project.id;
     })();
-    projectReady.set(channel, promise);
-    return promise;
+    return communityProject;
   }
 
-  function pushRecent(projectId: string, eventId: string) {
-    const arr = recentEventIds.get(projectId) ?? [];
+  function pushRecent(channel: string, eventId: string) {
+    const arr = recentEventIds.get(channel) ?? [];
     arr.unshift(eventId);
-    recentEventIds.set(projectId, arr.slice(0, RECENT_LIMIT));
+    recentEventIds.set(channel, arr.slice(0, RECENT_LIMIT));
   }
 
   function send(msg: unknown[]) {
@@ -261,10 +261,28 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     send(["REQ", "profiles", { kinds: [0] }]);
   }
 
-  function requestProfile(pubkey: string) {
-    if (profileNames.has(pubkey) || profileRequested.has(pubkey)) return;
-    profileRequested.add(pubkey);
-    send(["REQ", `prof:${pubkey.slice(0, 8)}`, { kinds: [0], authors: [pubkey] }]);
+  /**
+   * Ask for an author's profile and wait briefly for it.
+   *
+   * Firing the request and reading the name in the same tick meant the first
+   * message from anyone was always attributed to a pubkey prefix — the reply had
+   * not arrived yet. That is exactly when it matters, because someone who just
+   * joined is the person you have never seen before.
+   */
+  function requestProfile(pubkey: string, waitMs = 2500): Promise<void> {
+    if (profileNames.has(pubkey)) return Promise.resolve();
+    if (!profileRequested.has(pubkey)) {
+      profileRequested.add(pubkey);
+      send(["REQ", `prof:${pubkey.slice(0, 8)}`, { kinds: [0], authors: [pubkey] }]);
+    }
+    return new Promise(resolve => {
+      const started = Date.now();
+      const tick = () => {
+        if (profileNames.has(pubkey) || Date.now() - started > waitMs) return resolve();
+        setTimeout(tick, 120);
+      };
+      tick();
+    });
   }
 
   /** Display name for a contributor, falling back to a short pubkey. */
@@ -302,10 +320,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   }
 
   // ── Step 4: post wisdom back into the channel, citing sources via #e ──────────
-  function postWisdom(projectId: string, wisdom: Wisdom, triggerEventId: string) {
-    const channel = projectToChannel.get(projectId);
-    if (!channel) return;
-    const recent = recentEventIds.get(projectId) ?? [];
+  function postWisdom(channel: string, wisdom: Wisdom, triggerEventId: string) {
+    const recent = recentEventIds.get(channel) ?? [];
     const sources = [triggerEventId, ...recent.filter(id => id !== triggerEventId)].slice(0, MAX_CITATIONS);
     const tmpl: EventTemplate = {
       kind: 9,
@@ -336,7 +352,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   }
 
   // ── Step 3 (delayed): poll the real API for wisdom that resulted from recent ingests ──
-  function schedulePoll(projectId: string, triggerEventId: string) {
+  function schedulePoll(projectId: string, triggerEventId: string, channel: string) {
     // Restart the sequence on each new message — wisdom is deduped by id, so
     // overlapping polls are harmless, and several attempts mean slow engine runs
     // still get delivered rather than silently dropped.
@@ -348,7 +364,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
         const seen = seenInsightIds.get(projectId) ?? new Set<string>();
         const fresh: Wisdom[] = (res.data ?? []).filter((w: Wisdom) => !seen.has(w.id));
         if (fresh.length) log(`API returned ${fresh.length} new wisdom for ${projectId.slice(0, 8)}…`);
-        for (const w of fresh) { seen.add(w.id); postWisdom(projectId, w, triggerEventId); }
+        for (const w of fresh) { seen.add(w.id); postWisdom(channel, w, triggerEventId); }
         seenInsightIds.set(projectId, seen);
       } catch (e) {
         log(`poll error: ${(e as Error).message}`);
@@ -370,7 +386,6 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     if (!isAllowed(channel)) return;                      // outside the allowlist
     if (ev.created_at < floorFor(channel)) return;        // predates our first sight of this channel
     const content = ev.content ?? "";
-    requestProfile(ev.pubkey);
 
     if (cfg.dryRun) {
       log(`[dry-run] would ingest into ${channel.slice(0, 8)}… from ${ev.pubkey.slice(0, 8)}…: "${content.slice(0, 50)}"`);
@@ -378,8 +393,11 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     }
 
     try {
-      const projectId = await ensureProject(channel);
-      pushRecent(projectId, ev.id);
+      // Resolve who this is before ingesting, so the finding names a person
+      // rather than a pubkey. Falls back to the prefix if they have no profile.
+      await requestProfile(ev.pubkey);
+      const projectId = await ensureProject();
+      pushRecent(channel, ev.id);
       await gwFetch(`/projects/${projectId}/ingest`, {
         method: "POST",
         body: JSON.stringify({
@@ -391,7 +409,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
       });
       markProcessed(channel, ev);   // only after the API accepted it, so a failure retries on restart
       log(`ingested → GroupWisdom | ${channelNames.get(channel) ?? channel.slice(0, 8)} | from ${contributorName(ev.pubkey)}: "${content.slice(0, 50)}"`);
-      schedulePoll(projectId, ev.id);
+      schedulePoll(projectId, ev.id, channel);
     } catch (e) {
       log(`ingest failed for ${channel.slice(0, 8)}…: ${(e as Error).message}`);
     }
@@ -495,6 +513,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
 
   function reconnect() {
     watched.clear();
+    profileRequested.clear();   // re-ask; profiles may have changed while we were away
     profilePublished = false;
     log(`reconnecting in ${backoff}ms`);
     setTimeout(connect, backoff);
