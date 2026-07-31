@@ -52,6 +52,9 @@
   button.primary:hover:not(:disabled) { background: #333; }
   button:disabled { opacity: .45; cursor: default; }
   .hint { font-size: 12.5px; color: #999; margin-top: 11px; line-height: 1.55; }
+  .uipath { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .uipath .k { background: #f4f4f4; border: 1px solid #e4e4e4; border-radius: 6px; padding: 5px 9px; font-size: 12.5px; color: #333; }
+  .uipath .sep { color: #bbb; font-size: 12px; }
 
   .msg { margin-top: 13px; padding: 11px 13px; border-radius: 8px; font-size: 13px; line-height: 1.55; display: none; }
   .msg.err { display: block; background: #fdf4f3; border: 1px solid #f0d6d2; color: #9c3128; }
@@ -135,17 +138,26 @@
   <div id="connected"></div>
 
   <h2 class="tight">Setting it up</h2>
-  <p class="sub">One step, about thirty seconds. Nothing to install, and nothing keeps running on your machine.</p>
+  <p class="sub">Two clicks in Buzz, one paste here. Nothing to install, and nothing keeps running on your machine.</p>
 
   <div class="step" id="step1">
-    <div class="step-head"><div class="num">1</div><div class="step-title">Paste an invite link from your Buzz community</div></div>
-    <p>In Buzz, open your community's member settings and create an invite — the same one you'd send a colleague. Paste it here and GroupWisdom joins with it.</p>
+    <div class="step-head"><div class="num">1</div><div class="step-title">Copy an invite link from Buzz</div></div>
+    <p>In Buzz, click your community's name at the top, choose <strong>Invite to community</strong>, then <strong>Copy link</strong>.</p>
+    <div class="uipath">
+      <span class="k">Your community name</span><span class="sep">→</span><span class="k">Invite to community</span><span class="sep">→</span><span class="k">Copy link</span>
+    </div>
+    <div class="hint">It's the same invite you'd send a person. If you don't see that option, you're not an admin of the community — ask whoever is.</div>
+  </div>
+
+  <div class="step" id="step2">
+    <div class="step-head"><div class="num">2</div><div class="step-title">Paste it here</div></div>
+    <p>That's it — the link says which community to join, so there's nothing else to fill in.</p>
     <div class="field">
       <input id="invite" placeholder="https://your-community.communities.buzz.xyz/invite/…" autocomplete="off" spellcheck="false">
       <button class="primary" id="connect">Connect</button>
     </div>
     <div class="msg" id="msg"></div>
-    <div class="hint">The link tells us which community to join, so there's nothing else to fill in. GroupWisdom joins as a normal member — visible in your member list, and removable like anyone else.</div>
+    <div class="hint">GroupWisdom joins as a normal member — visible in your member list, removable like anyone else.</div>
   </div>
 
   <details>
@@ -294,7 +306,7 @@ $("connect").onclick = async () => {
 
   if (ok && body?.connected) {
     show("ok", "Connected. Post a couple of related things in your channels and wisdom will appear in the chat.");
-    $("step1").classList.add("done");
+    $("step1").classList.add("done"); $("step2").classList.add("done");
     loadConnections();
     return;
   }
