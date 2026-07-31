@@ -53,6 +53,7 @@ import {
 } from "./db.js";
 import { queueIncrementalAnalysis } from "./engine.js";
 import { startConnection, stopConnection, isConnectionRunning, waitForConnectionResult } from "./buzz-supervisor.js";
+import { redeemBuzzInvite } from "./adapters/buzz-invite.js";
 import { getPublicKey } from "nostr-tools/pure";
 import { decode as nip19decode, npubEncode } from "nostr-tools/nip19";
 
@@ -290,12 +291,30 @@ buzzHook.post("/connect", async (req, res) => {
   if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
   if (!agentPubkey()) return res.status(503).json({ error: "Buzz agent identity is not configured on this server." });
 
-  const { relay_url, auth_tag, label, channels } = req.body ?? {};
-  if (!relay_url) return res.status(400).json({ error: "relay_url is required (e.g. wss://your-community.communities.buzz.xyz)." });
+  const { relay_url, auth_tag, label, channels, invite_url } = req.body ?? {};
+
+  // An invite link is the one thing Buzz's member UI actually hands out, and it
+  // carries the community as well as the code — so redeeming it gives us both
+  // access and the relay URL from a single paste.
+  let resolvedRelay = relay_url ? String(relay_url) : "";
+  if (invite_url) {
+    const agentNsec = process.env.BUZZ_AGENT_NSEC || process.env.BUZZ_PRIVATE_KEY;
+    if (!agentNsec) return res.status(503).json({ error: "Buzz agent identity is not configured on this server." });
+    try {
+      const joined = await redeemBuzzInvite(String(invite_url), agentNsec);
+      resolvedRelay = joined.relayUrl;
+    } catch (e) {
+      return res.status(400).json({ error: (e as Error).message });
+    }
+  }
+
+  if (!resolvedRelay) {
+    return res.status(400).json({ error: "Paste your Buzz invite link, or give a relay_url." });
+  }
 
   const conn = createBuzzConnection({
     userId: user.id,
-    relayUrl: String(relay_url),
+    relayUrl: resolvedRelay,
     authTag: auth_tag ? (typeof auth_tag === "string" ? auth_tag : JSON.stringify(auth_tag)) : null,
     label: label ? String(label) : "",
   });
