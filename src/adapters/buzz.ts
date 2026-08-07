@@ -326,15 +326,14 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     const tmpl: EventTemplate = {
       kind: 9,
       created_at: Math.floor(Date.now() / 1000),
-      // do_next carries the transfer — the completed work this reader can build on.
-      // It was being generated and then dropped, which meant the most useful part of
-      // each finding never reached the channel.
+      // One paragraph, no heading. A title above a body above an arrow reads as a
+      // report; in a chat it looks like the agent is filing a document at people.
+      // The claim, the evidence and the handover run together as something a person
+      // could plausibly have typed.
       content: [
-        wisdom.title,
-        "",
-        wisdom.body,
-        ...(wisdom.do_next ? ["", `→ ${wisdom.do_next}`] : []),
-      ].join("\n"),
+        `${wisdom.title.replace(/[.\s]+$/, "")} — ${wisdom.body.trim()}`,
+        wisdom.do_next?.trim(),
+      ].filter(Boolean).join(" "),
       tags: [
         ["h", channel],
         ...sources.map(id => ["e", id]),

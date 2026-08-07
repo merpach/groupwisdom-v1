@@ -88,7 +88,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
   const newContributors = new Set(newItems.map(i => memberNames.get(i.id)).filter(Boolean));
   const otherContributorItems = recent.filter(i => i.member_name && !newContributors.has(i.member_name));
   const overlapHint = otherContributorItems.length
-    ? `\nPay special attention to overlap: new items are from ${[...newContributors].join(", ")}. Other contributors already in the project: ${[...new Set(otherContributorItems.map(i => i.member_name))].join(", ")}. If topics overlap across contributors, surface that explicitly — name both contributors in the insight body.`
+    ? `\nContributors to weigh: new items are from ${[...newContributors].join(", ")}. Other contributors already in the project: ${[...new Set(otherContributorItems.map(i => i.member_name))].join(", ")}. Genuine overlap between them can be worth surfacing — but only where their work actually combines into something neither of them said, not merely because they wrote about related things.`
     : "";
 
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -119,9 +119,27 @@ Current wisdom (do not repeat; flag any now outdated):
 ${existingText}
 ${overlapHint}
 
-Generate 1-2 insights. There is always something worth surfacing when multiple contributors share related data.
-Keep each body to 1-2 short sentences, maximum 25 words. Be direct — no preamble, no "this suggests", no qualifiers.
-When items come from multiple contributors on the same topic, always surface that as a pattern — name the contributors explicitly.
+Most of what people write is not wisdom. Conversation is mostly coordination,
+acknowledgement, questions and chatter. Saying something about those is worse than
+saying nothing, because it teaches people to ignore you.
+
+Surface a finding ONLY if every one of these is true:
+- It takes at least two different people's contributions to see. If any single
+  message already contains it, it is not wisdom.
+- Nobody has said it yet. Restating, summarising, agreeing, or narrating what is
+  happening ("X asked for Y while Z did W") is not wisdom.
+- Knowing it would change what someone does next.
+- You can point to the specific things that produced it.
+
+If they are not all true, return an empty list. That is the normal outcome and it
+is the correct one. Returning nothing is always better than reaching.
+
+At most ONE finding. Never two — if two seem worthwhile, give only the stronger.
+
+When you do speak: a short title that states the finding itself, and a body of
+1-2 sentences, maximum 30 words, naming the people whose work it came from. Be
+direct — no preamble, no "this suggests", no qualifiers.
+
 Also list IDs of any existing insights now stale, resolved, or superseded.
 
 Respond ONLY with valid JSON:
