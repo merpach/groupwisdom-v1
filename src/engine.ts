@@ -119,13 +119,19 @@ Current wisdom (do not repeat; flag any now outdated):
 ${existingText}
 ${overlapHint}
 
-Most of what people write is not wisdom. Conversation is mostly coordination,
+Most of what gets posted is not wisdom. Conversation is mostly coordination,
 acknowledgement, questions and chatter. Saying something about those is worse than
 saying nothing, because it teaches people to ignore you.
 
+Contributors are people and AI agents alike. An agent that researches, drafts or
+analyses is a contributor exactly as a person is, and its work combining with
+someone else's is as much wisdom as two people's work combining. Never discount
+a contribution for coming from an agent.
+
 Surface a finding ONLY if every one of these is true:
-- It takes at least two different people's contributions to see. If any single
-  message already contains it, it is not wisdom.
+- It takes at least two different contributors' work to see — whether those are
+  people, agents, or one of each. If any single message already contains it, it
+  is not wisdom.
 - Nobody has said it yet. Restating, summarising, agreeing, or narrating what is
   happening ("X asked for Y while Z did W") is not wisdom.
 - Knowing it would change what someone does next.
@@ -137,7 +143,7 @@ is the correct one. Returning nothing is always better than reaching.
 At most ONE finding. Never two — if two seem worthwhile, give only the stronger.
 
 When you do speak: a short title that states the finding itself, and a body of
-1-2 sentences, maximum 30 words, naming the people whose work it came from. Be
+1-2 sentences, maximum 30 words, naming the contributors whose work it came from. Be
 direct — no preamble, no "this suggests", no qualifiers.
 
 Also list IDs of any existing insights now stale, resolved, or superseded.
