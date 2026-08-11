@@ -326,14 +326,11 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     const tmpl: EventTemplate = {
       kind: 9,
       created_at: Math.floor(Date.now() / 1000),
-      // One paragraph, no heading. A title above a body above an arrow reads as a
-      // report; in a chat it looks like the agent is filing a document at people.
-      // The claim, the evidence and the handover run together as something a person
-      // could plausibly have typed.
-      content: [
-        `${wisdom.title.replace(/[.\s]+$/, "")} — ${wisdom.body.trim()}`,
-        wisdom.do_next?.trim(),
-      ].filter(Boolean).join(" "),
+      // The body is written to stand alone, so post it as it is. Joining
+      // "title — body" produced a label, then a dash, then a sentence, which is
+      // what made these read as bullet points rather than as something a person
+      // would actually say. The title stays for the dashboard.
+      content: [wisdom.body.trim(), wisdom.do_next?.trim()].filter(Boolean).join(" "),
       tags: [
         ["h", channel],
         ...sources.map(id => ["e", id]),

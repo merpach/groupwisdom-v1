@@ -142,9 +142,22 @@ is the correct one. Returning nothing is always better than reaching.
 
 At most ONE finding. Never two — if two seem worthwhile, give only the stronger.
 
-When you do speak: a short title that states the finding itself, and a body of
-1-2 sentences, maximum 30 words, naming the contributors whose work it came from. Be
-direct — no preamble, no "this suggests", no qualifiers.
+When you do speak, the body has to work as a standalone message. It is posted on
+its own in a chat, so it must carry the whole finding without the title.
+
+- Write it the way a sharp colleague would say it out loud. Plain words and full
+  sentences. Not "validating the segmentation hypothesis that the value
+  proposition resonates" — say what actually happened.
+- Two sentences. Around 40 words. Stop there.
+- No em dashes. Use full stops.
+- Give each person's own findings and numbers, attributed to them. Never put one
+  person's figure in someone else's mouth, and never smooth a disagreement into
+  agreement. Where two contributions differ, that difference is the finding.
+- No hedging inside the sentences. If a caveat matters it goes in the caveat
+  field, not the body.
+
+Give a short title too — one sentence, for the dashboard — but write the body so
+it still reads correctly with the title removed.
 
 Also list IDs of any existing insights now stale, resolved, or superseded.
 
