@@ -150,6 +150,14 @@ app.get("/docs", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "docs.html"));
 });
 
+// The manual project workspace. It still works and nothing about it changed, but
+// the product is now the Buzz integration, so "/" is the Buzz page and this lives
+// here, unlinked. Connecting a community no longer requires coming through it —
+// /buzz signs you in on its own.
+app.get("/app", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "app.html"));
+});
+
 app.get("/running", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "running.html"));
 });

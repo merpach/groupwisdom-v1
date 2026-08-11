@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GroupWisdom</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; font-size: 14px; color: #111; background: #fff; min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .shell { max-width: 640px; margin: 0 auto; padding: 0 20px 80px; }
+
+  header { display: flex; align-items: center; padding: 20px 0 16px; border-bottom: 1px solid #eee; margin-bottom: 28px; }
+  .logo { font-size: 15px; font-weight: 700; letter-spacing: -.2px; }
+  .group-name { color: #888; margin-left: 8px; font-size: 15px; }
+  .spacer { flex: 1; }
+  .icon-btn { background: none; border: none; cursor: pointer; color: #888; font-size: 18px; padding: 4px 6px; border-radius: 6px; }
+  .icon-btn:hover { background: #f5f5f5; color: #111; }
+
+  /* Add form */
+  .add-bar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px; }
+  .add-row { display: flex; gap: 8px; }
+  input, textarea, select {
+    font: inherit; font-size: 14px; padding: 9px 12px;
+    border: 1px solid #e0e0e0; border-radius: 8px; background: #fafafa; color: #111; width: 100%;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: #aaa; background: #fff; }
+  textarea { resize: none; min-height: 68px; }
+  select { width: auto; flex-shrink: 0; }
+  button { font: inherit; font-size: 13px; padding: 8px 14px; border-radius: 8px; border: 1px solid #ddd; background: #fff; cursor: pointer; color: #111; white-space: nowrap; }
+  button:hover { background: #f5f5f5; }
+  button.primary { background: #111; border-color: #111; color: #fff; font-weight: 500; letter-spacing: -.1px; }
+  button.primary:hover { background: #1a1a1a; }
+
+  /* Feed */
+  .feed-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #bbb; margin-bottom: 12px; }
+  .item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+  .item:last-child { border-bottom: none; }
+  .item-icon { width: 32px; height: 32px; border-radius: 8px; background: #f5f5f5; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .item-body { flex: 1; min-width: 0; }
+  .item-title { font-weight: 500; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-title a { color: inherit; text-decoration: none; }
+  .item-title a:hover { text-decoration: underline; }
+  .item-meta { font-size: 12px; color: #bbb; }
+  .item-content { font-size: 13px; color: #555; margin-top: 3px; line-height: 1.4; }
+  .drop-zone {
+    border: 2px dashed #e0e0e0; border-radius: 8px; padding: 24px;
+    text-align: center; color: #bbb; font-size: 13px; margin-bottom: 24px;
+    transition: border-color .15s, background .15s; cursor: pointer;
+  }
+  .drop-zone.over { border-color: #aaa; background: #fafafa; color: #888; }
+  .drop-zone input[type=file] { display: none; }
+  .uploading { opacity: .5; pointer-events: none; }
+  .empty { color: #bbb; text-align: center; padding: 40px 0; }
+
+  /* Modal */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.3); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: #fff; border-radius: 12px; width: 580px; max-width: 94vw; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+  .modal-head { display: flex; align-items: center; padding: 18px 20px 0; flex-shrink: 0; }
+  .modal-head h2 { font-size: 15px; font-weight: 600; flex: 1; }
+  .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #aaa; padding: 0 2px; line-height: 1; }
+  .modal-close:hover { color: #111; }
+  .modal-tabs { display: flex; gap: 0; border-bottom: 1px solid #eee; padding: 0 20px; margin-top: 12px; flex-shrink: 0; }
+  .modal-tab { font: inherit; font-size: 13px; padding: 8px 14px; border: none; background: none; cursor: pointer; color: #888; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .modal-tab.active { color: #111; border-bottom-color: #111; }
+  .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+  .field-label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .07em; margin: 18px 0 6px; }
+  .field-label:first-child { margin-top: 0; }
+  .kv { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .kv code { font-size: 12px; background: #f5f5f5; padding: 4px 8px; border-radius: 6px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  pre { background: #f7f7f7; border: 1px solid #eee; border-radius: 8px; padding: 14px; font-size: 12px; overflow-x: auto; line-height: 1.55; white-space: pre; }
+  .member-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f5f5f5; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: #111; color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .connector-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f5f5f5; }
+  .pill { font-size: 11px; border-radius: 999px; padding: 3px 9px; background: #f0f0f0; color: #555; }
+  .pill.on { background: #e8f5ee; color: #1d7a46; }
+  .step { display: flex; gap: 12px; margin-bottom: 18px; }
+  .step-num { width: 22px; height: 22px; border-radius: 50%; background: #111; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+  .step-body { flex: 1; }
+  .step-body strong { font-size: 13px; font-weight: 600; display: block; margin-bottom: 4px; }
+  .step-body p { font-size: 13px; color: #555; line-height: 1.5; margin-bottom: 6px; }
+
+  /* Projects home */
+  .projects-header { display: flex; align-items: center; padding: 20px 0 24px; border-bottom: 1px solid #eee; margin-bottom: 32px; }
+  .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .project-card { border: 1px solid #e8e8e8; border-radius: 10px; padding: 16px; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+  .project-card:hover { border-color: #bbb; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+  .project-card .p-name { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+  .project-card .p-meta { font-size: 12px; color: #bbb; }
+  .new-project-card { border: 1px dashed #ddd; border-radius: 10px; padding: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #bbb; font-size: 14px; gap: 6px; transition: border-color .15s, color .15s; }
+  .new-project-card:hover { border-color: #aaa; color: #555; }
+  .project-card .delete-btn { display: none; position: absolute; top: 8px; right: 8px; background: none; border: none; color: #bbb; font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+  .project-card { position: relative; }
+  .project-card:hover .delete-btn { display: block; }
+  .project-card .delete-btn:hover { color: #e5484d; background: #fff0f0; }
+
+  /* Insight panel */
+  .insight-panel { background: #fafafa; border: 1px solid #e8e8e8; border-radius: 10px; padding: 20px; margin-bottom: 28px; }
+  .insight-panel .panel-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .insight-panel .panel-header h2 { font-size: 15px; font-weight: 600; flex: 1; }
+  .insight-card { background: #fff; border: 1px solid #e8e8e8; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+  .insight-card:last-child { margin-bottom: 0; }
+  .insight-card .i-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .insight-card .i-kind { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #888; }
+  .insight-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .insight-card p { font-size: 13px; color: #555; line-height: 1.5; }
+  .insight-card .i-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .btn-add { background: #111; color: #fff; border-color: #111; font-size: 12px; padding: 5px 12px; }
+  .btn-add:hover { background: #333; }
+  .btn-dismiss { font-size: 12px; padding: 5px 12px; color: #888; }
+  .spinning { animation: spin .8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #111; color: #fff; font-size: 13px; border-radius: 8px; padding: 8px 16px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="shell" id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = {
+  get: p => fetch("/api" + p, { credentials: "include" }).then(r => r.json()),
+  post: (p, b) => fetch("/api" + p, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }).then(r => r.json()),
+  delete: p => fetch("/api" + p, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+};
+const ICON = { link: "🔗", note: "📝", thought: "💭", file: "📄" };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ago = ts => {
+  if (!ts) return "";
+  const m = Math.max(0, (Date.now() - new Date(ts.replace(" ", "T") + "Z").getTime()) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return Math.round(m) + "m ago";
+  if (m < 1440) return Math.round(m / 60) + "h ago";
+  return Math.round(m / 1440) + "d ago";
+};
+
+const state = { groups: [], group: null, items: [], insights: [], view: "projects", proposals: null, analyzing: false, user: null };
+
+const KIND_COLOR = { connection: '#5b5bd6', blind_spot: '#e8a13c', conflict: '#e5484d', pattern: '#8e4ec6', question: '#0091ff', decision: '#30a46c' };
+
+function toast(msg) {
+  const el = $("#toast"); el.textContent = msg; el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 2600);
+}
+
+function checkAccessWall() {
+  if (localStorage.getItem("gw_access") === "1") return true;
+  const wall = document.createElement("div");
+  wall.id = "gw-wall";
+  wall.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#FAFAF8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <div style="font-size:15px;font-weight:700;letter-spacing:-.2px;margin-bottom:32px">GroupWisdom</div>
+    <input id="gw-pw" type="password" placeholder="Access code" style="width:240px;padding:10px 14px;border:1px solid #DDD;border-radius:8px;font-size:14px;font-family:inherit;outline:none;text-align:center;background:#F0EFEA" onkeydown="if(event.key==='Enter')gwSubmit()">
+    <div id="gw-err" style="color:#e5484d;font-size:13px;margin-top:10px;min-height:18px"></div>
+  </div>`;
+  document.body.prepend(wall);
+  setTimeout(() => document.getElementById("gw-pw")?.focus(), 50);
+  return false;
+}
+
+function gwSubmit() {
+  const val = document.getElementById("gw-pw")?.value;
+  if (val === "2026wisdom") {
+    localStorage.setItem("gw_access", "1");
+    document.getElementById("gw-wall")?.remove();
+    boot();
+  } else {
+    const err = document.getElementById("gw-err");
+    if (err) { err.textContent = "Incorrect access code."; setTimeout(() => err.textContent = "", 2000); }
+  }
+}
+
+async function boot() {
+  if (!checkAccessWall()) return;
+  const me = await api.get("/me").catch(() => null);
+  if (!me || me.error) return renderLanding();
+  state.user = me;
+  const groups = await api.get("/groups");
+  state.groups = Array.isArray(groups) ? groups : [];
+  renderDeveloper();
+}
+
+function renderLanding() {
+  const app = $("#app");
+  Object.assign(app.style, { maxWidth: "none", padding: "0", margin: "0" });
+
+  app.innerHTML = `
+    <style>
+      @keyframes ld-wup  { to { transform: translateY(0); } }
+      @keyframes ld-rule { to { width: 56px; } }
+      @keyframes ld-fade { to { opacity: 1; } }
+      @keyframes ld-dot  { 0%,100%{opacity:1} 50%{opacity:.3} }
+      .ld-w   { display:block; transform:translateY(106%); animation:ld-wup .65s cubic-bezier(.2,0,0,1) forwards; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:64px; font-weight:900; color:#111; letter-spacing:-2.5px; line-height:1.0; }
+      .ld-w1  { animation-delay:.05s; }
+      .ld-w2  { animation-delay:.22s; }
+      .ld-w3  { animation-delay:.39s; }
+      .ld-bar { width:0; height:2px; background:#1B4FFF; margin:22px 0 22px; animation:ld-rule .55s .72s cubic-bezier(.2,0,0,1) forwards; }
+      .ld-sub { opacity:0; animation:ld-fade .4s .86s forwards; }
+      .ld-cta { opacity:0; animation:ld-fade .4s .96s forwards; }
+      .ld-npm { opacity:0; animation:ld-fade .4s 1.04s forwards; }
+      .ld-ic  { opacity:0; transform:translateY(8px); transition:opacity .35s,transform .35s; background:#fff; border:1px solid #E8E6E0; border-radius:8px; padding:12px 14px; }
+      .ld-ic.vis { opacity:1; transform:translateY(0); }
+      .ld-ldot { animation:ld-dot 2s ease-in-out infinite; }
+    </style>
+    <div style="min-height:100vh;display:flex;flex-direction:column;background:#FAFAF8">
+
+      <!-- Nav -->
+      <nav style="display:flex;align-items:center;padding:0 48px;height:60px;border-bottom:1px solid #EEECE8;max-width:1200px;width:100%;margin:0 auto;box-sizing:border-box">
+        <div style="font-size:15px;font-weight:700;letter-spacing:-.2px;flex:1">GroupWisdom</div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <a href="/docs" target="_blank" style="font-size:13px;color:#777;text-decoration:none;padding:6px 14px;border-radius:6px">Docs</a>
+          <a href="/docs#demo" target="_blank" style="font-size:13px;color:#777;text-decoration:none;padding:6px 14px;border-radius:6px">Demo</a>
+          <button onclick="resetShellAndRun(renderAuth)" style="font-size:13px;padding:7px 16px;border:1px solid #DDD;border-radius:7px;background:#FAFAF8;cursor:pointer;color:#555;margin-left:12px">Sign in</button>
+        </div>
+      </nav>
+
+      <!-- Hero -->
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:0 48px">
+        <div style="display:flex;align-items:center;gap:72px;width:100%;max-width:1200px;padding:56px 0">
+
+          <!-- Left: headline + CTAs -->
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#bbb;margin-bottom:20px">For developers</div>
+            <div>
+              <div style="overflow:hidden"><span class="ld-w ld-w1">Group</span></div>
+              <div style="overflow:hidden"><span class="ld-w ld-w2">intelligence</span></div>
+              <div style="overflow:hidden"><span class="ld-w ld-w3">infrastructure</span></div>
+            </div>
+            <div class="ld-bar"></div>
+            <p class="ld-sub" style="font-size:18px;color:#777;line-height:1.6;margin-bottom:32px">The view from across your entire team.</p>
+            <div class="ld-cta" style="display:flex;align-items:center;gap:12px;margin-bottom:36px">
+              <button onclick="resetShellAndRun(()=>renderAuth('signup'))" class="primary" style="font-size:15px;padding:12px 26px;border-radius:8px">Get API key</button>
+              <a href="/docs" target="_blank" style="font-size:15px;color:#555;text-decoration:none;padding:12px 22px;border:1px solid #DDD;border-radius:9px;background:#FAFAF8">View docs ↗</a>
+            </div>
+            <div class="ld-npm" style="display:inline-flex;align-items:center;gap:10px;background:#F0EFEA;border-radius:8px;padding:10px 18px">
+              <span style="width:7px;height:7px;border-radius:50%;background:#e5484d;flex-shrink:0"></span>
+              <code style="font-size:13px;color:#555;font-family:ui-monospace,'SF Mono',monospace">npm install @groupwisdom/sdk</code>
+            </div>
+          </div>
+
+          <!-- Right: live API demo -->
+          <div style="width:400px;flex-shrink:0;background:#F0EFEA;border-radius:14px;padding:24px 22px">
+            <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#aaa;margin-bottom:14px;display:flex;align-items:center;gap:6px">
+              <span class="ld-ldot" style="width:5px;height:5px;border-radius:50%;background:#00A870;flex-shrink:0"></span>
+              Live API output
+            </div>
+            <div id="ld-list" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>`;
+
+  const insights = [
+    { kind: "pattern",    title: "Security blockers across three deals",        body: "Marco, Devon, and Yuki all report GDPR or SSO as blockers. Security is a deal prerequisite no one has escalated." },
+    { kind: "blind_spot", title: "No one has looked at pricing objections",     body: "Four lost deals mention competitor pricing. The team is solving the wrong problem." },
+    { kind: "connection", title: "Notion comes up in every enterprise call",    body: "Yuki, Marco, and Sara each logged it independently. This is a comparison buyers are making before you get the call." },
+    { kind: "pattern",    title: "Technical buyers block legal sign-off",       body: "Devon and Marco both note the same sequence: technical approval stalls, then legal goes silent." },
+    { kind: "question",   title: "What does the team know about Notion?",       body: "Three contributors flagged it as a competitor but no one has shared research on it." },
+    { kind: "decision",   title: "SSO moves to Q1 roadmap",                    body: "Yuki and Devon’s notes together make the case. Three enterprise deals are gated on it." },
+  ];
+  let ldIdx = 0;
+  const MAX_CARDS = 3;
+  function addLdInsight() {
+    const list = document.getElementById("ld-list");
+    if (!list) return;
+    if (list.children.length >= MAX_CARDS) {
+      const oldest = list.firstElementChild;
+      oldest.style.transition = "opacity .25s";
+      oldest.style.opacity = "0";
+      setTimeout(() => {
+        if (oldest.parentNode) oldest.remove();
+        insertLdCard();
+      }, 280);
+    } else {
+      insertLdCard();
+    }
+  }
+  function insertLdCard() {
+    const list = document.getElementById("ld-list");
+    if (!list) return;
+    const { kind, title, body } = insights[ldIdx % insights.length];
+    ldIdx++;
+    const d = document.createElement("div");
+    d.className = "ld-ic";
+    d.innerHTML = "<div style=’font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:5px’>" + kind + "</div><div style=’font-size:12.5px;font-weight:600;color:#111;margin-bottom:3px;line-height:1.35’>" + title + "</div><div style=’font-size:12px;color:#555;line-height:1.5’>" + body + "</div>";
+    list.appendChild(d);
+    void d.offsetHeight;
+    d.classList.add("vis");
+    setTimeout(addLdInsight, 2800);
+  }
+  setTimeout(addLdInsight, 900);
+}
+
+function resetShellAndRun(fn) {
+  const app = $("#app");
+  app.style.maxWidth = "";
+  app.style.padding = "";
+  app.style.margin = "";
+  fn();
+}
+
+function renderAuth(tab = "login") {
+  $("#app").innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;min-height:80vh">
+      <div style="max-width:360px;width:100%;padding:40px 32px;border:1px solid #ddd;border-radius:14px;box-shadow:0 2px 16px rgba(0,0,0,.06)">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:10px">Developer API</div>
+        <div style="font-size:22px;font-weight:700;margin-bottom:4px;letter-spacing:-.3px">GroupWisdom</div>
+        <div style="color:#888;font-size:13px;margin-bottom:28px;line-height:1.5">Group intelligence as infrastructure.<br>Ingest data, get insights, ship products.</div>
+        <div style="display:flex;gap:0;border-bottom:1px solid #eee;margin-bottom:20px">
+          <button onclick="renderAuth('login')" style="flex:1;padding:8px;border:none;background:none;cursor:pointer;font:inherit;font-size:13px;${tab==='login'?'border-bottom:2px solid #111;font-weight:600':'color:#888'}">Sign in</button>
+          <button onclick="renderAuth('signup')" style="flex:1;padding:8px;border:none;background:none;cursor:pointer;font:inherit;font-size:13px;${tab==='signup'?'border-bottom:2px solid #111;font-weight:600':'color:#888'}">Create account</button>
+        </div>
+        ${tab === 'login' ? `
+          <input id="authEmail" type="email" placeholder="Email" style="width:100%;margin-bottom:8px">
+          <input id="authPassword" type="password" placeholder="Password" style="width:100%;margin-bottom:14px">
+          <button class="primary" style="width:100%;padding:10px" onclick="doLogin()">Sign in</button>
+        ` : `
+          <input id="authName" placeholder="Your name" style="width:100%;margin-bottom:8px">
+          <input id="authEmail" type="email" placeholder="Email" style="width:100%;margin-bottom:8px">
+          <input id="authPassword" type="password" placeholder="Password" style="width:100%;margin-bottom:14px">
+          <button class="primary" style="width:100%;padding:10px" onclick="doSignup()">Create account</button>
+        `}
+        <div id="authErr" style="color:#e5484d;font-size:13px;margin-top:10px;min-height:18px"></div>
+      </div>
+    </div>`;
+  setTimeout(() => document.getElementById("authEmail")?.focus(), 50);
+}
+
+async function doLogin() {
+  const email = document.getElementById("authEmail")?.value.trim();
+  const password = document.getElementById("authPassword")?.value;
+  if (!email || !password) return document.getElementById("authErr").textContent = "Email and password required.";
+  const res = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ email, password }) });
+  const data = await res.json();
+  if (!res.ok) return document.getElementById("authErr").textContent = data.error;
+  state.user = data;
+  state.groups = await api.get("/groups");
+  renderDeveloper();
+}
+
+async function doSignup() {
+  const name = document.getElementById("authName")?.value.trim();
+  const email = document.getElementById("authEmail")?.value.trim();
+  const password = document.getElementById("authPassword")?.value;
+  if (!name || !email || !password) return document.getElementById("authErr").textContent = "All fields required.";
+  const res = await fetch("/api/auth/signup", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ name, email, password }) });
+  const data = await res.json();
+  if (!res.ok) return document.getElementById("authErr").textContent = data.error;
+  state.user = data;
+  state.groups = [];
+  renderDeveloper();
+}
+
+function claudeSetupSteps(key, appUrl, projectName) {
+  const mcpUrl = appUrl + "/mcp?key=" + encodeURIComponent(key);
+
+  const systemPrompt = `You have access to GroupWisdom via MCP tools. Follow these rules strictly:
+
+1. At the start of EVERY conversation, call get_project_index. This is mandatory, not optional.
+2. Read the returned project summaries and keyword lists carefully.
+3. If ANY word or topic in the user's message relates to a project — even loosely — you MUST call get_group_context for that project before composing your response. Do not skip this step.
+4. Do this silently. Do not tell the user you are checking GroupWisdom unless they ask.
+5. If in doubt, check. It is always better to check GroupWisdom and find nothing than to miss relevant context.
+6. Save proactively. When the user shares a useful link, finding, decision, or piece of research, save it to GroupWisdom with save_to_group without being asked. Briefly mention you saved it ("I've saved that to GroupWisdom").
+7. If get_group_context returns teammate research summaries, only bring them up when there is a meaningful overlap with what the user is currently asking about. When you do, name the teammate: "John was also researching this — want me to pull in what he found?"
+8. After EVERY response without exception, call update_my_context with a 2-3 sentence summary of what the user has been exploring or discussing in this conversation so far. This updates their private research context so teammates can see if their work overlaps. Do not save this to the group — it goes only to update_my_context. Do this silently after every single reply, even short ones.`;
+
+  const mcpUrlIdx = _prompts.push(mcpUrl) - 1;
+  const sysIdx = _prompts.push(systemPrompt) - 1;
+
+  const testBody = projectName
+    ? `Open a new Claude chat and mention something about <b>${esc(projectName)}</b> — Claude will pull up your project context automatically.`
+    : 'Open a new Claude chat and mention a topic from one of your projects — Claude will pull up the context automatically.';
+
+  window._wiz = {
+    web: [
+      {
+        title: 'Open Claude Connectors',
+        body: `Click below — it opens Claude's connector settings. You'll see a message that connectors have moved to <b>Customize</b>. Click that link (or the button below will take you straight there).<br><br><img src="/setup/connectors-moved.png" style="width:100%;border-radius:8px;border:1px solid #e0e0e0;margin-top:8px">`,
+        openUrl: 'https://claude.ai/settings/connectors',
+        openLabel: 'Open Claude Settings → Connectors ↗',
+        copyIdx: null,
+        copyNote: null,
+      },
+      {
+        title: 'Add GroupWisdom',
+        body: `In <b>Customize → Connectors</b>, click the <b>+</b> button at the top of the left panel to add a custom connector.<br><br><img src="/setup/customize-connectors.png" style="width:100%;border-radius:8px;border:1px solid #e0e0e0;margin:8px 0"><br>Your personal URL has been <b>copied to your clipboard</b>. In the dialog:<br><br>• <b>Name:</b> <code style="background:#f5f5f5;padding:1px 5px;border-radius:3px">GroupWisdom</code><br>• <b>Remote MCP server URL:</b> paste here<br><br><img src="/setup/add-connector.png" style="width:100%;border-radius:8px;border:1px solid #e0e0e0;margin-top:8px"><br><br>Then click <b>Add</b>.`,
+        openUrl: 'https://claude.ai/customize',
+        openLabel: 'Open Customize → Connectors ↗',
+        copyIdx: mcpUrlIdx,
+        copyNote: 'URL copied to clipboard',
+      },
+      {
+        title: 'Add instructions',
+        body: `Your instructions have been <b>copied to your clipboard</b>. Click below to open Claude Settings, then scroll to <b>Instructions for Claude</b> under the General tab — paste and save.<br><br>This makes Claude check GroupWisdom automatically without you having to ask.`,
+        openUrl: 'https://claude.ai/settings',
+        openLabel: 'Open Claude Settings ↗',
+        copyIdx: sysIdx,
+        copyNote: 'Instructions copied to clipboard',
+      },
+      {
+        title: 'Test it',
+        body: testBody,
+        openUrl: 'https://claude.ai/new',
+        openLabel: 'Open a new Claude chat ↗',
+        copyIdx: null,
+        copyNote: null,
+      },
+    ],
+    desktop: [
+      {
+        title: 'Add the connector',
+        body: `Your personal URL has been <b>copied to your clipboard</b>. Open Claude Desktop, then in the menu bar go to <b>Claude → Settings → Integrations → Add custom integration</b>.<br><br>• <b>Name:</b> <code style="background:#f5f5f5;padding:1px 5px;border-radius:3px">GroupWisdom</code><br>• <b>Remote MCP server URL:</b> paste here<br><br>Then click <b>Add</b>.`,
+        openUrl: null,
+        openLabel: null,
+        copyIdx: mcpUrlIdx,
+        copyNote: 'URL copied to clipboard',
+      },
+      {
+        title: 'Add instructions',
+        body: `Your instructions have been <b>copied to your clipboard</b>. In Claude Desktop go to <b>Claude → Settings → Profile</b> and scroll to <b>What would you like Claude to know?</b> — paste and save.`,
+        openUrl: null,
+        openLabel: null,
+        copyIdx: sysIdx,
+        copyNote: 'Instructions copied to clipboard',
+      },
+      {
+        title: 'Restart & test',
+        body: `Quit Claude Desktop (<b>Cmd+Q</b>) and reopen it. You should see a 🔨 hammer icon in the chat input — that means it's connected.<br><br>${testBody}`,
+        openUrl: null,
+        openLabel: null,
+        copyIdx: null,
+        copyNote: null,
+      },
+    ],
+  };
+  window._wizPos = { web: 0, desktop: 0 };
+
+  return `
+    <div style="display:flex;gap:0;margin-bottom:24px;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden">
+      <button id="tab-web" onclick="showSetupTab('web')" style="flex:1;font:inherit;font-size:13px;font-weight:500;padding:10px;border:none;background:#111;color:#fff;cursor:pointer">Claude.ai (web)</button>
+      <button id="tab-desktop" onclick="showSetupTab('desktop')" style="flex:1;font:inherit;font-size:13px;font-weight:500;padding:10px;border:none;background:#f5f5f5;color:#555;cursor:pointer">Claude Desktop</button>
+    </div>
+    <div id="wiz-web"></div>
+    <div id="wiz-desktop" style="display:none"></div>`;
+}
+
+function wizDots(steps, pos) {
+  return steps.map((_, i) => {
+    const done = i < pos, active = i === pos;
+    const bg = done ? '#111' : active ? '#111' : '#e0e0e0';
+    const color = (done || active) ? '#fff' : '#999';
+    const label = done ? '✓' : i + 1;
+    return `<div style="width:28px;height:28px;border-radius:50%;background:${bg};color:${color};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0">${label}</div>` +
+      (i < steps.length - 1 ? `<div style="flex:1;height:2px;background:${i < pos ? '#111' : '#e0e0e0'};margin:0 6px"></div>` : '');
+  }).join('');
+}
+
+function renderWizStep(tab) {
+  const steps = window._wiz[tab];
+  const pos = window._wizPos[tab];
+  const step = steps[pos];
+  const isLast = pos === steps.length - 1;
+
+  if (step.copyIdx !== null && step.copyIdx !== undefined) {
+    navigator.clipboard.writeText(_prompts[step.copyIdx]).catch(() => {});
+  }
+
+  const el = document.getElementById('wiz-' + tab);
+  if (!el) return;
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;margin-bottom:28px">${wizDots(steps, pos)}</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:10px">${esc(step.title)}</div>
+    <div style="font-size:14px;color:#333;line-height:1.7;margin-bottom:16px">${step.body}</div>
+    ${step.copyNote ? `<div style="display:flex;align-items:center;gap:6px;background:#f0faf0;border:1px solid #b7ddb7;border-radius:6px;padding:8px 12px;font-size:13px;color:#1a7a1a;margin-bottom:16px">✓ ${esc(step.copyNote)} — just paste</div>` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+      ${step.openUrl ? `<button onclick="window.open('${step.openUrl}','_blank')" style="font:inherit;font-size:13px;padding:9px 16px;border-radius:8px;border:1px solid #e0e0e0;background:#fff;cursor:pointer">${esc(step.openLabel)}</button>` : ''}
+      ${isLast
+        ? `<div style="font-size:13px;color:#888;padding:9px 4px">You're all set ✓</div>`
+        : `<button class="primary" style="font-size:13px;padding:9px 20px" onclick="advanceWizard('${tab}')">Done — next step →</button>`}
+    </div>`;
+}
+
+window.advanceWizard = function(tab) {
+  const steps = window._wiz[tab];
+  if (window._wizPos[tab] < steps.length - 1) {
+    window._wizPos[tab]++;
+    renderWizStep(tab);
+  }
+};
+
+window.showSetupTab = function(tab) {
+  ['web','desktop'].forEach(t => {
+    document.getElementById('wiz-' + t).style.display = t === tab ? '' : 'none';
+    document.getElementById('tab-' + t).style.background = t === tab ? '#111' : '#f5f5f5';
+    document.getElementById('tab-' + t).style.color = t === tab ? '#fff' : '#555';
+  });
+  renderWizStep(tab);
+};
+
+// Init wizard after HTML is in DOM
+window._initWizard = function() {
+  if (window._wiz) { renderWizStep('web'); }
+};
+
+function renderOnboarding() {
+  const key = state.user?.api_key || "";
+  const appUrl = window.location.origin;
+
+  $("#app").innerHTML = `
+    <div style="max-width:600px;margin:0 auto;padding:48px 0 80px">
+      <div style="font-size:22px;font-weight:600;margin-bottom:6px">Welcome to GroupWisdom</div>
+      <div style="color:#555;font-size:14px;margin-bottom:8px;line-height:1.6">Your account is ready. Follow the steps below to connect Claude so it can read and write to your projects automatically.</div>
+      <div style="background:#f0f7ff;border:1px solid #c8e0ff;border-radius:8px;padding:12px 16px;margin-bottom:32px;font-size:13px;color:#0055cc">
+        Your personal key is <b>${esc(key)}</b> — it's already filled in below. Keep it private.
+      </div>
+      ${claudeSetupSteps(key, appUrl, '')}
+      <div style="margin-top:24px;padding-top:24px;border-top:1px solid #eee">
+        <button class="primary" style="padding:10px 24px" onclick="renderDeveloper()">Skip for now — go to Developer API →</button>
+        <p style="font-size:12px;color:#bbb;margin-top:10px">These instructions are always available in Settings → Claude Setup inside any project.</p>
+      </div>
+    </div>`;
+  setTimeout(() => window._initWizard?.(), 0);
+}
+
+async function logout() {
+  await api.post("/auth/logout", {});
+  state.user = null;
+  state.groups = [];
+  state.group = null;
+  renderAuth();
+}
+
+const _prompts = [];
+function promptChip(text) {
+  const i = _prompts.push(text) - 1;
+  return `<button onclick="copyPrompt(${i})" style="font:inherit;font-size:12px;padding:6px 12px;border:1px solid #e0e0e0;border-radius:20px;background:#fafafa;cursor:pointer;color:#555;text-align:left;white-space:nowrap" title="Click to copy">${esc(text)}</button>`;
+}
+window.copyPrompt = i => navigator.clipboard.writeText(_prompts[i]).then(() => toast('Copied — paste into Claude'));
+
+function renderProjects() {
+  state.view = "projects";
+  const firstName = (state.user?.name || "").split(" ")[0];
+  const firstProject = state.groups[0]?.name || "Palo Alto trip";
+
+  const generalPrompts = [
+    `List my GroupWisdom projects`,
+    `What's in my ${firstProject} project?`,
+    `Summarise everything my group has shared about ${firstProject}`,
+    `What insights has GroupWisdom found for ${firstProject}?`,
+    `Search my GroupWisdom for anything about budgets`,
+    `Run a fresh analysis on my ${firstProject} project`,
+  ];
+
+  const cards = state.groups.map(g => `
+    <div class="project-card" onclick="openGroup('${g.id}')">
+      <button class="delete-btn" onclick="deleteGroup(event,'${g.id}','${esc(g.name)}')">×</button>
+      <div class="p-name">${esc(g.name)}</div>
+      <div class="p-meta">Click to open</div>
+    </div>`).join("");
+
+  $("#app").innerHTML = `
+    <div class="projects-header">
+      <div class="logo">GroupWisdom</div>
+      <div class="spacer"></div>
+      <button onclick="renderDeveloper()" style="font-size:13px;padding:6px 12px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer;color:#555;margin-right:8px">Developer API</button>
+      <span style="font-size:13px;color:#888;margin-right:12px">${esc(state.user?.name || "")}</span>
+      <button onclick="logout()" style="font-size:13px;padding:6px 12px;color:#888">Sign out</button>
+    </div>
+    <div class="projects-grid">
+      ${cards}
+      <div class="new-project-card" onclick="createGroup()">+ New project</div>
+    </div>
+    <div style="margin-top:40px;padding-top:32px;border-top:1px solid #f0f0f0">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:14px">Try saying this to Claude →</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${generalPrompts.map(p => promptChip(p)).join("")}
+      </div>
+      <div style="font-size:12px;color:#ccc;margin-top:10px">Click any prompt to copy it, then paste into Claude Desktop</div>
+    </div>`;
+}
+
+async function openGroup(id) {
+  localStorage.setItem("gw_group", id);
+  const [group, items, insights] = await Promise.all([
+    api.get("/groups/" + id),
+    api.get("/groups/" + id + "/items"),
+    api.get("/groups/" + id + "/insights"),
+  ]);
+  Object.assign(state, { group, items, insights, view: "group", proposals: null });
+  render();
+  connectLive(id);
+}
+
+async function createGroup(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const name = prompt("Project name:");
+  if (!name?.trim()) return;
+  const g = await api.post("/groups", { name: name.trim() });
+  state.groups = await api.get("/groups");
+  toast("Project created");
+  await openGroup(g.id);
+}
+
+function render() {
+  const g = state.group;
+
+  const CONF_COLOR = { high: '#16a34a', medium: '#d97706', low: '#9ca3af' };
+  const insightCards = state.insights.filter(ins => ins.status === 'acknowledged').map(ins => {
+    const conf = ins.confidence;
+    const confBadge = conf ? `<span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:${CONF_COLOR[conf] || '#9ca3af'};background:${CONF_COLOR[conf] ? CONF_COLOR[conf]+'18' : '#f3f4f6'};padding:1px 6px;border-radius:4px">${conf}</span>` : '';
+    const meta2 = [
+      ins.caveat ? `<div style="font-size:12px;color:#6b7280;margin-top:6px;padding:6px 8px;background:#f9fafb;border-radius:4px;border-left:2px solid #e5e7eb"><strong>Caveat:</strong> ${esc(ins.caveat)}</div>` : '',
+      ins.do_next ? `<div style="font-size:12px;color:#1d4ed8;margin-top:4px;padding:6px 8px;background:#eff6ff;border-radius:4px;border-left:2px solid #bfdbfe"><strong>Next:</strong> ${esc(ins.do_next)}</div>` : '',
+      ins.missing_voice ? `<div style="font-size:12px;color:#7c3aed;margin-top:4px;padding:6px 8px;background:#f5f3ff;border-radius:4px;border-left:2px solid #ddd6fe"><strong>Missing voice:</strong> ${esc(ins.missing_voice)}</div>` : '',
+    ].filter(Boolean).join('');
+    return `
+    <div class="item" style="border-left:3px solid ${KIND_COLOR[ins.kind] || '#ccc'};padding-left:13px">
+      <div class="item-body">
+        <div class="item-meta" style="margin-bottom:3px;display:flex;align-items:center;gap:6px">
+          <span style="color:${KIND_COLOR[ins.kind] || '#888'};font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.08em">${ins.kind.replace('_',' ')}</span>
+          ${confBadge}
+        </div>
+        <div class="item-title">${esc(ins.title)}</div>
+        <div class="item-content">${esc(ins.body)}</div>
+        ${meta2}
+        <div class="item-meta" style="margin-top:6px">${ago(ins.created_at)}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const memberMap = Object.fromEntries((state.group.members || []).map(m => [m.id, m.name]));
+  const itemCards = state.items.map(i => {
+    const who = i.member_id && memberMap[i.member_id] ? memberMap[i.member_id] : null;
+    return `
+    <div class="item">
+      <div class="item-icon">${ICON[i.type] || "📝"}</div>
+      <div class="item-body">
+        <div class="item-title">${i.url ? `<a href="${esc(i.url)}" target="_blank">${esc(i.title)}</a>` : esc(i.title)}</div>
+        ${i.content ? `<div class="item-content">${esc(i.content)}</div>` : ""}
+        <div class="item-meta">${who ? `<strong>${esc(who)}</strong> · ` : ""}${ago(i.created_at)}${i.source !== "web" ? ` · via ${esc(i.source)}` : ""}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const totalCount = state.items.length + state.insights.length;
+  const feed = totalCount === 0
+    ? `<div class="empty">Nothing here yet.<br>Add a link, note, or thought above.</div>`
+    : insightCards + itemCards;
+
+  $("#app").innerHTML = `
+    <header>
+      <button class="icon-btn" onclick="renderProjects()" title="All projects" style="margin-right:4px">←</button>
+      <div class="logo">${esc(g.name)}</div>
+      <div class="spacer"></div>
+      <button onclick="runAnalysis()" ${state.analyzing ? "disabled" : ""}>
+        ${state.analyzing ? '<span class="spinning">◌</span> Thinking…' : 'Deep Wisdom'}
+      </button>
+      <button class="icon-btn" onclick="openSettings()" title="Settings" style="margin-left:4px">⚙</button>
+    </header>
+
+    <div class="add-bar">
+      <div class="add-row">
+        <input id="itTitle" placeholder="Add a link, note, or thought…" style="flex:1">
+        <select id="itType">
+          <option value="note">Note</option>
+          <option value="link">Link</option>
+          <option value="thought">Thought</option>
+          <option value="file">File</option>
+        </select>
+      </div>
+      <div class="add-row">
+        <input id="itUrl" placeholder="URL (optional)">
+        <select id="itMember">
+          <option value="">Anyone</option>
+          ${g.members.map(m => `<option value="${m.id}" ${m.user_id === state.user?.id ? 'selected' : ''}>${esc(m.name)}</option>`).join("")}
+        </select>
+      </div>
+      <textarea id="itContent" placeholder="Context or notes (optional)…"></textarea>
+      <div><button class="primary" onclick="addItem()">Add to group</button></div>
+    </div>
+
+    ${state.proposals !== null ? `
+    <div class="insight-panel">
+      <div class="panel-header">
+        <h2>Wisdom found — ${state.proposals.length === 0 ? "nothing new" : `${state.proposals.length} new finding${state.proposals.length === 1 ? "" : "s"}`}</h2>
+        <button onclick="state.proposals=null;render()">Done</button>
+      </div>
+      ${state.proposals.length === 0
+        ? `<div style="color:#bbb;font-size:13px">The engine didn't find anything new. Add more content and try again.</div>`
+        : state.proposals.map((p, i) => `
+          <div class="insight-card" id="proposal-${i}">
+            <div class="i-meta"><span class="i-kind">${p.kind.replace("_", " ")}</span></div>
+            <h3>${esc(p.title)}</h3>
+            <p>${esc(p.body)}</p>
+            <div class="i-actions">
+              <button class="btn-add" onclick="acceptProposal(${i})">Add to project</button>
+              <button class="btn-dismiss" onclick="dismissProposal(${i})">Dismiss</button>
+            </div>
+          </div>`).join("")}
+    </div>` : ""}
+
+    <div class="drop-zone" id="dropZone" onclick="$('#fileInput').click()"
+      ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+      <input type="file" id="fileInput" multiple onchange="uploadFiles(this.files)">
+      Drop files here — PDFs, docs, text files
+    </div>
+
+    <div class="feed-label">${state.insights.length ? `${state.insights.length} wisdom · ` : ""}${state.items.length} item${state.items.length === 1 ? "" : "s"}</div>
+    ${feed}
+
+    <div style="margin-top:40px;padding-top:28px;border-top:1px solid #f0f0f0">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:14px">Try saying this to Claude →</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${[
+          `What's in my ${g.name} project?`,
+          `Summarise everything my group has shared about ${g.name}`,
+          `What connections has GroupWisdom found in ${g.name}?`,
+          `Search my ${g.name} project for anything about budgets`,
+          `Add a note to my ${g.name} GroupWisdom project: [your note here]`,
+          `Run a fresh analysis on my ${g.name} project and tell me what's new`,
+          `What are the open questions in my ${g.name} project?`,
+          `What decisions has the group made in ${g.name}?`,
+        ].map(p => promptChip(p)).join("")}
+      </div>
+      <div style="font-size:12px;color:#ccc;margin-top:10px">Click any prompt to copy it, then paste into Claude Desktop</div>
+    </div>`;
+}
+
+window.addItem = async () => {
+  const title = $("#itTitle").value.trim();
+  const content = $("#itContent").value.trim();
+  const url = $("#itUrl").value.trim();
+  if (!title && !content && !url) return;
+  const type = $("#itType").value;
+
+  // optimistic: show immediately
+  const optimistic = { id: "_tmp", type, title: title || url || content.slice(0, 60), content, url, source: "web", created_at: new Date().toISOString().replace("T", " ").slice(0, 19) };
+  state.items = [optimistic, ...state.items];
+  render();
+  $("#itTitle").value = ""; $("#itContent").value = ""; $("#itUrl").value = "";
+
+  const saved = await api.post(`/groups/${state.group.id}/items`, {
+    title: optimistic.title, content, url, type, member_id: $("#itMember")?.value || null,
+  });
+  // replace optimistic with real item
+  state.items = state.items.map(i => i.id === "_tmp" ? saved : i);
+  render();
+  toast("Added — your AI connector will see this");
+};
+
+window.openGroup = openGroup;
+window.renderProjects = renderProjects;
+window.createGroup = createGroup;
+window.renderAuth = renderAuth;
+window.doLogin = doLogin;
+window.doSignup = doSignup;
+window.logout = logout;
+window.renderOnboarding = renderOnboarding;
+window.deleteGroup = async (e, id, name) => {
+  e.stopPropagation();
+  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  await api.delete("/groups/" + id);
+  state.groups = await api.get("/groups");
+  renderProjects();
+  toast("Project deleted");
+};
+
+function settingsTab(name, active) {
+  return `<button class="modal-tab ${active === name ? 'active' : ''}" onclick="switchSettingsTab('${name}')">${name}</button>`;
+}
+
+function settingsContent(tab, g, personalKey, appUrl) {
+  if (tab === 'General') return `
+    <div class="field-label">Project</div>
+    <div class="kv"><code>${esc(g.name)}</code></div>
+    <div class="field-label">Your personal API key</div>
+    <p style="color:#888;font-size:13px;margin-bottom:8px">This key gives your AI tools access to all your projects. Keep it private.</p>
+    <div class="kv">
+      <code>${personalKey}</code>
+      <button onclick="navigator.clipboard.writeText('${personalKey}').then(()=>toast('Copied'))">Copy</button>
+    </div>
+    <div class="field-label">Connected tools</div>
+    ${g.connectors.map(c => `
+      <div class="connector-row">
+        <div style="flex:1">
+          <span style="font-weight:500">${esc(c.name)}</span>
+          <span style="color:#bbb;font-size:12px;margin-left:8px">${c.access === "read_write" ? "read + write" : "read only"}</span>
+        </div>
+        ${c.status === "connected" ? `<span class="pill on">Connected</span>` : `<span class="pill">Available</span>`}
+      </div>`).join("")}`;
+
+  if (tab === 'Claude Setup') return `
+    <div style="background:#f0f7ff;border:1px solid #c8e0ff;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#0055cc">
+      Your personal key is <b>${personalKey}</b> — it's unique to you and already filled in below.
+    </div>
+    ${claudeSetupSteps(personalKey, appUrl, g.name)}`;
+
+  if (tab === 'Members') return `
+    ${g.members.map(m => {
+      const hasContext = !!m.context_updated_at;
+      const contextDate = hasContext ? new Date(m.context_updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
+      return `
+      <div class="member-row">
+        <div class="avatar">${esc(m.name.split(/\s+/).map(w => w[0]).join("").slice(0,2).toUpperCase())}</div>
+        <div style="flex:1">
+          <div style="font-weight:500">${esc(m.name)}</div>
+          <div style="font-size:12px;color:#888">${esc(m.role) || "—"}</div>
+        </div>
+        ${hasContext ? `<div title="Claude has context from this member's research" style="display:flex;align-items:center;gap:5px;font-size:11px;color:#888"><div style="width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0"></div>Active ${contextDate}</div>` : ''}
+      </div>`;
+    }).join("") || `<div style="color:#bbb;font-size:13px;padding:8px 0">No members yet.</div>`}
+
+    <div class="field-label">Invite someone</div>
+    <p style="font-size:13px;color:#555;margin-bottom:8px">Send them a link to join this project. They'll be able to add content and use all features.</p>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <input id="inviteEmail" placeholder="their@email.com" style="flex:1;font-size:13px;padding:8px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa">
+      <button onclick="generateInvite()">Generate link</button>
+    </div>
+    <div id="inviteResult" style="display:none">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <input id="inviteLink" readonly style="flex:1;font-size:12px;padding:7px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#f5f5f5;color:#555">
+        <button onclick="copyInvite()">Copy</button>
+      </div>
+      <a id="inviteMailto" href="#" style="font-size:13px;color:#111">Open in email app →</a>
+    </div>`;
+
+  return '';
+}
+
+window.openSettings = (tab = 'General') => {
+  const g = state.group;
+  const personalKey = state.user?.api_key || g.api_key;
+  const appUrl = window.location.origin;
+
+  const existing = document.querySelector('.overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="modal">
+      <div class="modal-head">
+        <h2>Settings</h2>
+        <button class="modal-close" onclick="this.closest('.overlay').remove()">×</button>
+      </div>
+      <div class="modal-tabs">
+        ${['General','Claude Setup','Members'].map(t => settingsTab(t, tab)).join('')}
+      </div>
+      <div class="modal-body" id="settingsBody">
+        ${settingsContent(tab, g, personalKey, appUrl)}
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  if (tab === 'Claude Setup') setTimeout(() => window._initWizard?.(), 0);
+
+  window._settingsState = { g, personalKey, appUrl };
+};
+
+window.switchSettingsTab = (tab) => {
+  const { g, personalKey, appUrl } = window._settingsState;
+  document.querySelectorAll('.modal-tab').forEach(t => t.classList.toggle('active', t.textContent === tab));
+  document.getElementById('settingsBody').innerHTML = settingsContent(tab, g, personalKey, appUrl);
+  if (tab === 'Claude Setup') setTimeout(() => window._initWizard?.(), 0);
+};
+
+window.generateInvite = async () => {
+  const email = document.getElementById("inviteEmail")?.value.trim() ?? "";
+  const data = await api.post(`/groups/${state.group.id}/invites`, { email });
+  const link = data.url;
+  document.getElementById("inviteLink").value = link;
+  document.getElementById("inviteResult").style.display = "block";
+  const subject = encodeURIComponent(`Join my GroupWisdom project: ${state.group.name}`);
+  const body = encodeURIComponent(`Hi,\n\nI'm inviting you to join "${state.group.name}" on GroupWisdom — a shared intelligence layer for our group.\n\nClick this link to join:\n${link}\n\nYou'll be able to add notes, links, files, and get AI-powered insights across everything we share.`);
+  document.getElementById("inviteMailto").href = `mailto:${email}?subject=${subject}&body=${body}`;
+};
+
+window.copyInvite = () => {
+  const link = document.getElementById("inviteLink")?.value;
+  if (link) navigator.clipboard.writeText(link).then(() => toast("Invite link copied"));
+};
+
+window.runAnalysis = async () => {
+  if (!state.group || state.analyzing) return;
+  state.analyzing = true;
+  state.proposals = null;
+  render();
+  try {
+    const proposals = await api.get(`/groups/${state.group.id}/analyze/preview`);
+    state.proposals = proposals;
+  } catch {
+    toast("Analysis failed — check your API key in settings");
+  }
+  state.analyzing = false;
+  render();
+};
+
+window.acceptProposal = async (i) => {
+  const p = state.proposals[i];
+  if (!p) return;
+  const saved = await api.post(`/groups/${state.group.id}/insights`, { kind: p.kind, title: p.title, body: p.body });
+  state.proposals = state.proposals.filter((_, j) => j !== i);
+  state.insights = [saved, ...state.insights];
+  toast("Insight added to project");
+  render();
+};
+
+window.dismissProposal = (i) => {
+  state.proposals = state.proposals.filter((_, j) => j !== i);
+  render();
+};
+
+// Live push
+let _ws = null;
+function connectLive(groupId) {
+  if (_ws) _ws.close();
+  const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${wsProto}//${location.host}`);
+  _ws = ws;
+  ws.onopen = () => ws.send(JSON.stringify({ subscribe: groupId }));
+  ws.onmessage = async ({ data }) => {
+    try {
+      const { event, groupId: gid } = JSON.parse(data);
+      if (event === "update" && gid === state.group?.id) {
+        const [items, insights, group] = await Promise.all([
+          api.get("/groups/" + gid + "/items"),
+          api.get("/groups/" + gid + "/insights"),
+          api.get("/groups/" + gid),
+        ]);
+        state.items = items;
+        state.insights = insights;
+        state.group = { ...state.group, ...group };
+        render();
+      }
+    } catch {}
+  };
+  ws.onclose = () => { if (state.group?.id === groupId) setTimeout(() => connectLive(groupId), 2000); };
+}
+
+window.onDragOver = e => {
+  e.preventDefault();
+  $("#dropZone")?.classList.add("over");
+};
+window.onDragLeave = () => $("#dropZone")?.classList.remove("over");
+window.onDrop = e => {
+  e.preventDefault();
+  $("#dropZone")?.classList.remove("over");
+  uploadFiles(e.dataTransfer.files);
+};
+window.uploadFiles = async files => {
+  if (!files?.length) return;
+  const zone = $("#dropZone");
+  zone.classList.add("uploading");
+  zone.textContent = `Uploading ${files.length} file${files.length === 1 ? "" : "s"}…`;
+  const form = new FormData();
+  for (const f of files) form.append("files", f);
+  const memberId = $("#itMember")?.value;
+  if (memberId) form.append("member_id", memberId);
+  try {
+    const r = await fetch(`/api/groups/${state.group.id}/upload`, { method: "POST", body: form });
+    const data = await r.json();
+    toast(`${data.created} file${data.created === 1 ? "" : "s"} added — engine checking for connections`);
+    await loadGroup(state.group.id);
+  } catch {
+    toast("Upload failed");
+    zone.classList.remove("uploading");
+    zone.textContent = "Drop files here — PDFs, docs, text files";
+  }
+};
+
+// ── Developer portal ──────────────────────────────────────────────────────────
+
+const KIND_COLOR_DEV = { connection:'#2255cc', pattern:'#6622cc', blind_spot:'#996600', conflict:'#cc3333', question:'#1d7a46', decision:'#555' };
+const KIND_BG_DEV    = { connection:'#e8f0ff', pattern:'#f5e8ff', blind_spot:'#fff5e0', conflict:'#ffe8e8', question:'#e8f5ee', decision:'#f0f0f0' };
+
+let _devProjects = [];
+let _devSelected = null; // project id
+let _devProjectTab = 'insights'; // insights | add | settings
+let _devProjectsOpen = false;
+let _devPage = 'project'; // project | usage
+
+let _devUsagePct = 0;
+let _devUsageLimitReached = false;
+
+async function renderDeveloper() {
+  const [projects, usage] = await Promise.all([
+    fetch('/v1/projects', { headers: { 'Authorization': 'Bearer ' + state.user.api_key } }).then(r => r.json()).catch(() => []),
+    fetch('/v1/usage', { headers: { 'Authorization': 'Bearer ' + state.user.api_key } }).then(r => r.json()).catch(() => ({ percent_used: 0, limit_reached: false })),
+  ]);
+  _devProjects = projects;
+  _devUsagePct = usage.percent_used ?? 0;
+  _devUsageLimitReached = usage.limit_reached ?? false;
+
+  if (!_devSelected && _devProjects.length) _devSelected = _devProjects[0].id;
+  _renderDevShell();
+  if (_devSelected) await _loadDevDetail(_devSelected, _devProjectTab);
+}
+
+function _renderDevShell() {
+  const app = $("#app");
+  Object.assign(app.style, { maxWidth: "none", padding: "0", margin: "0" });
+  const key = state.user.api_key;
+  const mcpUrl = window.location.origin + '/mcp?key=' + encodeURIComponent(key);
+
+  const selectedProject = _devProjects.find(p => p.id === _devSelected);
+  const dropdownItems = _devProjects.map(p => `
+    <div onclick="devSelectProject('${p.id}')" style="padding:9px 12px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:6px;margin:1px 0;background:${_devSelected===p.id?'#f5f5f5':'transparent'}">
+      <div>
+        <div style="font-size:13px;font-weight:${_devSelected===p.id?'600':'400'};color:#111">${esc(p.name)}</div>
+        <div style="font-size:11px;color:#bbb;margin-top:1px">${p.counts.items} items · ${p.counts.insights} insights</div>
+      </div>
+      ${_devSelected===p.id ? '<span style="color:#111;font-size:14px">✓</span>' : ''}
+    </div>`).join('');
+
+  const usageBarColor = _devUsageLimitReached ? '#cc3333' : _devUsagePct > 75 ? '#e67e22' : '#111';
+  const usageActive = _devPage === 'usage';
+
+  $("#app").innerHTML = `
+    <div style="display:flex;min-height:100vh;max-width:1100px;margin:0 auto">
+
+      <!-- Sidebar -->
+      <div style="width:240px;flex-shrink:0;border-right:1px solid #eee;padding:28px 16px;display:flex;flex-direction:column;gap:0">
+        <div style="font-size:15px;font-weight:700;letter-spacing:-.2px;margin-bottom:3px;padding:0 4px">GroupWisdom</div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:24px;padding:0 4px">Developer Portal</div>
+
+        <!-- Projects dropdown -->
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;padding:0 4px;margin-bottom:6px">Projects</div>
+        <div style="position:relative">
+          <button onclick="devToggleProjectDropdown()" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;width:100%;text-align:left;display:flex;align-items:center;justify-content:space-between;color:#111">
+            <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${selectedProject ? esc(selectedProject.name) : 'Select a project'}</span>
+            <span style="color:#aaa;font-size:11px;flex-shrink:0;margin-left:6px">${_devProjectsOpen ? '▲' : '▼'}</span>
+          </button>
+          ${_devProjectsOpen ? `
+          <div style="position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.08);z-index:50;padding:4px;max-height:280px;overflow-y:auto">
+            ${dropdownItems}
+            <div style="border-top:1px solid #f0f0f0;margin-top:4px;padding-top:4px">
+              <div onclick="devNewProject()" style="padding:9px 12px;cursor:pointer;font-size:13px;color:#888;border-radius:6px;display:flex;align-items:center;gap:6px" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">
+                <span>+</span> New project
+              </div>
+            </div>
+          </div>` : ''}
+        </div>
+
+        <div style="flex:1"></div>
+
+        <div style="border-top:1px solid #eee;padding-top:16px;margin-top:16px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:8px;padding:0 4px">Your MCP URL</div>
+          <div style="background:#f5f5f5;border-radius:6px;padding:8px 10px;font-size:11px;font-family:monospace;color:#555;word-break:break-all;margin-bottom:6px">${esc(mcpUrl)}</div>
+          <button onclick="navigator.clipboard.writeText('${esc(mcpUrl)}').then(()=>toast('MCP URL copied'))" style="font:inherit;font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer;width:100%">Copy MCP URL</button>
+          <p style="font-size:11px;color:#bbb;margin-top:6px;padding:0 2px;line-height:1.5">Paste into Claude → Settings → Connectors → + Custom</p>
+        </div>
+
+        <div style="border-top:1px solid #eee;padding-top:16px;margin-top:16px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:8px;padding:0 4px">API Key</div>
+          <div style="background:#f5f5f5;border-radius:6px;padding:8px 10px;font-size:11px;font-family:monospace;color:#555;word-break:break-all;margin-bottom:6px">${esc(key)}</div>
+          <button onclick="navigator.clipboard.writeText('${esc(key)}').then(()=>toast('API key copied'))" style="font:inherit;font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer;width:100%">Copy API key</button>
+        </div>
+
+        <!-- Usage / Monthly Budget — clickable nav item -->
+        <div onclick="devShowUsage()" style="border-top:1px solid #eee;padding-top:16px;margin-top:16px;cursor:pointer;border-radius:8px;padding:12px;margin-left:-4px;margin-right:-4px;background:${usageActive?'#f5f5f5':'transparent'};transition:background .15s">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#bbb;margin-bottom:8px">Usage</div>
+          <div style="background:#e8e8e8;border-radius:999px;height:5px;overflow:hidden;margin-bottom:6px">
+            <div style="height:100%;width:${Math.min(_devUsagePct,100)}%;background:${usageBarColor};border-radius:999px"></div>
+          </div>
+          <div style="font-size:11px;color:${_devUsageLimitReached?'#cc3333':'#888'}">
+            ${_devUsageLimitReached ? 'Limit reached' : `${_devUsagePct}% used`}
+          </div>
+        </div>
+
+        <div style="border-top:1px solid #eee;padding-top:16px;margin-top:8px;display:flex;flex-direction:column;gap:4px">
+          <a href="/docs" target="_blank" style="font-size:13px;color:#555;text-decoration:none;padding:6px 4px;display:block">API Docs ↗</a>
+          <button onclick="renderProjects()" style="font:inherit;font-size:13px;padding:6px 4px;border:none;background:none;cursor:pointer;color:#888;text-align:left">← Web app</button>
+          <button onclick="logout()" style="font:inherit;font-size:13px;padding:6px 4px;border:none;background:none;cursor:pointer;color:#bbb;text-align:left">Sign out</button>
+        </div>
+      </div>
+
+      <!-- Detail panel -->
+      <div style="flex:1;padding:36px 48px 80px;overflow-y:auto" onclick="devCloseDropdown(event)">
+        <div id="dev-detail">
+          ${_devPage === 'usage' ? _devUsagePage() : (_devSelected ? '<div style="color:#bbb;font-size:14px">Loading…</div>' : _devEmptyState())}
+        </div>
+      </div>
+    </div>`;
+}
+
+function _devEmptyState() {
+  return `<div style="padding:60px 0;text-align:center;color:#bbb">
+    <div style="font-size:32px;margin-bottom:12px">⚡</div>
+    <div style="font-size:16px;font-weight:600;color:#888;margin-bottom:8px">No projects yet</div>
+    <div style="font-size:14px;margin-bottom:20px">Create a project to start ingesting data and receiving insights.</div>
+    <button onclick="devNewProject()" class="primary" style="font-size:14px;padding:10px 24px">Create first project</button>
+  </div>`;
+}
+
+function _devUsagePage() {
+  const pct = _devUsagePct;
+  const limitReached = _devUsageLimitReached;
+  const barColor = limitReached ? '#cc3333' : pct > 75 ? '#e67e22' : '#111';
+
+  const totalProjects = _devProjects.length;
+  const totalItems = _devProjects.reduce((s, p) => s + p.counts.items, 0);
+  const totalInsights = _devProjects.reduce((s, p) => s + p.counts.insights, 0);
+
+  const statusLabel = limitReached
+    ? `<span style="background:#ffe8e8;color:#cc3333;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px">Limit reached — analysis paused</span>`
+    : pct > 75
+    ? `<span style="background:#fff5e0;color:#996600;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px">High usage</span>`
+    : `<span style="background:#e8f5ee;color:#1d7a46;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px">Good standing</span>`;
+
+  return `
+    <div style="max-width:560px">
+      <div style="margin-bottom:32px">
+        <div style="font-size:22px;font-weight:700;margin-bottom:6px">Usage</div>
+        <div style="font-size:14px;color:#888">Your monthly analysis budget resets on the 1st of each month.</div>
+      </div>
+
+      <!-- Big progress ring area -->
+      <div style="background:#f7f7f7;border-radius:16px;padding:32px;margin-bottom:24px;display:flex;align-items:center;gap:32px">
+        <div style="position:relative;width:96px;height:96px;flex-shrink:0">
+          <svg viewBox="0 0 96 96" style="width:96px;height:96px;transform:rotate(-90deg)">
+            <circle cx="48" cy="48" r="40" fill="none" stroke="#e8e8e8" stroke-width="8"/>
+            <circle cx="48" cy="48" r="40" fill="none" stroke="${barColor}" stroke-width="8"
+              stroke-dasharray="${2 * Math.PI * 40}"
+              stroke-dashoffset="${2 * Math.PI * 40 * (1 - pct / 100)}"
+              stroke-linecap="round"/>
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#111">${pct}%</div>
+        </div>
+        <div>
+          <div style="font-size:28px;font-weight:700;color:#111;margin-bottom:4px">${pct}% used</div>
+          <div style="font-size:14px;color:#888;margin-bottom:12px">${100 - pct}% of your monthly analysis budget remaining</div>
+          ${statusLabel}
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div style="margin-bottom:24px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#aaa;margin-bottom:6px">
+          <span>0%</span><span>50%</span><span>100%</span>
+        </div>
+        <div style="background:#e8e8e8;border-radius:999px;height:8px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(pct,100)}%;background:${barColor};border-radius:999px;transition:width .6s ease"></div>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:32px">
+        ${[['Projects', totalProjects], ['Items ingested', totalItems], ['Insights generated', totalInsights]].map(([label, val]) => `
+        <div style="background:#f7f7f7;border-radius:12px;padding:16px">
+          <div style="font-size:22px;font-weight:700;color:#111;margin-bottom:4px">${val}</div>
+          <div style="font-size:12px;color:#888">${label}</div>
+        </div>`).join('')}
+      </div>
+
+      <!-- Info box -->
+      <div style="border:1px solid #eee;border-radius:12px;padding:20px">
+        <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:12px">How usage works</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;gap:12px;align-items:flex-start;font-size:13px">
+            <span style="font-size:16px;flex-shrink:0;margin-top:1px">⚡</span>
+            <span style="color:#555">Every item you ingest triggers a quick analysis pass to surface new insights in real time.</span>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;font-size:13px">
+            <span style="font-size:16px;flex-shrink:0;margin-top:1px">🔍</span>
+            <span style="color:#555">Deeper analysis runs periodically across your full project to find connections, patterns, and blind spots.</span>
+          </div>
+          <div style="border-top:1px solid #f0f0f0;padding-top:10px;font-size:12px;color:#bbb;line-height:1.6">
+            Usage is tracked across all your projects and resets monthly. When the limit is reached, analysis pauses automatically until the next reset.
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function _loadDevDetail(projectId, tab = 'insights') {
+  _devProjectTab = tab;
+  const project = _devProjects.find(p => p.id === projectId);
+  if (!project) return;
+
+  let insights = [];
+  let items = [];
+  if (tab === 'insights') {
+    insights = await fetch('/v1/projects/' + projectId + '/insights', {
+      headers: { 'Authorization': 'Bearer ' + state.user.api_key }
+    }).then(r => r.json()).catch(() => []);
+  }
+  if (tab === 'add') {
+    items = await fetch('/v1/projects/' + projectId + '/items', {
+      headers: { 'Authorization': 'Bearer ' + state.user.api_key }
+    }).then(r => r.json()).catch(() => []);
+  }
+
+  const tabs = ['insights','add','quickstart','settings'].map(t => `
+    <button onclick="devSwitchTab('${t}')" style="font:inherit;font-size:13px;padding:8px 16px;border:none;background:none;cursor:pointer;color:${_devProjectTab===t?'#111':'#aaa'};border-bottom:2px solid ${_devProjectTab===t?'#111':'transparent'};margin-bottom:-1px">${{insights:'Insights',add:'Add Data',quickstart:'Quickstart',settings:'Settings'}[t]}</button>`).join('');
+
+  let body = '';
+
+  if (tab === 'insights') {
+    const kindBadge = i => `<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:4px;background:${KIND_BG_DEV[i.kind]||'#f0f0f0'};color:${KIND_COLOR_DEV[i.kind]||'#555'}">${i.kind.replace('_',' ')}</span>`;
+    body = insights.length
+      ? insights.map(i => `
+          <div style="padding:14px 0;border-bottom:1px solid #f0f0f0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">${kindBadge(i)}<span style="font-size:12px;color:#bbb">${ago(i.created_at)}</span></div>
+            <div style="font-weight:600;font-size:14px;margin-bottom:4px">${esc(i.title)}</div>
+            <div style="font-size:13px;color:#555;line-height:1.5">${esc(i.body)}</div>
+          </div>`).join('')
+      : `<div style="color:#bbb;font-size:14px;padding:32px 0;text-align:center">No insights yet — add data or connect Claude to start generating insights.</div>`;
+  }
+
+  if (tab === 'add') {
+    const recentItems = items.slice(0, 8).map(i => `
+      <div style="padding:8px 0;border-bottom:1px solid #f5f5f5;display:flex;gap:10px;align-items:flex-start">
+        <span style="font-size:11px;font-weight:600;color:#aaa;padding-top:2px;flex-shrink:0;text-transform:uppercase">${i.type}</span>
+        <div>
+          <div style="font-size:13px;font-weight:500">${esc(i.title)}</div>
+          ${i.content ? `<div style="font-size:12px;color:#888;margin-top:2px">${esc(i.content.slice(0,100))}${i.content.length>100?'…':''}</div>` : ''}
+        </div>
+        <div style="font-size:11px;color:#ccc;margin-left:auto;flex-shrink:0;padding-top:2px">${ago(i.created_at)}</div>
+      </div>`).join('') || `<div style="color:#bbb;font-size:13px;padding:12px 0">Nothing added yet.</div>`;
+
+    body = `
+      <div style="background:#fafafa;border:1px solid #e8e8e8;border-radius:10px;padding:20px;margin-bottom:28px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:14px">Add item to project</div>
+        <input id="dev-title" placeholder="Title or headline" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;width:100%;margin-bottom:8px">
+        <textarea id="dev-content" placeholder="Content, notes, or context (optional)" rows="3" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;width:100%;resize:none;margin-bottom:8px"></textarea>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input id="dev-url" placeholder="URL (optional)" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;flex:1">
+          <input id="dev-from" placeholder="From (optional)" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;width:140px">
+          <select id="dev-type" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;width:110px">
+            <option value="note">Note</option>
+            <option value="link">Link</option>
+            <option value="thought">Thought</option>
+            <option value="file">File</option>
+          </select>
+        </div>
+        <button onclick="devAddItem('${projectId}')" class="primary" style="font-size:13px;padding:9px 20px">Add to project</button>
+      </div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:10px">Recent items (${items.length})</div>
+      ${recentItems}`;
+  }
+
+  if (tab === 'quickstart') {
+    const apiKey = state.user.api_key;
+    const pid = project.id;
+    const origin = window.location.origin;
+    window._qsSnippets = {
+      node: `import GroupWisdom from '@groupwisdom/sdk';\n\nconst gw = new GroupWisdom({ apiKey: '${apiKey}' });\n\n// Send data to your project\nawait gw.ingest('${pid}', [\n  { title: 'Q3 strategy doc', type: 'note', content: 'Focus on enterprise.', contributed_by: 'Alice' },\n  { title: 'Competitor analysis', url: 'https://example.com/report', contributed_by: 'Bob' },\n]);\n\n// Fetch insights\nconst { data } = await gw.listInsights('${pid}');\nconsole.log(data);`,
+      curl: `# Ingest items\ncurl -X POST ${origin}/v1/projects/${pid}/ingest \\\n  -H "Authorization: Bearer ${apiKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"title":"My first item","content":"Notes here","contributed_by":"Alice"}'\n\n# Get insights\ncurl ${origin}/v1/projects/${pid}/insights \\\n  -H "Authorization: Bearer ${apiKey}"`,
+    };
+    body = `
+      <div style="margin-bottom:20px">
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button onclick="devQsTab('node')" id="qs-btn-node" style="font:inherit;font-size:12px;font-weight:600;padding:6px 14px;border-radius:6px;cursor:pointer;border:1px solid #111;background:#111;color:#fff">Node.js SDK</button>
+          <button onclick="devQsTab('curl')" id="qs-btn-curl" style="font:inherit;font-size:12px;font-weight:600;padding:6px 14px;border-radius:6px;cursor:pointer;border:1px solid #e0e0e0;background:#fff;color:#555">cURL</button>
+        </div>
+        <div id="qs-node" style="position:relative">
+          <pre style="background:#f7f7f7;border:1px solid #eee;border-radius:10px;padding:18px 48px 18px 18px;font-size:12px;line-height:1.6;overflow-x:auto;margin:0">${esc(window._qsSnippets.node)}</pre>
+          <button onclick="navigator.clipboard.writeText(window._qsSnippets.node).then(()=>toast('Copied'))" style="position:absolute;top:10px;right:10px;font:inherit;font-size:11px;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#555">Copy</button>
+        </div>
+        <div id="qs-curl" style="position:relative;display:none">
+          <pre style="background:#f7f7f7;border:1px solid #eee;border-radius:10px;padding:18px 48px 18px 18px;font-size:12px;line-height:1.6;overflow-x:auto;margin:0">${esc(window._qsSnippets.curl)}</pre>
+          <button onclick="navigator.clipboard.writeText(window._qsSnippets.curl).then(()=>toast('Copied'))" style="position:absolute;top:10px;right:10px;font:inherit;font-size:11px;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#555">Copy</button>
+        </div>
+      </div>
+      <div style="background:#f7f7f7;border-radius:10px;padding:16px;font-size:13px;color:#555;line-height:1.6;margin-bottom:32px">
+        <strong style="color:#111">Your key and project ID are already filled in.</strong><br>
+        Install the SDK with <code style="background:#eee;padding:1px 5px;border-radius:4px">npm install @groupwisdom/sdk</code>, then paste and run.
+        Insights appear in this portal within seconds of ingesting data.
+      </div>
+
+      <div style="border-top:1px solid #f0f0f0;padding-top:28px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div>
+            <div style="font-size:14px;font-weight:700;margin-bottom:3px">How the engine works</div>
+            <div style="font-size:12px;color:#aaa">Two AI passes turn team data into actionable insights — invisibly.</div>
+          </div>
+          <button id="gw-demo-replay" style="font:inherit;font-size:11px;padding:4px 12px;border:1px solid #e4e4e4;border-radius:6px;background:#fff;cursor:pointer;color:#888;flex-shrink:0">Replay</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 72px 1fr 72px 1fr;align-items:stretch;background:#fafafa;border:1px solid #eee;border-radius:10px;overflow:hidden;margin-bottom:16px">
+          <div style="padding:14px 16px;text-align:center">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:4px">Data in</div>
+            <div style="font-size:12px;color:#555;line-height:1.5">Notes, links, and thoughts from your team</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 6px;border-left:1px solid #eee;border-right:1px solid #eee;background:#f5f5f5;gap:2px">
+            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#bbb">Pass 1</div>
+            <div style="font-size:10px;color:#ccc">Haiku</div>
+            <div style="font-size:14px;color:#d4d4d4;line-height:1">&#8594;</div>
+          </div>
+          <div style="padding:14px 16px;text-align:center;border-right:1px solid #eee">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:4px">Candidates</div>
+            <div style="font-size:12px;color:#555;line-height:1.5">Raw insights before evaluation</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 6px;border-right:1px solid #eee;background:#f5f5f5;gap:2px">
+            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#bbb">Pass 2</div>
+            <div style="font-size:10px;color:#ccc">Evaluate</div>
+            <div style="font-size:14px;color:#d4d4d4;line-height:1">&#8594;</div>
+          </div>
+          <div style="padding:14px 16px;text-align:center">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#16a34a;margin-bottom:4px">Insights</div>
+            <div style="font-size:12px;color:#555;line-height:1.5">Filtered, scored, and annotated</div>
+          </div>
+        </div>
+
+        <div style="background:#fafafa;border:1px solid #eee;border-radius:10px;padding:16px 20px">
+          <div id="gw-demo-log" style="min-height:200px;max-height:300px;overflow-y:auto"></div>
+        </div>
+      </div>`;
+  }
+
+  if (tab === 'settings') {
+    const mcpUrl = window.location.origin + '/mcp?key=' + encodeURIComponent(state.user.api_key);
+    const hasWebhook = !!project.webhook_url;
+    body = `
+      <div style="margin-bottom:28px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">Project ID</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <code style="font-size:13px;background:#f5f5f5;padding:8px 12px;border-radius:6px;flex:1">${esc(project.id)}</code>
+          <button onclick="navigator.clipboard.writeText('${esc(project.id)}').then(()=>toast('Copied'))" style="font-size:13px;padding:8px 14px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer">Copy</button>
+        </div>
+      </div>
+      <div style="margin-bottom:28px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">AI Engine</div>
+        <p style="font-size:13px;color:#888;margin-bottom:10px">Choose which AI model runs analysis on this project. Claude is the default.</p>
+        <div style="display:flex;gap:8px">
+          <button onclick="devSetEngine('${project.id}','claude')" style="font:inherit;font-size:13px;padding:9px 18px;border-radius:8px;cursor:pointer;border:1px solid ${(project.engine||'claude')==='claude'?'#111':'#e0e0e0'};background:${(project.engine||'claude')==='claude'?'#111':'#fff'};color:${(project.engine||'claude')==='claude'?'#fff':'#555'}">Claude (default)</button>
+          <button onclick="devSetEngine('${project.id}','muse-spark')" style="font:inherit;font-size:13px;padding:9px 18px;border-radius:8px;cursor:pointer;border:1px solid ${project.engine==='muse-spark'?'#111':'#e0e0e0'};background:${project.engine==='muse-spark'?'#111':'#fff'};color:${project.engine==='muse-spark'?'#fff':'#555'}">Muse Spark</button>
+        </div>
+        <div id="dev-engine-msg" style="font-size:12px;color:#1d7a46;margin-top:8px;display:none"></div>
+      </div>
+      <div style="margin-bottom:28px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">Webhook URL</div>
+        <p style="font-size:13px;color:#888;margin-bottom:8px">GroupWisdom will POST new insights here automatically after each analysis.</p>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="dev-wh" value="${esc(project.webhook_url || '')}" placeholder="https://your-server.com/hook" style="font:inherit;font-size:13px;padding:9px 12px;border:1px solid #e0e0e0;border-radius:8px;background:#fafafa;flex:1">
+          <button onclick="devSaveWebhook('${project.id}')" style="font-size:13px;padding:9px 16px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;white-space:nowrap">Save</button>
+          <button onclick="devTestWebhook('${project.id}')" ${hasWebhook?'':'disabled'} style="font-size:13px;padding:9px 16px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:${hasWebhook?'pointer':'default'};color:${hasWebhook?'#111':'#ccc'};white-space:nowrap">Send test</button>
+        </div>
+        <div id="dev-wh-msg" style="font-size:12px;color:#1d7a46;margin-top:4px;display:none"></div>
+        <p style="font-size:12px;color:#bbb;margin-top:6px">Use <a href="https://webhook.site" target="_blank" style="color:#888">webhook.site</a> to test without a real server.</p>
+      </div>
+      <div style="margin-bottom:28px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">Claude Connector (MCP)</div>
+        <p style="font-size:13px;color:#888;margin-bottom:8px">Add this URL as a custom connector in Claude to let your team use Claude with this project automatically.</p>
+        <div style="display:flex;gap:8px">
+          <code style="font-size:12px;background:#f5f5f5;padding:9px 12px;border-radius:8px;flex:1;word-break:break-all">${esc(mcpUrl)}</code>
+          <button onclick="navigator.clipboard.writeText('${esc(mcpUrl)}').then(()=>toast('MCP URL copied'))" style="font-size:13px;padding:9px 16px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;flex-shrink:0">Copy</button>
+        </div>
+      </div>
+      <div style="margin-bottom:28px;padding-top:28px;border-top:1px solid #eee">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#bbb;margin-bottom:8px">Ingest endpoint</div>
+        <code style="font-size:12px;background:#f5f5f5;padding:9px 12px;border-radius:8px;display:block;word-break:break-all">${esc(window.location.origin)}/v1/projects/${esc(project.id)}/ingest</code>
+        <p style="font-size:12px;color:#bbb;margin-top:6px">POST items here from your backend. <a href="/docs" target="_blank" style="color:#888">See docs →</a></p>
+      </div>
+      <div style="padding-top:24px;border-top:1px solid #fee">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#e0a0a0;margin-bottom:8px">Danger zone</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+          <p style="font-size:13px;color:#888;margin:0">Permanently delete <strong>${esc(project.name)}</strong> and all its items and insights. This cannot be undone.</p>
+          <button onclick="devDeleteProject('${esc(project.id)}','${esc(project.name)}')" style="font:inherit;font-size:13px;padding:8px 16px;border:1px solid #e0a0a0;border-radius:8px;background:#fff;cursor:pointer;color:#cc3333;white-space:nowrap;flex-shrink:0">Delete project</button>
+        </div>
+      </div>`;
+  }
+
+  document.getElementById('dev-detail').innerHTML = `
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:4px">
+      <div style="font-size:22px;font-weight:700">${esc(project.name)}</div>
+      <div style="font-size:13px;color:#bbb">${project.counts.items} items · ${project.counts.insights} insights</div>
+    </div>
+    <div style="border-bottom:1px solid #eee;margin-bottom:24px;display:flex;gap:0">${tabs}</div>
+    ${body}`;
+  if (tab === 'quickstart') _initPipelineDemo();
+}
+
+function _initPipelineDemo() {
+  const log = document.getElementById('gw-demo-log');
+  if (!log) return;
+
+  const KIND_C = { pattern: '#6366f1', blind_spot: '#f59e0b', connection: '#10b981', question: '#3b82f6', decision: '#8b5cf6' };
+  const CONF_C = { high: '#16a34a', medium: '#d97706', low: '#9ca3af' };
+
+  const steps = [
+    { type: 'sep',        text: 'Receiving team data…',                                     delay: 400 },
+    { type: 'item',       who: 'Alice',  title: 'Q3 enterprise strategy',                        delay: 600 },
+    { type: 'item',       who: 'Bob',    title: 'Notion competitor analysis',                     delay: 400 },
+    { type: 'item',       who: 'Carol',  title: 'Enterprise call — Notion came up again',   delay: 400 },
+    { type: 'item',       who: 'Devon',  title: 'Lost deal postmortem: pricing objection',        delay: 400 },
+    { type: 'sep',        text: 'Pass 1  ·  Haiku scanning 4 items for patterns',           delay: 900 },
+    { type: 'candidate',  kind: 'pattern',    title: 'Notion mentioned across three enterprise calls',      delay: 700 },
+    { type: 'candidate',  kind: 'blind_spot', title: 'No one has responded to pricing objections',          delay: 400 },
+    { type: 'candidate',  kind: 'connection', title: 'Alice and Bob are both tracking Notion',              delay: 400 },
+    { type: 'candidate',  kind: 'pattern',    title: 'Team seems to be slowing down',                       delay: 400 },
+    { type: 'sep',        text: 'Pass 2  ·  Evaluating 4 candidates',                       delay: 900 },
+    { type: 'kept',       kind: 'pattern',    conf: 'high',   title: 'Notion mentioned across three enterprise calls', do_next: 'Share competitive brief before next call',   delay: 700 },
+    { type: 'kept',       kind: 'blind_spot', conf: 'medium', title: 'No one has responded to pricing objections',    caveat: 'One deal closed without issue',              delay: 400 },
+    { type: 'kept',       kind: 'connection', conf: 'high',   title: 'Alice and Bob are both tracking Notion',        missing: 'Sales lead input needed',                   delay: 400 },
+    { type: 'suppressed', kind: 'pattern',    title: 'Team seems to be slowing down',                                                                                       delay: 400 },
+    { type: 'done',       text: '3 insights surfaced  ·  1 filtered',                       delay: 700 },
+  ];
+
+  let timers = [];
+
+  function hesc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function makeEntry(step) {
+    const div = document.createElement('div');
+    const base = 'opacity:0;transform:translateY(5px);transition:opacity 0.35s,transform 0.35s;';
+
+    if (step.type === 'sep') {
+      div.style.cssText = base + 'padding:9px 0 5px;margin-top:3px;font-size:11px;font-weight:500;color:#aaa;border-top:1px solid #ebebeb;letter-spacing:.02em';
+      div.textContent = step.text;
+    } else if (step.type === 'item') {
+      div.style.cssText = base + 'padding:3px 0;font-size:12px;display:flex;align-items:baseline;gap:6px;font-family:ui-monospace,monospace';
+      div.innerHTML = '<span style="color:#d4d4d4">&#9656;</span>'
+        + '<span style="color:#999">' + hesc(step.who) + '</span>'
+        + '<span style="color:#bbb"> added </span>'
+        + '<span style="color:#333;font-weight:500">“' + hesc(step.title) + '”</span>';
+    } else if (step.type === 'candidate') {
+      const kc = KIND_C[step.kind] || '#888';
+      div.style.cssText = base + 'padding:3px 0;font-size:12px;display:flex;align-items:baseline;gap:6px;font-family:ui-monospace,monospace';
+      div.innerHTML = '<span style="color:#c4b5fd">&#10022;</span>'
+        + '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:' + kc + '">' + step.kind.replace('_',' ') + '</span>'
+        + '<span style="color:#555">“' + hesc(step.title) + '”</span>';
+    } else if (step.type === 'kept') {
+      const kc = KIND_C[step.kind] || '#888';
+      const cc = CONF_C[step.conf] || '#888';
+      let extras = '';
+      if (step.do_next)  extras += '<span style="color:#1d4ed8;font-size:11px;margin-left:4px">→ ' + hesc(step.do_next) + '</span>';
+      if (step.caveat)   extras += '<span style="color:#6b7280;font-size:11px;margin-left:4px">! ' + hesc(step.caveat) + '</span>';
+      if (step.missing)  extras += '<span style="color:#7c3aed;font-size:11px;margin-left:4px">+ ' + hesc(step.missing) + '</span>';
+      div.style.cssText = base + 'padding:3px 0;font-size:12px;display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;font-family:ui-monospace,monospace';
+      div.innerHTML = '<span style="color:#16a34a;flex-shrink:0">&#10003;</span>'
+        + '<span style="font-size:10px;font-weight:700;color:' + cc + ';text-transform:uppercase">' + step.conf + '</span>'
+        + '<span style="font-size:10px;font-weight:700;color:' + kc + ';text-transform:uppercase;letter-spacing:.05em">' + step.kind.replace('_',' ') + '</span>'
+        + '<span style="color:#111;font-weight:500">“' + hesc(step.title) + '”</span>'
+        + extras;
+    } else if (step.type === 'suppressed') {
+      div.style.cssText = base + 'padding:3px 0;font-size:12px;display:flex;align-items:baseline;gap:5px;font-family:ui-monospace,monospace';
+      div.innerHTML = '<span style="color:#ef4444;flex-shrink:0">&#10007;</span>'
+        + '<span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase">low</span>'
+        + '<span style="color:#ccc;text-decoration:line-through">“' + hesc(step.title) + '”</span>'
+        + '<span style="color:#bbb;font-size:11px"> insufficient signal</span>';
+    } else if (step.type === 'done') {
+      div.style.cssText = base + 'padding:10px 0 0;margin-top:3px;font-size:13px;font-weight:600;color:#16a34a;border-top:1px solid #ebebeb';
+      div.textContent = step.text;
+    }
+
+    return div;
+  }
+
+  function run() {
+    log.innerHTML = '';
+    let t = 0;
+    steps.forEach(function(step) {
+      t += step.delay;
+      timers.push(setTimeout(function() {
+        if (!document.getElementById('gw-demo-log')) return;
+        const el = makeEntry(step);
+        log.appendChild(el);
+        log.scrollTop = log.scrollHeight;
+        requestAnimationFrame(function() {
+          requestAnimationFrame(function() {
+            el.style.opacity = '1';
+            el.style.transform = 'translateY(0)';
+          });
+        });
+      }, t));
+    });
+    timers.push(setTimeout(function() {
+      timers.forEach(clearTimeout);
+      timers = [];
+      run();
+    }, t + 3200));
+  }
+
+  const replayBtn = document.getElementById('gw-demo-replay');
+  if (replayBtn) {
+    replayBtn.onclick = function() {
+      timers.forEach(clearTimeout);
+      timers = [];
+      run();
+    };
+  }
+
+  run();
+}
+
+window.devSelectProject = async function(id) {
+  _devSelected = id;
+  _devPage = 'project';
+  _devProjectTab = 'insights';
+  _devProjectsOpen = false;
+  _renderDevShell();
+  await _loadDevDetail(id, 'insights');
+};
+
+window.devToggleProjectDropdown = function() {
+  _devProjectsOpen = !_devProjectsOpen;
+  _renderDevShell();
+  if (_devPage === 'project' && _devSelected) _loadDevDetail(_devSelected, _devProjectTab);
+};
+
+window.devCloseDropdown = function(e) {
+  if (_devProjectsOpen && !e.target.closest('[onclick*="devToggleProjectDropdown"]')) {
+    _devProjectsOpen = false;
+    _renderDevShell();
+    if (_devPage === 'project' && _devSelected) _loadDevDetail(_devSelected, _devProjectTab);
+  }
+};
+
+window.devShowUsage = function() {
+  _devPage = 'usage';
+  _devProjectsOpen = false;
+  _renderDevShell();
+};
+
+window.devSwitchTab = async function(tab) {
+  await _loadDevDetail(_devSelected, tab);
+};
+
+window.devNewProject = async function() {
+  const name = prompt('Project name:');
+  if (!name?.trim()) return;
+  const p = await fetch('/v1/projects', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name.trim() }),
+  }).then(r => r.json());
+  _devProjects = [..._devProjects, p];
+  _devSelected = p.id;
+  _renderDevShell();
+  await _loadDevDetail(p.id, 'insights');
+  toast('Project created');
+};
+
+window.devAddItem = async function(projectId) {
+  const title = document.getElementById('dev-title')?.value.trim();
+  const content = document.getElementById('dev-content')?.value.trim();
+  const url = document.getElementById('dev-url')?.value.trim();
+  const from = document.getElementById('dev-from')?.value.trim();
+  const type = document.getElementById('dev-type')?.value;
+  if (!title && !content && !url) return toast('Add a title or content first');
+  const body = { title: title || url || content.slice(0,60), content, url, type };
+  if (from) body.contributed_by = from;
+  await fetch('/v1/projects/' + projectId + '/ingest', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  toast('Added — wisdom engine is running');
+  // refresh counts
+  _devProjects = await fetch('/v1/projects', {
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key }
+  }).then(r => r.json()).catch(() => _devProjects);
+  await _loadDevDetail(projectId, 'add');
+};
+
+window.devSetEngine = async function(projectId, engine) {
+  await fetch('/v1/projects/' + projectId, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ engine }),
+  });
+  const p = _devProjects.find(p => p.id === projectId);
+  if (p) p.engine = engine;
+  await _loadDevDetail(projectId, 'settings');
+  const msg = document.getElementById('dev-engine-msg');
+  if (msg) { msg.textContent = 'Engine updated to ' + (engine === 'muse-spark' ? 'Muse Spark' : 'Claude') + '.'; msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 2500); }
+};
+
+window.devSaveWebhook = async function(projectId) {
+  const url = document.getElementById('dev-wh')?.value.trim() || null;
+  await fetch('/v1/projects/' + projectId, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ webhook_url: url }),
+  });
+  const p = _devProjects.find(p => p.id === projectId);
+  if (p) p.webhook_url = url;
+  const msg = document.getElementById('dev-wh-msg');
+  if (msg) { msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 2000); }
+};
+
+window.devTestWebhook = async function(projectId) {
+  const msg = document.getElementById('dev-wh-msg');
+  if (msg) { msg.style.display = 'block'; msg.style.color = '#888'; msg.textContent = 'Sending…'; }
+  const r = await fetch('/v1/projects/' + projectId + '/test-webhook', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key },
+  }).then(r => r.json()).catch(() => ({ sent: false, error: 'Network error' }));
+  if (msg) {
+    msg.textContent = r.sent ? '✓ Test event delivered (HTTP ' + r.status + ')' : '✗ ' + (r.error || 'Delivery failed');
+    msg.style.color = r.sent ? '#1d7a46' : '#cc3333';
+    msg.style.display = 'block';
+    setTimeout(() => { if (msg) msg.style.display = 'none'; }, 4000);
+  }
+};
+
+window.devDeleteProject = async function(projectId, projectName) {
+  if (prompt(`Type the project name to confirm deletion:\n\n"${projectName}"`) !== projectName) return;
+  await fetch('/v1/projects/' + projectId, {
+    method: 'DELETE',
+    headers: { 'Authorization': 'Bearer ' + state.user.api_key },
+  });
+  _devProjects = _devProjects.filter(p => p.id !== projectId);
+  _devSelected = _devProjects[0]?.id ?? null;
+  _devPage = 'project';
+  _renderDevShell();
+  if (_devSelected) await _loadDevDetail(_devSelected, 'insights');
+  toast('Project deleted');
+};
+
+window.devQsTab = function(tab) {
+  document.getElementById('qs-node').style.display = tab === 'node' ? 'block' : 'none';
+  document.getElementById('qs-curl').style.display = tab === 'curl' ? 'block' : 'none';
+  document.getElementById('qs-btn-node').style.background = tab === 'node' ? '#111' : '#fff';
+  document.getElementById('qs-btn-node').style.color = tab === 'node' ? '#fff' : '#555';
+  document.getElementById('qs-btn-node').style.borderColor = tab === 'node' ? '#111' : '#e0e0e0';
+  document.getElementById('qs-btn-curl').style.background = tab === 'curl' ? '#111' : '#fff';
+  document.getElementById('qs-btn-curl').style.color = tab === 'curl' ? '#fff' : '#555';
+  document.getElementById('qs-btn-curl').style.borderColor = tab === 'curl' ? '#111' : '#e0e0e0';
+};
+
+window.saveWebhook = window.devSaveWebhook; // keep old alias working
+window.renderDeveloper = renderDeveloper;
+
+boot();
+</script>
+</body>
+</html>
