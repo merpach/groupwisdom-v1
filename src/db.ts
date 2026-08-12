@@ -364,6 +364,19 @@ export const listGateRecords = (groupId: string, limit = 50) =>
   db.prepare("SELECT * FROM gate_records WHERE group_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?")
     .all(groupId, limit) as GateRecord[];
 
+/**
+ * Did this project speak within the last N minutes? Two good findings minutes
+ * apart still stack into a wall of text in a chat client, which reads as an
+ * agent that will not stop talking. The spoken gate records are the log, so no
+ * extra state is needed.
+ */
+export function spokeRecently(groupId: string, minutes: number): boolean {
+  const row = db.prepare(
+    "SELECT COUNT(*) as n FROM gate_records WHERE group_id = ? AND verdict = 'spoken' AND created_at > datetime('now', ?)"
+  ).get(groupId, `-${minutes} minutes`) as { n: number };
+  return row.n > 0;
+}
+
 export const getProjectSummary = (groupId: string): string =>
   ((db.prepare("SELECT summary FROM project_summaries WHERE group_id = ?").get(groupId) as { summary: string } | undefined)?.summary ?? "");
 

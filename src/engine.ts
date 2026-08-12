@@ -12,7 +12,7 @@ import {
   listItems, listItemsWithMembers, listMembers, listInsights, addInsight, setInsightStatus,
   setKnowledgeDoc, getGroup, setProjectSummary, setUserContext, listUserContexts,
   getMemberByUserId, listItemsByMember, recordUsage, isGroupOverBudget, getGroupEngine,
-  getGroupMemoryRaw, setGroupMemoryRaw, addGateRecord, isGlobalOverBudget,
+  getGroupMemoryRaw, setGroupMemoryRaw, addGateRecord, isGlobalOverBudget, spokeRecently,
   type Item, type Insight,
 } from "./db.js";
 
@@ -187,13 +187,26 @@ ${MEMORY_SHAPE}`,
 }
 
 /**
- * Fold a batch of new items into the memory core. The model never sees
- * active_wisdom — that list is maintained in code, so it can neither invent
- * nor lose spoken wisdom.
+ * Fold a batch of new items into the memory core, and say whether the batch
+ * actually contributed anything.
+ *
+ * That second job is what stops the engine talking over a conversation. Asking
+ * a teammate for something adds no work to the group, but the engine used to
+ * scan on it anyway, and a model asked to find something in a full memory will
+ * find something — which is how "build the plan for these three cities"
+ * produced a finding recombined entirely from what was already known. This
+ * call already reads the new items with full context, so the judgement costs
+ * nothing extra.
  */
+type MemoryUpdate = {
+  core: Omit<GroupMemory, "active_wisdom">;
+  contributed: boolean;
+  why: string;
+};
+
 async function updateMemoryCore(
   groupId: string, groupName: string, mem: GroupMemory, newItems: (Item & { member_name?: string | null })[],
-): Promise<Omit<GroupMemory, "active_wisdom">> {
+): Promise<MemoryUpdate> {
   const { active_wisdom: _, ...core } = mem;
   const overBudget = mem.facts.length > 30;
 
@@ -213,16 +226,28 @@ ${newItems.map(i => memoryItemLine(i, 1500)).join("\n")}
 
 Update the memory and return it in full. If the new contributions add nothing durable, return the memory unchanged.
 
-${MEMORY_RULES}${overBudget ? "\n- The memory is over budget right now — compress it this round." : ""}
+${MEMORY_RULES}${overBudget ? "\n- The memory is over budget right now, compress it this round." : ""}
+
+Also judge one thing about the new contributions, in "contributed":
+- true when they add something the group did not have: a result, a finding, data, an analysis, a document, a decision, a piece of work someone did.
+- false when they only ask for something, instruct someone, ask a question, greet, acknowledge, agree, or arrange logistics. Asking a teammate to do work is not doing work.
+Put the reason in "why", in a few words.
 
 Respond ONLY with valid JSON:
-${MEMORY_SHAPE}`,
+{"purpose":"...","facts":[...],"decisions":[...],"open_questions":[...],"contributed":true,"why":"..."}
+where facts, decisions and open_questions follow ${MEMORY_SHAPE}`,
     }],
   });
   recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "memory_update");
 
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
-  return normalizeMemoryCore(JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)));
+  const parsed = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+  return {
+    core: normalizeMemoryCore(parsed),
+    // Default to true: a missing field must not silence the engine outright.
+    contributed: parsed?.contributed !== false,
+    why: str(parsed?.why) || "no reason given",
+  };
 }
 
 /**
@@ -245,7 +270,183 @@ function recordGate(groupId: string, rec: Parameters<typeof addGateRecord>[1]) {
   }
 }
 
+// ── The scout and the editor ─────────────────────────────────────────────────
+// These were one call: "surface a finding" plus a reviewer deciding whether to
+// keep it. A model told to write something writes something, and once a fluent
+// draft exists the reviewer is judging competent prose rather than deciding
+// whether anything was there. Splitting them puts a yes/no question first,
+// which is a far easier place to get an honest no. The scout writes no prose,
+// and on the normal answer (no) nothing else runs.
+
+/** What both the scout and the editor must believe before anything is said. */
+const WISDOM_TESTS = `A finding is real ONLY if every one of these holds:
+
+1. Independent sources. It takes two contributors' work to see, and that work was
+   done separately. A message and the reply it answers are ONE conversation, not a
+   combination: if one person asked and another answered, that is the conversation
+   working, not wisdom. The strongest findings join things that were produced apart
+   from each other, whose authors did not have each other in mind.
+2. Not a restatement. Summarising, restating or tidying up one contributor's plan,
+   document or message is never wisdom, however well written. Neither is narrating
+   what is happening ("X asked for Y while Z did W").
+3. Nobody has said it. It is absent from the memory and from the wisdom already spoken.
+4. It changes what someone does next.
+5. It points at specific contributions that produced it.
+
+Contributors are people and AI agents alike. An agent that researches, drafts or
+analyses is a contributor exactly as a person is, and its work combining with
+someone else's is as much wisdom as two people's work combining. Never discount a
+contribution for coming from an agent.
+
+Most of the time nothing passes. That is the normal, correct answer.`;
+
+type ScoutVerdict = { worth_drafting: boolean; hypothesis: string; sources: string[]; why: string };
+
+/** Point at a possible combination, or (usually) say there isn't one. Writes no wisdom. */
+async function scoutForCandidate(
+  groupId: string, groupName: string, newText: string, memoryText: string, tailText: string, wisdomText: string,
+): Promise<ScoutVerdict> {
+  const client = new Anthropic();
+  const msg = await client.messages.create({
+    model: SUMMARY_MODEL,
+    max_tokens: 300,
+    messages: [{
+      role: "user",
+      content: `You are the scout for a shared project called "${groupName}". Your only job is to
+decide whether there is a combination here worth a closer look. You never write
+the finding itself.
+
+New contribution${newText.includes("\n") ? "s" : ""}:
+${newText}
+
+What the group already knows, distilled from its whole history. Facts carry the
+contributor's name and source item ids:
+${memoryText}
+
+The last few messages, for conversational context only:
+${tailText}
+
+Wisdom already spoken (anything close to these is not new):
+${wisdomText}
+
+${WISDOM_TESTS}
+
+Answer with a hypothesis only when you can name the two separate pieces of work
+being joined and who did each. If the new contribution is simply an answer to a
+request, or a restatement of what someone already wrote, the answer is no.
+
+Respond ONLY with valid JSON:
+{"worth_drafting":false,"hypothesis":"","sources":[],"why":"one short sentence naming the test that failed"}`,
+    }],
+  });
+  recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "scout");
+
+  const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
+  const parsed = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+  return {
+    // Default to NOT drafting: a malformed verdict must fail closed, toward silence.
+    worth_drafting: parsed?.worth_drafting === true,
+    hypothesis: str(parsed?.hypothesis),
+    sources: strArr(parsed?.sources),
+    why: str(parsed?.why) || "scout found no combination",
+  };
+}
+
+type DraftResult = {
+  new: Array<{ kind: string; title: string; body: string }>;
+  dismiss: string[];
+  why_silent?: string | null;
+};
+
+/** Draft the finding the scout pointed at, or decline it on a second look. */
+async function draftFinding(
+  groupId: string, groupName: string, members: string, scout: ScoutVerdict,
+  newText: string, memoryText: string, tailText: string, wisdomText: string,
+): Promise<DraftResult> {
+  const client = new Anthropic();
+  const msg = await client.messages.create({
+    model: SUMMARY_MODEL,
+    max_tokens: 700,
+    messages: [{
+      role: "user",
+      content: `You are the Wisdom engine for a shared project called "${groupName}".
+Members: ${members}
+
+The scout thinks there may be a finding here:
+"${scout.hypothesis}"
+drawn from: ${scout.sources.join(", ") || "(unspecified)"}
+
+New contribution${newText.includes("\n") ? "s" : ""}:
+${newText}
+
+What the group already knows, distilled from its whole history:
+${memoryText}
+
+The last few messages, for conversational context only:
+${tailText}
+
+Current wisdom (never repeat these; flag any now outdated):
+${wisdomText}
+
+${WISDOM_TESTS}
+
+The scout is often wrong. Check its hypothesis against the tests yourself, and
+return an empty list if it does not hold. Returning nothing is always better than
+reaching, and it is not a failure.
+
+At most ONE finding. Never two.
+
+When you do speak, the body is the whole message. It is posted on its own in a
+chat, so it must carry the finding without the title.
+
+- Write it the way a sharp colleague would say it out loud. Plain words, full
+  sentences. Not "validating the segmentation hypothesis that the value
+  proposition resonates" — say what actually happened.
+- Two sentences. Around 40 words. Stop there.
+- No em dashes. Use full stops.
+- Hand over the finished work. Give the other contributor's actual finding, with
+  their real numbers, so the reader inherits it and skips that step. Never tell
+  anyone to go and do something with it. No "you can start by", no "test
+  whether", no "evaluate whether", no "adapt it". If all you have is a
+  suggestion of work someone could do, you have no finding.
+- Give each person's own findings and numbers, attributed to them. Never put one
+  person's figure in someone else's mouth, and never smooth a disagreement into
+  agreement. Where two contributions differ, that difference is the finding.
+- Frame it as what the group has built or found, not as what it lacks or has got
+  wrong.
+- No hedging inside the sentences. If a caveat matters it goes in the caveat field.
+
+Kinds: convergence (two people reached the same finding from different directions),
+opportunity (something their own work points at that nobody has picked up),
+tension (two views worth putting together, stated as the actual difference),
+pattern (a theme across several contributions none of them named), direction (the
+next question their work is building toward), decision (something they have
+arrived at, and what led there). Choose the one that actually fits.
+
+Give a short title too, one sentence for the dashboard, but write the body so it
+still reads correctly with the title removed.
+
+Also list IDs of any existing wisdom now stale, resolved, or superseded.
+
+When you return no finding, name the test that failed in "why_silent".
+
+Respond ONLY with valid JSON:
+{"new":[{"kind":"...","title":"...","body":"..."}],"dismiss":["id1"],"why_silent":null}`,
+    }],
+  });
+  recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "editor");
+
+  const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
+  return JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+}
+
 // ── Incremental Wisdom (Haiku, runs on every item add) ───────────────────────
+
+/**
+ * Minutes a project stays quiet after speaking. Two good findings a minute
+ * apart still merge into one wall of text in a chat client.
+ */
+const WISDOM_COOLDOWN_MIN = Number(process.env.GW_WISDOM_COOLDOWN_MIN || 10);
 
 const pendingAnalysis = new Map<string, { items: Item[]; timer: ReturnType<typeof setTimeout> }>();
 
@@ -336,12 +537,13 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
     active_wisdom: existing.slice(0, MEMORY_MAX_WISDOM).reverse().map(i => ({ id: i.id, kind: i.kind, title: i.title })),
   };
 
-  // Fold the new items into memory concurrently with the scan: both read this
-  // batch's memory, and the updated core lands before the save at the end.
-  const memCoreP: Promise<Omit<GroupMemory, "active_wisdom"> | null> = memory
-    ? updateMemoryCore(groupId, group.name, memory, newWithNames)
+  // Memory first, then decide whether to think at all. It has to run sequentially
+  // now because its verdict on whether this batch contributed anything is the
+  // first gate: a request adds nothing to combine, so there is nothing to scan.
+  const update = memory
+    ? await updateMemoryCore(groupId, group.name, memory, newWithNames)
         .catch((err: any) => { console.warn(`[memory] update failed for group ${groupId}: ${err.message}`); return null; })
-    : Promise.resolve(null);
+    : null;
 
   const memoryText = JSON.stringify({
     purpose: scanMemory.purpose, facts: scanMemory.facts,
@@ -349,96 +551,12 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
   });
   const wisdomText = scanMemory.active_wisdom.map(w => `[${w.id}] [${w.kind}] ${w.title}`).join("\n") || "(none)";
 
-  // Detect contributor overlap before calling Claude — flag if new items touch
-  // topics where memory holds other contributors' work
-  const newContributors = new Set(newWithNames.map(i => i.member_name).filter(Boolean));
-  const otherContributors = [...new Set(scanMemory.facts.map(f => f.by).filter(by => by && !newContributors.has(by)))];
-  const overlapHint = otherContributors.length
-    ? `\nContributors to weigh: new items are from ${[...newContributors].join(", ")}. Other contributors already in the project: ${otherContributors.join(", ")}. Genuine overlap between them can be worth surfacing — but only where their work actually combines into something neither of them said, not merely because they wrote about related things.`
-    : "";
-
-  const client = new Anthropic();
-  const msg = await client.messages.create({
-    model: SUMMARY_MODEL,
-    max_tokens: 700,
-    messages: [{
-      role: "user",
-      content: `You are the Wisdom engine for a shared project called "${group.name}".
-Members: ${listMembers(groupId).map(m => m.name).join(", ") || "unknown"}
-
-New item${newItems.length > 1 ? "s" : ""} just added:
-${newText}
-
-What the group knows so far — its working memory, distilled from the whole
-history. Facts carry the contributor's name and source item ids:
-${memoryText}
-
-The last few messages, for conversational context only:
-${tailText}
-
-Current wisdom (do not repeat; flag any now outdated):
-${wisdomText}
-${overlapHint}
-
-Most of what gets posted is not wisdom. Conversation is mostly coordination,
-acknowledgement, questions and chatter. Saying something about those is worse than
-saying nothing, because it teaches people to ignore you.
-
-Contributors are people and AI agents alike. An agent that researches, drafts or
-analyses is a contributor exactly as a person is, and its work combining with
-someone else's is as much wisdom as two people's work combining. Never discount
-a contribution for coming from an agent.
-
-Surface a finding ONLY if every one of these is true:
-- It takes at least two different contributors' work to see — whether those are
-  people, agents, or one of each. If any single message already contains it, it
-  is not wisdom.
-- Nobody has said it yet. Restating, summarising, agreeing, or narrating what is
-  happening ("X asked for Y while Z did W") is not wisdom.
-- Knowing it would change what someone does next.
-- You can point to the specific things that produced it.
-
-If they are not all true, return an empty list. That is the normal outcome and it
-is the correct one. Returning nothing is always better than reaching.
-
-At most ONE finding. Never two — if two seem worthwhile, give only the stronger.
-
-When you do speak, the body has to work as a standalone message. It is posted on
-its own in a chat, so it must carry the whole finding without the title.
-
-- Write it the way a sharp colleague would say it out loud. Plain words and full
-  sentences. Not "validating the segmentation hypothesis that the value
-  proposition resonates" — say what actually happened.
-- Two sentences. Around 40 words. Stop there.
-- No em dashes. Use full stops.
-- Give each person's own findings and numbers, attributed to them. Never put one
-  person's figure in someone else's mouth, and never smooth a disagreement into
-  agreement. Where two contributions differ, that difference is the finding.
-- No hedging inside the sentences. If a caveat matters it goes in the caveat
-  field, not the body.
-
-Give a short title too — one sentence, for the dashboard — but write the body so
-it still reads correctly with the title removed.
-
-Also list IDs of any existing insights now stale, resolved, or superseded.
-
-When you return no finding, say why in one short sentence in "why_silent" — name
-the test that failed (single contributor only, already known, changes nothing,
-coordination chatter, no specific sources). When you return a finding, set it
-to null.
-
-Respond ONLY with valid JSON:
-{"new":[{"kind":"...","title":"...","body":"..."}],"dismiss":["id1"],"why_silent":null}`,
-    }],
-  });
-  recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "incremental_wisdom");
-
   // The batch's items must reach memory on every exit from here on — silence,
   // parse failure and spoken wisdom alike — or they simply never happened as
   // far as future scans are concerned.
   const finalizeMemory = async (created: Insight[], dismissedIds: string[]) => {
     if (!memory) return; // bootstrap failed — don't persist the stub
-    const core = (await memCoreP) ?? {
+    const core = update?.core ?? {
       purpose: memory.purpose, facts: memory.facts,
       decisions: memory.decisions, open_questions: memory.open_questions,
     };
@@ -448,21 +566,57 @@ Respond ONLY with valid JSON:
     saveGroupMemory(groupId, { ...core, active_wisdom: active });
   };
 
-  const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
-  const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
-  let result: { new: Array<{ kind: string; title: string; body: string }>; dismiss: string[]; why_silent?: string | null };
-  try {
-    result = JSON.parse(json);
-  } catch (err: any) {
-    // Silently returning [] here made a non-responding engine indistinguishable
-    // from one that legitimately had nothing to say. Say which it was.
-    console.warn(`[wisdom] could not parse engine response for group ${groupId}: ${err.message}\n  raw: ${raw.slice(0, 300)}`);
-    recordGate(groupId, { stage: "scan", verdict: "error", reason: `unparseable engine response: ${err.message}` });
+  // Gate 1 — did anything actually get contributed? Asking a teammate for work
+  // adds nothing to combine, and scanning on it is where the restatements came
+  // from. Memory still learns from the message either way.
+  if (update && !update.contributed) {
+    recordGate(groupId, { stage: "scan", verdict: "silent", reason: `No new contribution: ${update.why}` });
     await finalizeMemory([], []);
     return [];
   }
 
-  // Pass 1 produced candidates. Normalise them before the second pass.
+  // Gate 2 — a floor between cards. Two findings minutes apart stack into one
+  // wall of text in the channel, which reads as an agent that will not stop.
+  if (spokeRecently(groupId, WISDOM_COOLDOWN_MIN)) {
+    recordGate(groupId, { stage: "scan", verdict: "silent", reason: `Spoke within the last ${WISDOM_COOLDOWN_MIN} minutes.` });
+    await finalizeMemory([], []);
+    return [];
+  }
+
+  // Gate 3 — the scout. A yes/no question, answered without writing any wisdom.
+  let scout: ScoutVerdict;
+  try {
+    scout = await scoutForCandidate(groupId, group.name, newText, memoryText, tailText, wisdomText);
+  } catch (err: any) {
+    console.warn(`[scout] failed for group ${groupId}: ${err.message}`);
+    recordGate(groupId, { stage: "scan", verdict: "error", reason: `scout failed: ${err.message}` });
+    await finalizeMemory([], []);
+    return [];
+  }
+  if (!scout.worth_drafting) {
+    recordGate(groupId, { stage: "scan", verdict: "silent", reason: scout.why });
+    await finalizeMemory([], []);
+    return [];
+  }
+  console.log(`[scout] candidate for group ${groupId}: ${scout.hypothesis}`);
+
+  // The editor drafts only what the scout pointed at, and may still decline it.
+  let result: DraftResult;
+  try {
+    result = await draftFinding(
+      groupId, group.name, listMembers(groupId).map(m => m.name).join(", ") || "unknown",
+      scout, newText, memoryText, tailText, wisdomText,
+    );
+  } catch (err: any) {
+    // Silently returning [] here made a non-responding engine indistinguishable
+    // from one that legitimately had nothing to say. Say which it was.
+    console.warn(`[wisdom] editor failed for group ${groupId}: ${err.message}`);
+    recordGate(groupId, { stage: "scan", verdict: "error", reason: `editor failed: ${err.message}` });
+    await finalizeMemory([], []);
+    return [];
+  }
+
+  // The editor produced candidates. Normalise them before the review pass.
   const candidates = (result.new ?? [])
     .map(ins => {
       // The model occasionally labels wisdom with a kind outside our set (e.g. "insight").
@@ -476,10 +630,10 @@ Respond ONLY with valid JSON:
     })
     .filter(ins => !existing.some(e => e.title.toLowerCase() === ins.title.toLowerCase()));
 
-  // Pass 2 — the metacognitive evaluator. This runs here too, not just in the full
-  // analysis: live sources (Buzz channels, the API) go through the incremental path,
-  // and without this they produced wisdom with no confidence, caveat, do_next or
-  // missing_voice at all — the second pass simply never ran on them.
+  // The review pass. This runs here too, not just in the full analysis: live
+  // sources (Buzz channels, the API) go through the incremental path, and
+  // without this they produced wisdom with no confidence, caveat, do_next or
+  // missing_voice at all — the review simply never ran on them.
   const annotated = candidates.length
     ? await metacognitivePass(
         candidates, group.name, listMembers(groupId).map(m => m.name),
@@ -493,7 +647,7 @@ Respond ONLY with valid JSON:
   if (!candidates.length) {
     const reason = (result.new ?? []).length
       ? "candidate duplicated existing wisdom (title match)"
-      : (result.why_silent?.trim() || "scan returned no candidates");
+      : (result.why_silent?.trim() || "editor declined the scout's hypothesis");
     recordGate(groupId, { stage: "scan", verdict: "silent", reason });
   }
 
@@ -700,7 +854,7 @@ ${candidates.map((ins, i) => `[${i}] (${ins.kind}) "${ins.title}": ${ins.body}`)
 For each candidate, evaluate:
 - confidence: "high" (3+ independent data points), "medium" (2 points), or "low" (1 point or inferred)
 - caveat: one short sentence naming the condition under which this would not hold, or null if solid. State it as a fact about the evidence — never as an instruction. Do not write "clarify", "confirm", "check", "verify" or "determine whether"; say what is assumed, not what someone should go do.
-- do_next: NOT a task or instruction. This field delivers inherited work: name the specific completed finding from another member that this reader can now build directly on, stated so they inherit it and skip that step. e.g. "Maya already mapped the morale timeline — it shows the drop came after Stalingrad, so you can start from that causality." Never assign work ("check", "map", "verify", "coordinate"); if there is no existing member work to hand over, use null.
+- do_next: NOT a task, and not a suggestion of work. This field states one more completed result from another member that the reader now has for free, and then stops. e.g. "Maya's morale timeline already dates the drop to just after Stalingrad." Never write "you can", "start by", "test whether", "evaluate whether", "adapt", "check", "map", "verify" or "coordinate". If the only thing you can write is something the reader ought to go and do, use null. Most of the time null is right, because the body already carried the finding.
 - missing_voice: name of a contributor whose existing work would strengthen this reader's, or null
 - keep: false if the insight is too speculative, too thin, or not yet ready to surface — otherwise true
 - drop_reason: when keep is false, one short sentence naming why (too thin, single-source, already known, speculative). null when keep is true.

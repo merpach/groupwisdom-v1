@@ -375,11 +375,11 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     const tmpl: EventTemplate = {
       kind: 9,
       created_at: Math.floor(Date.now() / 1000),
-      // The body is written to stand alone, so post it as it is. Joining
-      // "title — body" produced a label, then a dash, then a sentence, which is
-      // what made these read as bullet points rather than as something a person
-      // would actually say. The title stays for the dashboard.
-      content: [wisdom.body.trim(), wisdom.do_next?.trim()].filter(Boolean).join(" "),
+      // The body alone. It is written to stand on its own, and appending do_next
+      // was what turned every card into homework: the body handed over the
+      // finding, then a trailing "so you can start by…" handed back a chore.
+      // do_next still exists on the dashboard, where a to-do belongs.
+      content: wisdom.body.trim(),
       tags: [
         ["h", channel],
         ...sources.map(id => ["e", id]),
