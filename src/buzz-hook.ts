@@ -40,6 +40,8 @@ import {
   setBuzzWorkspaceReturnHook,
   touchBuzzWorkspace,
   deleteBuzzWorkspace,
+  listGateRecords,
+  getUserUsagePct,
   type Insight,
   type BuzzWorkspace,
 } from "./db.js";
@@ -54,6 +56,7 @@ import {
 import { queueIncrementalAnalysis } from "./engine.js";
 import { startConnection, stopConnection, isConnectionRunning, waitForConnectionResult } from "./buzz-supervisor.js";
 import { redeemBuzzInvite } from "./adapters/buzz-invite.js";
+import { communityLabelFromRelayUrl } from "./adapters/buzz.js";
 import { getPublicKey } from "nostr-tools/pure";
 import { decode as nip19decode, npubEncode } from "nostr-tools/nip19";
 
@@ -349,19 +352,38 @@ buzzHook.get("/connections", (req, res) => {
   const user = authUser(req);
   if (!user) return res.status(401).json({ error: "Invalid or missing API key." });
   const safeParse = (raw: string | null) => { try { return raw ? JSON.parse(raw) : null; } catch { return null; } };
-  res.json(listBuzzConnectionsForUser(user.id).map(c => ({
-    id: c.id,
-    relay_url: c.relay_url,
-    label: c.label,
-    enabled: Boolean(c.enabled),
-    running: isConnectionRunning(c.id),
-    last_connected_at: c.last_connected_at,
-    last_error: c.last_error,
-    created_at: c.created_at,
-    // null = watching every channel it can see
-    channels: safeParse(c.channels),
-    discovered: safeParse(c.discovered) ?? [],
-  })));
+
+  // Usage as a percentage only — dollar amounts never reach the UI.
+  const usagePct = getUserUsagePct(user.id);
+  const groups = getGroupsForUser(user.id);
+
+  res.json(listBuzzConnectionsForUser(user.id).map(c => {
+    // The community's project, by the same naming rule the adapter uses. Recent
+    // gate records make silence legible: connected-and-quiet looks identical to
+    // broken from inside Buzz, and these verdicts are the difference.
+    const project = groups.find(g => g.name === `Buzz: ${communityLabelFromRelayUrl(c.relay_url)}`);
+    const activity = project
+      ? listGateRecords(project.id, 6).map(r => ({
+          at: r.created_at, verdict: r.verdict, kind: r.kind, title: r.title, reason: r.reason,
+        }))
+      : [];
+    return {
+      id: c.id,
+      relay_url: c.relay_url,
+      label: c.label,
+      enabled: Boolean(c.enabled),
+      running: isConnectionRunning(c.id),
+      last_connected_at: c.last_connected_at,
+      last_error: c.last_error,
+      created_at: c.created_at,
+      // null = watching every channel it can see
+      channels: safeParse(c.channels),
+      discovered: safeParse(c.discovered) ?? [],
+      usage_pct: usagePct,
+      paused: usagePct >= 100,
+      activity,
+    };
+  }));
 });
 
 function ownedConnection(req: any) {

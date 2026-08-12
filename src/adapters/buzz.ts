@@ -68,6 +68,16 @@ export interface BuzzConfig {
   onLog?: (msg: string) => void;
 }
 
+/**
+ * The community a relay URL serves, as a readable label. Shared with the
+ * server (buzz-hook) so both sides derive the same "Buzz: <label>" project
+ * name from a connection's relay URL.
+ */
+export function communityLabelFromRelayUrl(relayUrl: string): string {
+  const host = (() => { try { return new URL(relayUrl.replace(/^ws/, "http")).host; } catch { return relayUrl; } })();
+  return host.replace(/\.communities\.buzz\.xyz$/i, "");
+}
+
 const DEFAULT_GW_BASE_URL = "https://groupwisdom-v1-production.up.railway.app/v1";
 const DEFAULT_CURSOR_FILE = ".buzz-cursor.json";
 const RECENT_LIMIT = 15;         // event ids kept per project for source citation
@@ -143,12 +153,14 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
 
   let ws: WebSocket | null = null;
   let authPending: string | null = null;
+  let authed = false;      // greetings only post on an authenticated socket
   let stopped = false;
   let backoff = 1000;
   const startedAt = Math.floor(Date.now() / 1000);
 
   // ── Cursor: so a restart never loses messages posted while we were down ─────
-  // Shape: { channels: { <uuid>: <last created_at> }, processed: [<event id>, …] }
+  // Shape: { channels: { <uuid>: <last created_at> }, processed: [<event id>, …],
+  //          greeted: [<channel uuid>, …], over_budget_notified: boolean }
   const cursorPath = cfg.cursorFile ?? DEFAULT_CURSOR_FILE;
   const store = cfg.cursorStore ?? {
     load: () => { try { return readFileSync(cursorPath, "utf8"); } catch { return null; } },
@@ -156,18 +168,26 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   };
   let cursors: Record<string, number> = {};
   let processedIds: string[] = [];
+  let greetedList: string[] = [];
+  let notifiedOverBudget = false;
   try {
     const saved = JSON.parse(store.load() ?? "");
     cursors = saved.channels ?? {};
     processedIds = saved.processed ?? [];
+    greetedList = saved.greeted ?? [];
+    notifiedOverBudget = Boolean(saved.over_budget_notified);
     const n = Object.keys(cursors).length;
     if (n) log(`resuming from cursor: ${n} channel(s) tracked`);
   } catch { /* first run — no cursor yet */ }
   const processedSet = new Set(processedIds);
+  const greeted = new Set(greetedList);
 
   function saveCursor() {
     try {
-      store.save(JSON.stringify({ channels: cursors, processed: processedIds }));
+      store.save(JSON.stringify({
+        channels: cursors, processed: processedIds,
+        greeted: [...greeted], over_budget_notified: notifiedOverBudget,
+      }));
     } catch (e) {
       log(`cursor save failed: ${(e as Error).message}`);
     }
@@ -197,10 +217,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
    * on this rather than on channel name: two communities both having a "general"
    * channel would otherwise share one project and blend their content together.
    */
-  const communityLabel = (() => {
-    const host = (() => { try { return new URL(cfg.relayUrl.replace(/^ws/, "http")).host; } catch { return cfg.relayUrl; } })();
-    return host.replace(/\.communities\.buzz\.xyz$/i, "");
-  })();
+  const communityLabel = communityLabelFromRelayUrl(cfg.relayUrl);
 
   let communityProject: Promise<string> | null = null;
 
@@ -253,6 +270,38 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     // down, so no message is skipped; on first contact this is "now".
     send(["REQ", `msgs:${channel}`, { kinds: [9], "#h": [channel], since: floorFor(channel) }]);
     log(`watching channel ${channelNames.get(channel) ?? channel.slice(0, 8)}`);
+    greetChannel(channel);
+  }
+
+  // ── Hello on join ────────────────────────────────────────────────────────────
+  // A brand-new channel has an empty memory and needs two contributors before
+  // the engine can ever speak, so the first wisdom may be days away. Without
+  // this, that silence reads as broken at the exact moment someone is watching
+  // closest. One message, once per channel ever (persisted in the cursor), and
+  // it doubles as disclosure that the agent is reading.
+  const HELLO =
+    "Hello, I am the Wisdom Agent. I read what gets shared here and speak only " +
+    "when separate contributions add up to something nobody said alone, which " +
+    "is rare by design. Quiet means I am listening.";
+
+  function greetChannel(channel: string) {
+    if (!authed || cfg.dryRun) return;   // pre-auth posts are rejected; dry-run never posts
+    if (greeted.has(channel)) return;
+    greeted.add(channel);
+    saveCursor();                        // before posting: a crash must not re-greet forever
+    postNotice(channel, HELLO);
+    log(`greeted channel ${channelNames.get(channel) ?? channel.slice(0, 8)}`);
+  }
+
+  /** A plain agent message into a channel — carries the gw marker so we never re-ingest it. */
+  function postNotice(channel: string, text: string) {
+    const tmpl: EventTemplate = {
+      kind: 9,
+      created_at: Math.floor(Date.now() / 1000),
+      content: text,
+      tags: [["h", channel], ["gw", "1"]],
+    };
+    send(["EVENT", finalizeEvent(tmpl, sk)]);
   }
 
   // Names make wisdom readable: without this, findings are attributed to raw
@@ -406,9 +455,38 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
       markProcessed(channel, ev);   // only after the API accepted it, so a failure retries on restart
       log(`ingested → GroupWisdom | ${channelNames.get(channel) ?? channel.slice(0, 8)} | from ${contributorName(ev.pubkey)}: "${content.slice(0, 50)}"`);
       schedulePoll(projectId, ev.id, channel);
+      checkBudgetNotice(channel);
     } catch (e) {
       log(`ingest failed for ${channel.slice(0, 8)}…: ${(e as Error).message}`);
     }
+  }
+
+  // ── Budget notice ────────────────────────────────────────────────────────────
+  // When the account's included analysis runs out, the engine goes quiet, which
+  // from inside Buzz is indistinguishable from "nothing worth saying". Say so
+  // once in the channel where it happened, so the silence has a name. Throttled
+  // to one usage check every few minutes, persisted so a redeploy can't re-post.
+  const BUDGET_NOTICE =
+    "A note from the Wisdom Agent: this community's included analysis is used " +
+    "up, so I have stopped reading new messages for now. Whoever connected me " +
+    "can see usage on the GroupWisdom Buzz page.";
+  let lastUsageCheckAt = 0;
+
+  async function checkBudgetNotice(channel: string) {
+    if (Date.now() - lastUsageCheckAt < 5 * 60_000) return;
+    lastUsageCheckAt = Date.now();
+    try {
+      const u = await gwFetch("/usage");
+      if (u?.limit_reached && !notifiedOverBudget) {
+        notifiedOverBudget = true;
+        saveCursor();               // before posting, so a crash can't repeat the notice
+        postNotice(channel, BUDGET_NOTICE);
+        log("posted over-budget notice");
+      } else if (u && !u.limit_reached && notifiedOverBudget) {
+        notifiedOverBudget = false; // budget was raised — clear so a future cap can notify again
+        saveCursor();
+      }
+    } catch { /* best effort — never let a usage check break ingestion */ }
   }
 
   function handleFrame(data: WebSocket.RawData) {
@@ -438,6 +516,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
           authPending = null;
           if (ok) {
             log("authenticated");
+            authed = true;            // before subscribeAll, so greetings can post
             watched.clear();          // pre-auth subs were rejected; re-send them
             publishProfile();         // must be post-auth or the relay rejects it
             subscribeAll();
@@ -508,6 +587,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   }
 
   function reconnect() {
+    authed = false;
     watched.clear();
     profileRequested.clear();   // re-ask; profiles may have changed while we were away
     profilePublished = false;

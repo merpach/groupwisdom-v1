@@ -12,7 +12,7 @@ import {
   listItems, listItemsWithMembers, listMembers, listInsights, addInsight, setInsightStatus,
   setKnowledgeDoc, getGroup, setProjectSummary, setUserContext, listUserContexts,
   getMemberByUserId, listItemsByMember, recordUsage, isGroupOverBudget, getGroupEngine,
-  getGroupMemoryRaw, setGroupMemoryRaw, addGateRecord,
+  getGroupMemoryRaw, setGroupMemoryRaw, addGateRecord, isGlobalOverBudget,
   type Item, type Insight,
 } from "./db.js";
 
@@ -21,6 +21,40 @@ const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
 const KINDS = ["convergence", "opportunity", "tension", "pattern", "direction", "decision"];
 
 const running = new Set<string>();
+
+/**
+ * Every model call runs through this. Two ceilings: the per-user $50 covers
+ * everything that user's communities and actions do in combination (the sum of
+ * usage across every project they own), and the global switch bounds the
+ * operator's total bill across all users. Previously only the two analysis
+ * paths checked the user cap — summaries, user contexts and overlap checks
+ * kept spending after it was hit.
+ */
+function analysisAllowed(groupId: string, purpose: string): boolean {
+  if (isGroupOverBudget(groupId)) {
+    console.warn(`[budget] group ${groupId} over user budget — skipping ${purpose}`);
+    return false;
+  }
+  if (isGlobalOverBudget()) {
+    console.warn(`[budget] GLOBAL budget reached — skipping ${purpose} for group ${groupId}`);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * The output style bans em dashes, but pass 2's revisions kept leaking them:
+ * the style rules lived only in pass 1's prompt, and the review pass rewrites
+ * bodies. The prompts now both carry the rule, and this is the mechanical
+ * backstop for what still slips through. Em dashes become sentence breaks;
+ * spaced en dashes too (the unspaced ones stay — they are numeric ranges).
+ */
+export function stripEmDashes(s: string): string {
+  return s
+    .replace(/\s*—\s*(\p{L})?/gu, (_, c: string | undefined) => (c ? ". " + c.toUpperCase() : ". "))
+    .replace(/\s+–\s+(\p{L})?/gu, (_, c: string | undefined) => (c ? ". " + c.toUpperCase() : ". "))
+    .replace(/\s+$/g, "");
+}
 
 // ── Group memory ──────────────────────────────────────────────────────────────
 // The engine's long-term working knowledge per project: a compact, structured
@@ -285,10 +319,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
     return []; // no mock for incremental — just skip
   }
 
-  if (isGroupOverBudget(groupId)) {
-    console.warn(`[wisdom] group ${groupId} over budget — skipping analysis`);
-    return [];
-  }
+  if (!analysisAllowed(groupId, "incremental scan")) return [];
 
   // Memory: the whole history, distilled. Bootstrapped once per project, then
   // folded forward batch by batch. If bootstrap fails we scan on a stub this
@@ -481,10 +512,10 @@ Respond ONLY with valid JSON:
   const created: Insight[] = [];
   for (const ins of annotated) {
     if (!ins.keep) continue;
-    const saved = addInsight(groupId, ins.kind, ins.revised_title ?? ins.title, ins.revised_body ?? ins.body, {
+    const saved = addInsight(groupId, ins.kind, stripEmDashes(ins.revised_title ?? ins.title), stripEmDashes(ins.revised_body ?? ins.body), {
       confidence: ins.confidence,
-      caveat: ins.caveat ?? undefined,
-      do_next: ins.do_next ?? undefined,
+      caveat: ins.caveat ? stripEmDashes(ins.caveat) : undefined,
+      do_next: ins.do_next ? stripEmDashes(ins.do_next) : undefined,
       missing_voice: ins.missing_voice ?? undefined,
     });
     setInsightStatus(saved.id, "acknowledged"); // auto-accept live insights
@@ -509,6 +540,7 @@ export async function previewAnalysis(groupId: string): Promise<ProposedInsight[
   if (!group) return [];
   const items = listItems(groupId);
   if (items.length === 0) return [];
+  if (process.env.ANTHROPIC_API_KEY && !analysisAllowed(groupId, "preview analysis")) return [];
   const members = listMembers(groupId);
   const existing = listInsights(groupId);
 
@@ -544,10 +576,7 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
     const members = listMembers(groupId);
     const existing = listInsights(groupId);
 
-    if (process.env.ANTHROPIC_API_KEY && isGroupOverBudget(groupId)) {
-      console.warn(`[analyze] group ${groupId} over budget — skipping`);
-      return [];
-    }
+    if (process.env.ANTHROPIC_API_KEY && !analysisAllowed(groupId, "full analysis")) return [];
 
     const engine = getGroupEngine(groupId);
     const result = engine === "muse-spark" && process.env.META_MODEL_API_KEY
@@ -576,10 +605,10 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
       const title = ins.revised_title ?? ins.title;
       const body = ins.revised_body ?? ins.body;
       if (ins.revised_title) console.log(`[metacognitive] revised title for "${ins.title}" → "${ins.revised_title}"`);
-      created.push(addInsight(groupId, ins.kind, title, body, {
+      created.push(addInsight(groupId, ins.kind, stripEmDashes(title), stripEmDashes(body), {
         confidence: ins.confidence,
-        caveat: ins.caveat ?? undefined,
-        do_next: ins.do_next ?? undefined,
+        caveat: ins.caveat ? stripEmDashes(ins.caveat) : undefined,
+        do_next: ins.do_next ? stripEmDashes(ins.do_next) : undefined,
         missing_voice: ins.missing_voice ?? undefined,
       }));
     }
@@ -680,6 +709,10 @@ For each candidate, evaluate:
 
 Only revise when you can genuinely improve the text. Null means the original is good enough.
 Be strict on keep. It is better to suppress a weak insight than to deliver noise.
+
+Style for every field you write (caveat, do_next, revised_title, revised_body): plain full
+sentences with full stops. Never use an em dash anywhere. Keep each person's own findings
+and numbers attributed to that person. A revised_body stays at 1-2 sentences, around 40 words.
 
 Respond with ONLY valid JSON — an array matching the candidate order:
 [{"id":0,"confidence":"high","caveat":null,"do_next":"...","missing_voice":null,"keep":true,"drop_reason":null,"revised_title":null,"revised_body":null},...]`;
@@ -874,6 +907,8 @@ export async function updateProjectSummary(groupId: string): Promise<void> {
     return;
   }
 
+  if (!analysisAllowed(groupId, "project summary")) return;
+
   const client = new Anthropic({ apiKey });
   const itemList = items.slice(0, 40)
     .map(i => `- ${i.title}${i.content ? `: ${i.content.slice(0, 80)}` : ""}`)
@@ -919,6 +954,8 @@ export async function updateUserContext(userId: string, groupId: string): Promis
     setUserContext(userId, groupId, summary);
     return;
   }
+
+  if (!analysisAllowed(groupId, "user context")) return;
 
   const client = new Anthropic({ apiKey });
   const itemList = items.slice(0, 20)
@@ -966,6 +1003,7 @@ export async function detectContributorOverlap(
 
   if (!teammates.length) return { hasOverlap: false, overlaps: [] };
   if (!mine?.summary && !currentTopic) return { hasOverlap: false, overlaps: [] };
+  if (process.env.ANTHROPIC_API_KEY && !analysisAllowed(groupId, "contributor overlap")) return { hasOverlap: false, overlaps: [] };
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { hasOverlap: false, overlaps: [] };
@@ -1023,6 +1061,7 @@ export async function checkContextOverlapForWisdom(groupId: string, newItems: It
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return;
+  if (!analysisAllowed(groupId, "context overlap")) return;
 
   // Build a map of member_id → context summary
   const members = listMembers(groupId);

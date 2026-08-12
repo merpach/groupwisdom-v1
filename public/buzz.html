@@ -113,6 +113,20 @@
   .chan { display: flex; align-items: center; gap: 9px; padding: 4px 0; font-size: 14px; color: var(--ink-2); cursor: pointer; }
   .chan input { width: auto; }
 
+  /* Engine activity — recent verdicts, so quiet is visibly different from broken */
+  .paused { border-top: 1px solid #f0d6d2; background: #fdf4f3; color: var(--warn); padding: 12px 18px; font-size: 13px; }
+  .act { border-top: 1px solid var(--rule-2); padding: 14px 18px 16px; }
+  .act h4 { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em;
+            color: var(--ink-3); margin-bottom: 10px; }
+  .usage { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+  .usage-bar { flex: 0 0 120px; height: 5px; border-radius: 999px; background: var(--rule-2); overflow: hidden; }
+  .usage-bar i { display: block; height: 100%; border-radius: 999px; }
+  .usage span { font-size: 12px; color: var(--ink-3); }
+  .act-row { display: flex; gap: 10px; padding: 3px 0; font-size: 13px; }
+  .act-when { color: var(--ink-3); flex: 0 0 66px; font-size: 12px; padding-top: 1px; }
+  .act-what { color: var(--ink-2); line-height: 1.5; }
+  .act-empty { font-size: 13px; color: var(--ink-3); }
+
   /* Example wisdom message — exactly how it lands in the channel */
   .wcard { border: 1px solid var(--rule); border-left: 3px solid var(--wisdom); border-radius: 9px;
            padding: 14px 16px; background: #fff; margin: 8px 0 10px; }
@@ -351,6 +365,25 @@ async function loadAgent() {
   $("advpub").textContent = body.agent_pubkey;
 }
 
+// SQLite timestamps are UTC without a marker — say "3m ago", not raw datetimes.
+function ago(ts) {
+  const t = new Date(String(ts).replace(" ", "T") + "Z").getTime();
+  if (isNaN(t)) return "";
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.floor(s / 60) + "m ago";
+  if (s < 86400) return Math.floor(s / 3600) + "h ago";
+  return Math.floor(s / 86400) + "d ago";
+}
+
+// One plain-language line per engine verdict.
+function actLine(r) {
+  if (r.verdict === "spoken") return "Spoke: " + (r.title || "a finding");
+  if (r.verdict === "suppressed") return "Held back a weak finding" + (r.reason ? ": " + r.reason : ".");
+  if (r.verdict === "error") return "Engine hiccup" + (r.reason ? ": " + r.reason : ".");
+  return "Stayed quiet" + (r.reason ? ": " + r.reason : ".");
+}
+
 async function loadConnections() {
   const { ok, body } = await j("/buzz/connections");
   const wrap = $("connected");
@@ -364,6 +397,12 @@ async function loadConnections() {
           ${all || c.channels.includes(ch.id) ? "checked" : ""}>
         <span>${esc(ch.name)}</span>
       </label>`).join("");
+    const pct = Math.min(Number(c.usage_pct) || 0, 100);
+    const act = (c.activity || []).map(r => `
+      <div class="act-row">
+        <span class="act-when">${esc(ago(r.at))}</span>
+        <span class="act-what">${esc(actLine(r))}</span>
+      </div>`).join("");
     return `
     <div class="conn">
       <div class="conn-top">
@@ -375,6 +414,15 @@ async function loadConnections() {
         <button data-id="${esc(c.id)}" class="disconnect">Disconnect</button>
       </div>
       ${rows ? `<div class="chans"><h4>Channels it reads</h4>${rows}</div>` : ""}
+      ${c.paused ? `<div class="paused">Analysis is paused. This account has used all of its included analysis.</div>` : ""}
+      <div class="act">
+        <h4>Engine activity</h4>
+        <div class="usage">
+          <div class="usage-bar"><i style="width:${pct}%;background:${pct >= 100 ? "#c9403a" : "var(--ink)"}"></i></div>
+          <span>${pct}% of included analysis used</span>
+        </div>
+        ${act || '<div class="act-empty">Nothing analysed yet. Post something in a watched channel and the verdicts appear here.</div>'}
+      </div>
     </div>`;
   }).join("");
 

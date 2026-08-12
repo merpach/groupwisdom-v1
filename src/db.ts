@@ -166,6 +166,10 @@ try { db.exec("ALTER TABLE insights ADD COLUMN missing_voice TEXT DEFAULT NULL")
 try { db.exec("ALTER TABLE buzz_connections ADD COLUMN channels TEXT DEFAULT NULL"); } catch { /* already exists */ }
 // Buzz: channels the agent has seen, so the setup page can offer them as choices
 try { db.exec("ALTER TABLE buzz_connections ADD COLUMN discovered TEXT DEFAULT NULL"); } catch { /* already exists */ }
+// Usage: attribute spend to the owning user at write time. Attributing through
+// the members table meant deleting a project erased its spend from the user's
+// cap — delete a project, get a fresh $50.
+try { db.exec("ALTER TABLE usage_events ADD COLUMN user_id TEXT DEFAULT NULL"); } catch { /* already exists */ }
 
 export type User = { id: string; email: string; password_hash: string; name: string; api_key: string; created_at: string };
 export type Group = { id: string; name: string; api_key: string; created_at: string };
@@ -485,16 +489,21 @@ export function recordUsage(
 ): void {
   const rates = modelRates(model);
   const cost = inputTokens * rates.input + outputTokens * rates.output;
+  // Stamp the owning user now: spend must survive project deletion, or the cap
+  // resets every time a project is removed.
+  const userId = getGroupOwnerUserId(groupId);
   db.prepare(
-    "INSERT INTO usage_events (id, group_id, model, input_tokens, output_tokens, cost_usd, purpose) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  ).run(randomUUID(), groupId, model, inputTokens, outputTokens, cost, purpose);
+    "INSERT INTO usage_events (id, group_id, model, input_tokens, output_tokens, cost_usd, purpose, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(randomUUID(), groupId, model, inputTokens, outputTokens, cost, purpose, userId);
 }
 
 export function getUserTotalCostUsd(userId: string): number {
+  // user_id is stamped at write time; the membership join remains only for rows
+  // recorded before the column existed.
   const row = db.prepare(
     "SELECT COALESCE(SUM(u.cost_usd), 0) as total FROM usage_events u " +
-    "WHERE u.group_id IN (SELECT group_id FROM members WHERE user_id = ?)"
-  ).get(userId) as { total: number };
+    "WHERE u.user_id = ? OR (u.user_id IS NULL AND u.group_id IN (SELECT group_id FROM members WHERE user_id = ?))"
+  ).get(userId, userId) as { total: number };
   return row.total;
 }
 
@@ -514,6 +523,16 @@ export function isGroupOverBudget(groupId: string): boolean {
   const ownerId = getGroupOwnerUserId(groupId);
   if (!ownerId) return false;
   return getUserTotalCostUsd(ownerId) >= USER_BUDGET_USD;
+}
+
+// The per-user cap bounds each account, but nothing bounded the operator's
+// total Anthropic bill across accounts: twenty communities connecting is
+// twenty separate $50 budgets. This is the kill switch for the sum. Set
+// GW_GLOBAL_BUDGET_USD on the server to tune it without a deploy.
+export function isGlobalOverBudget(): boolean {
+  const cap = Number(process.env.GW_GLOBAL_BUDGET_USD || 250);
+  const row = db.prepare("SELECT COALESCE(SUM(cost_usd), 0) as total FROM usage_events").get() as { total: number };
+  return row.total >= cap;
 }
 
 // ── Buzz workspaces ──────────────────────────────────────────────────────────
