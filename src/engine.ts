@@ -229,8 +229,9 @@ Update the memory and return it in full. If the new contributions add nothing du
 ${MEMORY_RULES}${overBudget ? "\n- The memory is over budget right now, compress it this round." : ""}
 
 Also judge one thing about the new contributions, in "contributed":
-- true when they add something the group did not have: a result, a finding, data, an analysis, a document, a decision, a piece of work someone did.
+- true when someone DELIVERED work: a result, a finding, data, an analysis, a document, a decision they have made.
 - false when they only ask for something, instruct someone, ask a question, greet, acknowledge, agree, or arrange logistics. Asking a teammate to do work is not doing work.
+- A request that carries details is still a request. "Build the plan for Chicago, San Francisco and New York" names three cities and remains an instruction: saying what you want does not make it done. Judge by whether work was delivered, never by whether the message contained new words. Record the detail as a fact if it is durable, and still answer false.
 Put the reason in "why", in a few words.
 
 Respond ONLY with valid JSON:
@@ -281,22 +282,27 @@ function recordGate(groupId: string, rec: Parameters<typeof addGateRecord>[1]) {
 /** What both the scout and the editor must believe before anything is said. */
 const WISDOM_TESTS = `A finding is real ONLY if every one of these holds:
 
-1. Independent sources. It takes two contributors' work to see, and that work was
-   done separately. A message and the reply it answers are ONE conversation, not a
-   combination: if one person asked and another answered, that is the conversation
-   working, not wisdom. The strongest findings join things that were produced apart
-   from each other, whose authors did not have each other in mind.
-2. Not a restatement. Summarising, restating or tidying up one contributor's plan,
-   document or message is never wisdom, however well written. Neither is narrating
-   what is happening ("X asked for Y while Z did W").
+1. Two pieces of work, produced separately. The finding must join the new
+   contribution to something ELSE the group already holds, and that something must
+   not be the message this one is answering. The two pieces may come from the same
+   contributor: an agent that wrote a budget plan for one question and a schedule
+   for another can disagree with itself across them, and nobody is holding both at
+   once. What never counts is a single exchange read against itself, one message
+   asking and the next answering.
+2. Not a restatement. Summarising, restating or tidying up one piece of work is
+   never wisdom, however well written. Neither is narrating what is happening
+   ("X asked for Y while Z did W"). Test it like this: take away everything the new
+   message itself says. If nothing is left, there was no finding.
 3. Nobody has said it. It is absent from the memory and from the wisdom already spoken.
-4. It changes what someone does next.
+4. It changes what someone does next. A pending request is not something to have a
+   finding about: the answer is on its way. If the natural reply to your finding is
+   "that is what was just asked for", it is not wisdom.
 5. It points at specific contributions that produced it.
 
 Contributors are people and AI agents alike. An agent that researches, drafts or
-analyses is a contributor exactly as a person is, and its work combining with
-someone else's is as much wisdom as two people's work combining. Never discount a
-contribution for coming from an agent.
+analyses is a contributor exactly as a person is. A person working with one agent
+is a group, and what that agent produced earlier is part of what the group holds.
+Never discount a contribution for coming from an agent.
 
 Most of the time nothing passes. That is the normal, correct answer.`;
 
@@ -331,9 +337,10 @@ ${wisdomText}
 
 ${WISDOM_TESTS}
 
-Answer with a hypothesis only when you can name the two separate pieces of work
-being joined and who did each. If the new contribution is simply an answer to a
-request, or a restatement of what someone already wrote, the answer is no.
+Answer with a hypothesis only when you can name BOTH pieces of work being joined,
+and the second one is not simply the request this message answers. Reaching back
+into memory for that second piece is the whole job. If the only thing you can
+point at is the message in front of you, the answer is no.
 
 Respond ONLY with valid JSON:
 {"worth_drafting":false,"hypothesis":"","sources":[],"why":"one short sentence naming the test that failed"}`,
@@ -391,8 +398,10 @@ ${wisdomText}
 ${WISDOM_TESTS}
 
 The scout is often wrong. Check its hypothesis against the tests yourself, and
-return an empty list if it does not hold. Returning nothing is always better than
-reaching, and it is not a failure.
+return an empty list if it does not hold. In particular, check that the finding
+survives test 2: if it disappears once you take away what the new message itself
+says, it was a restatement wearing a second source as decoration. Returning
+nothing is always better than reaching, and it is not a failure.
 
 At most ONE finding. Never two.
 
@@ -859,7 +868,7 @@ For each candidate, evaluate:
 - keep: false if the insight is too speculative, too thin, or not yet ready to surface — otherwise true
 - drop_reason: when keep is false, one short sentence naming why (too thin, single-source, already known, speculative). null when keep is true.
 - revised_title: a sharper version of the title if the original is vague, buries the finding, or understates the evidence — otherwise null. Must be under 12 words.
-- revised_body: a revised body if you can materially improve clarity, precision, incorporate the caveat naturally, or fold in another member's actual finding so the reader inherits it directly rather than being pointed to it — otherwise null. Keep it to 1-2 sentences.
+- revised_body: a revised body if you can materially improve clarity or precision, or fold in another member's actual finding so the reader inherits it directly rather than being pointed to it — otherwise null. Keep it to 1-2 sentences. Two things always require a revision: a body running past two sentences or roughly 45 words, which you cut back; and any sentence suggesting the reader consult, review or clarify something, which you delete outright. A finding that only survives by pointing somewhere is not a finding.
 
 Only revise when you can genuinely improve the text. Null means the original is good enough.
 Be strict on keep. It is better to suppress a weak insight than to deliver noise.
