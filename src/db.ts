@@ -127,6 +127,22 @@ CREATE TABLE IF NOT EXISTS buzz_cursors (
   state TEXT NOT NULL DEFAULT '{}',
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS group_memory (
+  group_id TEXT PRIMARY KEY REFERENCES groups(id),
+  memory TEXT NOT NULL DEFAULT '{}',  -- structured JSON: purpose, facts, decisions, open_questions, active_wisdom
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS gate_records (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL REFERENCES groups(id),
+  stage TEXT NOT NULL,        -- scan | review
+  verdict TEXT NOT NULL,      -- silent | spoken | suppressed | error
+  kind TEXT DEFAULT NULL,
+  title TEXT DEFAULT NULL,
+  reason TEXT DEFAULT NULL,
+  insight_id TEXT DEFAULT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS usage_events (
   id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL,
@@ -219,6 +235,8 @@ export function deleteGroup(id: string) {
   db.prepare("DELETE FROM invites WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM project_api_keys WHERE project_id = ?").run(id);
   db.prepare("DELETE FROM buzz_workspaces WHERE project_id = ?").run(id);
+  db.prepare("DELETE FROM group_memory WHERE group_id = ?").run(id);
+  db.prepare("DELETE FROM gate_records WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM groups WHERE id = ?").run(id);
 }
 
@@ -304,6 +322,43 @@ export const setKnowledgeDoc = (groupId: string, markdown: string) =>
     "INSERT INTO knowledge_docs (group_id, markdown, updated_at) VALUES (?, ?, datetime('now')) " +
     "ON CONFLICT(group_id) DO UPDATE SET markdown = excluded.markdown, updated_at = datetime('now')"
   ).run(groupId, markdown);
+
+// ── Group memory ──────────────────────────────────────────────────────────────
+// The engine's long-term working knowledge per project: a compact structured
+// summary read on every scan in place of raw history. The engine owns the JSON
+// shape (see GroupMemory in engine.ts); this layer just stores it.
+
+export const getGroupMemoryRaw = (groupId: string) =>
+  db.prepare("SELECT memory, updated_at FROM group_memory WHERE group_id = ?").get(groupId) as
+    { memory: string; updated_at: string } | undefined;
+export const setGroupMemoryRaw = (groupId: string, memory: string) =>
+  db.prepare(
+    "INSERT INTO group_memory (group_id, memory, updated_at) VALUES (?, ?, datetime('now')) " +
+    "ON CONFLICT(group_id) DO UPDATE SET memory = excluded.memory, updated_at = datetime('now')"
+  ).run(groupId, memory);
+
+// ── Gate records ──────────────────────────────────────────────────────────────
+// Why the engine spoke or stayed silent, one row per verdict. The silent rows
+// are the point: they make a quiet engine debuggable without pasting test
+// messages into a live channel.
+
+export type GateRecord = {
+  id: string; group_id: string; stage: string; verdict: string;
+  kind: string | null; title: string | null; reason: string | null;
+  insight_id: string | null; created_at: string;
+};
+export function addGateRecord(groupId: string, rec: {
+  stage: "scan" | "review"; verdict: "silent" | "spoken" | "suppressed" | "error";
+  kind?: string; title?: string; reason?: string; insightId?: string;
+}) {
+  db.prepare(
+    "INSERT INTO gate_records (id, group_id, stage, verdict, kind, title, reason, insight_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(randomUUID(), groupId, rec.stage, rec.verdict,
+    rec.kind ?? null, rec.title ?? null, rec.reason ?? null, rec.insightId ?? null);
+}
+export const listGateRecords = (groupId: string, limit = 50) =>
+  db.prepare("SELECT * FROM gate_records WHERE group_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?")
+    .all(groupId, limit) as GateRecord[];
 
 export const getProjectSummary = (groupId: string): string =>
   ((db.prepare("SELECT summary FROM project_summaries WHERE group_id = ?").get(groupId) as { summary: string } | undefined)?.summary ?? "");

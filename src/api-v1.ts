@@ -46,6 +46,8 @@ import {
   getByProjectApiKey,
   revokeProjectApiKey,
   getUserUsagePct,
+  listGateRecords,
+  getGroupMemoryRaw,
   type Item,
   type Group,
   type User,
@@ -353,6 +355,32 @@ apiv1.get("/projects/:id/insights", (req, res) => {
   const result = listInsightsPaginated(g.id, kind, limit, offset);
   const view = full ? insightFull : insightSimple;
   res.json({ ...result, data: result.data.map(view) });
+});
+
+// ── Engine transparency ───────────────────────────────────────────────────────
+// Debug surfaces, not part of the public docs. Gate records answer "why did
+// the engine speak / stay silent"; memory is what it currently believes the
+// group knows.
+
+apiv1.get("/projects/:id/gate-records", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  const g = resolveProject(req, a);
+  if (!g) return res.status(404).json({ error: "Project not found." });
+  const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? "50"), 10) || 50, 1), 200);
+  res.json({ records: listGateRecords(g.id, limit) });
+});
+
+apiv1.get("/projects/:id/memory", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  const g = resolveProject(req, a);
+  if (!g) return res.status(404).json({ error: "Project not found." });
+  const row = getGroupMemoryRaw(g.id);
+  if (!row) return res.json({ memory: null, updated_at: null });
+  let memory: unknown = null;
+  try { memory = JSON.parse(row.memory); } catch { /* surface as null rather than 500 */ }
+  res.json({ memory, updated_at: row.updated_at });
 });
 
 // ── Project API Keys ──────────────────────────────────────────────────────────

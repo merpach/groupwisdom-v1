@@ -12,6 +12,7 @@ import {
   listItems, listItemsWithMembers, listMembers, listInsights, addInsight, setInsightStatus,
   setKnowledgeDoc, getGroup, setProjectSummary, setUserContext, listUserContexts,
   getMemberByUserId, listItemsByMember, recordUsage, isGroupOverBudget, getGroupEngine,
+  getGroupMemoryRaw, setGroupMemoryRaw, addGateRecord,
   type Item, type Insight,
 } from "./db.js";
 
@@ -20,6 +21,195 @@ const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
 const KINDS = ["convergence", "opportunity", "tension", "pattern", "direction", "decision"];
 
 const running = new Set<string>();
+
+// ── Group memory ──────────────────────────────────────────────────────────────
+// The engine's long-term working knowledge per project: a compact, structured
+// record of what the group currently knows. Scans read memory plus the new
+// items, never raw history, which keeps the cost per message flat no matter
+// how large the archive grows — previously every scan re-sent the last 15 raw
+// items and every insight ever surfaced, so both cost and blindness grew with
+// the project. Facts carry the contributor and short source-item ids, so
+// provenance survives distillation.
+
+export type GroupMemory = {
+  purpose: string;
+  facts: Array<{ fact: string; by: string; sources: string[] }>;
+  decisions: Array<{ decision: string; sources: string[] }>;
+  open_questions: string[];
+  // Wisdom already spoken and still standing — how the engine knows not to
+  // repeat itself. Maintained mechanically in code, never by the model.
+  active_wisdom: Array<{ id: string; kind: string; title: string }>;
+};
+
+// Mechanical backstops. The update prompt targets ~30 facts; these only bite
+// if the model ignores its size discipline, so memory can never silently grow
+// the cost per scan.
+const MEMORY_MAX_FACTS = 40;
+const MEMORY_MAX_WISDOM = 25;
+
+const shortId = (id: string) => id.slice(0, 8);
+
+const str = (v: unknown) => (typeof v === "string" ? v : "");
+const strArr = (v: unknown) => (Array.isArray(v) ? v.filter(x => typeof x === "string") as string[] : []);
+
+/** Coerce whatever the model (or an old row) gave us into a well-formed core. */
+function normalizeMemoryCore(raw: any): Omit<GroupMemory, "active_wisdom"> {
+  return {
+    purpose: str(raw?.purpose),
+    facts: (Array.isArray(raw?.facts) ? raw.facts : [])
+      .map((f: any) => ({ fact: str(f?.fact), by: str(f?.by), sources: strArr(f?.sources) }))
+      .filter((f: any) => f.fact),
+    decisions: (Array.isArray(raw?.decisions) ? raw.decisions : [])
+      .map((d: any) => ({ decision: str(d?.decision), sources: strArr(d?.sources) }))
+      .filter((d: any) => d.decision),
+    open_questions: strArr(raw?.open_questions),
+  };
+}
+
+export function loadGroupMemory(groupId: string): GroupMemory | null {
+  const row = getGroupMemoryRaw(groupId);
+  if (!row) return null;
+  try {
+    const raw = JSON.parse(row.memory);
+    return {
+      ...normalizeMemoryCore(raw),
+      active_wisdom: (Array.isArray(raw?.active_wisdom) ? raw.active_wisdom : [])
+        .map((w: any) => ({ id: str(w?.id), kind: str(w?.kind), title: str(w?.title) }))
+        .filter((w: any) => w.id),
+    };
+  } catch {
+    return null; // corrupt row — treat as missing and re-bootstrap
+  }
+}
+
+function saveGroupMemory(groupId: string, mem: GroupMemory) {
+  // Newest facts live at the end of the array, so trimming from the front
+  // drops the oldest when the model has blown past its budget.
+  mem.facts = mem.facts.slice(-MEMORY_MAX_FACTS);
+  mem.active_wisdom = mem.active_wisdom.slice(-MEMORY_MAX_WISDOM);
+  setGroupMemoryRaw(groupId, JSON.stringify(mem));
+}
+
+/** Item line for the memory prompts: short id so facts can cite their sources. */
+function memoryItemLine(i: Item & { member_name?: string | null }, contentCap: number) {
+  const content = (i.content ?? "").slice(0, contentCap);
+  return `[${shortId(i.id)}] [${i.type}]${i.member_name ? ` [by ${i.member_name}]` : ""} "${i.title}" — ${content}`;
+}
+
+const MEMORY_SHAPE =
+  `{"purpose":"...","facts":[{"fact":"...","by":"contributor name","sources":["short item id"]}],` +
+  `"decisions":[{"decision":"...","sources":["..."]}],"open_questions":["..."]}`;
+
+const MEMORY_RULES = `Rules:
+- One sentence per fact. "by" is whoever actually contributed it — never move a finding from one contributor to another. "sources" keeps the item ids in [brackets].
+- Newest wins: when a contribution corrects or updates an earlier fact on the same point, replace the old fact and keep the new source id.
+- Record decisions the group has clearly made, and open questions that are genuinely open. Delete questions that have been answered.
+- Not everything is a fact. Chatter, acknowledgements and coordination add nothing; skip them.
+- Keep facts in the order they were learned, newest last.
+- Size discipline: at most about 30 facts. When over, merge the oldest and least consequential into fewer, shorter entries, keeping their source ids.`;
+
+/**
+ * One-time distillation of an existing project's history into its first
+ * memory. Runs once per group, on the first scan after this feature ships
+ * (or the first scan of a new group, over whatever exists).
+ */
+async function bootstrapGroupMemory(groupId: string, groupName: string): Promise<GroupMemory> {
+  const items = listItemsWithMembers(groupId).slice(0, 50);
+  const activeWisdom = listInsights(groupId).slice(0, MEMORY_MAX_WISDOM).reverse()
+    .map(i => ({ id: i.id, kind: i.kind, title: i.title }));
+
+  if (!items.length) {
+    const mem = { purpose: "", facts: [], decisions: [], open_questions: [], active_wisdom: activeWisdom };
+    saveGroupMemory(groupId, mem);
+    return mem;
+  }
+
+  const client = new Anthropic();
+  const msg = await client.messages.create({
+    model: SUMMARY_MODEL,
+    max_tokens: 1500,
+    messages: [{
+      role: "user",
+      content: `You maintain the working memory of a shared project called "${groupName}": the compact record of what the group currently knows. It is the only long-term context the wisdom engine sees, so a fact dropped here is forgotten and a fact kept here is remembered.
+
+The project's contributions so far (newest first):
+${items.map(i => memoryItemLine(i, 700)).join("\n")}
+
+Distill them into the project's memory.
+
+${MEMORY_RULES}
+
+Respond ONLY with valid JSON:
+${MEMORY_SHAPE}`,
+    }],
+  });
+  recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "memory_bootstrap");
+
+  const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
+  const core = normalizeMemoryCore(JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)));
+  const mem = { ...core, active_wisdom: activeWisdom };
+  saveGroupMemory(groupId, mem);
+  return mem;
+}
+
+/**
+ * Fold a batch of new items into the memory core. The model never sees
+ * active_wisdom — that list is maintained in code, so it can neither invent
+ * nor lose spoken wisdom.
+ */
+async function updateMemoryCore(
+  groupId: string, groupName: string, mem: GroupMemory, newItems: (Item & { member_name?: string | null })[],
+): Promise<Omit<GroupMemory, "active_wisdom">> {
+  const { active_wisdom: _, ...core } = mem;
+  const overBudget = mem.facts.length > 30;
+
+  const client = new Anthropic();
+  const msg = await client.messages.create({
+    model: SUMMARY_MODEL,
+    max_tokens: 1500,
+    messages: [{
+      role: "user",
+      content: `You maintain the working memory of a shared project called "${groupName}": the compact record of what the group currently knows. It is the only long-term context the wisdom engine sees, so a fact dropped here is forgotten and a fact kept here is remembered.
+
+Current memory:
+${JSON.stringify(core)}
+
+New contribution${newItems.length > 1 ? "s" : ""}:
+${newItems.map(i => memoryItemLine(i, 1500)).join("\n")}
+
+Update the memory and return it in full. If the new contributions add nothing durable, return the memory unchanged.
+
+${MEMORY_RULES}${overBudget ? "\n- The memory is over budget right now — compress it this round." : ""}
+
+Respond ONLY with valid JSON:
+${MEMORY_SHAPE}`,
+    }],
+  });
+  recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "memory_update");
+
+  const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
+  return normalizeMemoryCore(JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)));
+}
+
+/**
+ * Keep active_wisdom current when insights are created outside the incremental
+ * path (the full analyzeGroup used by the dashboard and /analyze). Without
+ * this, memory would not know that wisdom exists and the engine could repeat it.
+ */
+function appendActiveWisdom(groupId: string, insights: Insight[]) {
+  if (!insights.length) return;
+  const mem = loadGroupMemory(groupId);
+  if (!mem) return; // not bootstrapped yet — bootstrap seeds from listInsights, so nothing is lost
+  mem.active_wisdom.push(...insights.map(i => ({ id: i.id, kind: i.kind, title: i.title })));
+  saveGroupMemory(groupId, mem);
+}
+
+/** Gate records must never break the wisdom path they exist to explain. */
+function recordGate(groupId: string, rec: Parameters<typeof addGateRecord>[1]) {
+  try { addGateRecord(groupId, rec); } catch (err: any) {
+    console.warn(`[gate] could not record verdict for group ${groupId}: ${err.message}`);
+  }
+}
 
 // ── Incremental Wisdom (Haiku, runs on every item add) ───────────────────────
 
@@ -60,10 +250,10 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
   if (!group) return [];
   const existing = listInsights(groupId);
   const allWithMembers = listItemsWithMembers(groupId);
-  const recent = allWithMembers.filter(i => !newItems.some(n => n.id === i.id)).slice(0, 15);
 
   // Build a map of member_id → name for new items (they come in as plain Items)
   const memberNames = new Map(allWithMembers.filter(i => i.member_name).map(i => [i.id, i.member_name!]));
+  const newWithNames = newItems.map(i => ({ ...i, member_name: memberNames.get(i.id) ?? null }));
 
   // How much of each item the incremental prompt may see. 120 characters was far
   // too little: anything substantial — an agent's reply, a pasted document, a
@@ -80,16 +270,16 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
     return `[${i.type}]${by} "${i.title}"${i.url ? ` (${i.url})` : ""} — ${shown}`;
   };
 
-  const newText = newItems.map(i => fmt({ ...i, member_name: memberNames.get(i.id) ?? null })).join("\n");
-  const recentText = recent.map(i => fmt(i)).join("\n") || "(none)";
-  const existingText = existing.map(i => `[${i.id}] [${i.kind}] ${i.title}: ${i.body}`).join("\n") || "(none)";
+  const newText = newWithNames.map(fmt).join("\n");
 
-  // Detect contributor overlap before calling Claude — flag if new items share topics with items from different contributors
-  const newContributors = new Set(newItems.map(i => memberNames.get(i.id)).filter(Boolean));
-  const otherContributorItems = recent.filter(i => i.member_name && !newContributors.has(i.member_name));
-  const overlapHint = otherContributorItems.length
-    ? `\nContributors to weigh: new items are from ${[...newContributors].join(", ")}. Other contributors already in the project: ${[...new Set(otherContributorItems.map(i => i.member_name))].join(", ")}. Genuine overlap between them can be worth surfacing — but only where their work actually combines into something neither of them said, not merely because they wrote about related things.`
-    : "";
+  // A short raw tail for conversational continuity only — the substance of the
+  // history lives in memory, which covers the whole archive. Both are fixed
+  // size, so the scan costs the same on day one and day five hundred.
+  const tail = allWithMembers.filter(i => !newItems.some(n => n.id === i.id)).slice(0, 5);
+  const tailText = tail.map(i => {
+    const content = (i.content ?? "").slice(0, 300);
+    return `[${i.type}]${i.member_name ? ` [by ${i.member_name}]` : ""} "${i.title}" — ${content}`;
+  }).join("\n") || "(none)";
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return []; // no mock for incremental — just skip
@@ -99,6 +289,42 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
     console.warn(`[wisdom] group ${groupId} over budget — skipping analysis`);
     return [];
   }
+
+  // Memory: the whole history, distilled. Bootstrapped once per project, then
+  // folded forward batch by batch. If bootstrap fails we scan on a stub this
+  // round and do NOT persist it — saving a stub would permanently block the
+  // real bootstrap from ever running.
+  let memory: GroupMemory | null = null;
+  try {
+    memory = loadGroupMemory(groupId) ?? await bootstrapGroupMemory(groupId, group.name);
+  } catch (err: any) {
+    console.warn(`[memory] bootstrap failed for group ${groupId}: ${err.message} — scanning without memory this round`);
+  }
+  const scanMemory: GroupMemory = memory ?? {
+    purpose: "", facts: [], decisions: [], open_questions: [],
+    active_wisdom: existing.slice(0, MEMORY_MAX_WISDOM).reverse().map(i => ({ id: i.id, kind: i.kind, title: i.title })),
+  };
+
+  // Fold the new items into memory concurrently with the scan: both read this
+  // batch's memory, and the updated core lands before the save at the end.
+  const memCoreP: Promise<Omit<GroupMemory, "active_wisdom"> | null> = memory
+    ? updateMemoryCore(groupId, group.name, memory, newWithNames)
+        .catch((err: any) => { console.warn(`[memory] update failed for group ${groupId}: ${err.message}`); return null; })
+    : Promise.resolve(null);
+
+  const memoryText = JSON.stringify({
+    purpose: scanMemory.purpose, facts: scanMemory.facts,
+    decisions: scanMemory.decisions, open_questions: scanMemory.open_questions,
+  });
+  const wisdomText = scanMemory.active_wisdom.map(w => `[${w.id}] [${w.kind}] ${w.title}`).join("\n") || "(none)";
+
+  // Detect contributor overlap before calling Claude — flag if new items touch
+  // topics where memory holds other contributors' work
+  const newContributors = new Set(newWithNames.map(i => i.member_name).filter(Boolean));
+  const otherContributors = [...new Set(scanMemory.facts.map(f => f.by).filter(by => by && !newContributors.has(by)))];
+  const overlapHint = otherContributors.length
+    ? `\nContributors to weigh: new items are from ${[...newContributors].join(", ")}. Other contributors already in the project: ${otherContributors.join(", ")}. Genuine overlap between them can be worth surfacing — but only where their work actually combines into something neither of them said, not merely because they wrote about related things.`
+    : "";
 
   const client = new Anthropic();
   const msg = await client.messages.create({
@@ -112,11 +338,15 @@ Members: ${listMembers(groupId).map(m => m.name).join(", ") || "unknown"}
 New item${newItems.length > 1 ? "s" : ""} just added:
 ${newText}
 
-Recent project items with contributor names (context):
-${recentText}
+What the group knows so far — its working memory, distilled from the whole
+history. Facts carry the contributor's name and source item ids:
+${memoryText}
+
+The last few messages, for conversational context only:
+${tailText}
 
 Current wisdom (do not repeat; flag any now outdated):
-${existingText}
+${wisdomText}
 ${overlapHint}
 
 Most of what gets posted is not wisdom. Conversation is mostly coordination,
@@ -161,21 +391,43 @@ it still reads correctly with the title removed.
 
 Also list IDs of any existing insights now stale, resolved, or superseded.
 
+When you return no finding, say why in one short sentence in "why_silent" — name
+the test that failed (single contributor only, already known, changes nothing,
+coordination chatter, no specific sources). When you return a finding, set it
+to null.
+
 Respond ONLY with valid JSON:
-{"new":[{"kind":"...","title":"...","body":"..."}],"dismiss":["id1"]}`,
+{"new":[{"kind":"...","title":"...","body":"..."}],"dismiss":["id1"],"why_silent":null}`,
     }],
   });
   recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "incremental_wisdom");
 
+  // The batch's items must reach memory on every exit from here on — silence,
+  // parse failure and spoken wisdom alike — or they simply never happened as
+  // far as future scans are concerned.
+  const finalizeMemory = async (created: Insight[], dismissedIds: string[]) => {
+    if (!memory) return; // bootstrap failed — don't persist the stub
+    const core = (await memCoreP) ?? {
+      purpose: memory.purpose, facts: memory.facts,
+      decisions: memory.decisions, open_questions: memory.open_questions,
+    };
+    const active = memory.active_wisdom
+      .filter(w => !dismissedIds.includes(w.id))
+      .concat(created.map(i => ({ id: i.id, kind: i.kind, title: i.title })));
+    saveGroupMemory(groupId, { ...core, active_wisdom: active });
+  };
+
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
   const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
-  let result: { new: Array<{ kind: string; title: string; body: string }>; dismiss: string[] };
+  let result: { new: Array<{ kind: string; title: string; body: string }>; dismiss: string[]; why_silent?: string | null };
   try {
     result = JSON.parse(json);
   } catch (err: any) {
     // Silently returning [] here made a non-responding engine indistinguishable
     // from one that legitimately had nothing to say. Say which it was.
     console.warn(`[wisdom] could not parse engine response for group ${groupId}: ${err.message}\n  raw: ${raw.slice(0, 300)}`);
+    recordGate(groupId, { stage: "scan", verdict: "error", reason: `unparseable engine response: ${err.message}` });
+    await finalizeMemory([], []);
     return [];
   }
 
@@ -204,10 +456,26 @@ Respond ONLY with valid JSON:
       )
     : [];
 
+  // Gate record for silence — the reason the engine said nothing, queryable
+  // later instead of reconstructable only by pasting test messages into a
+  // live channel.
+  if (!candidates.length) {
+    const reason = (result.new ?? []).length
+      ? "candidate duplicated existing wisdom (title match)"
+      : (result.why_silent?.trim() || "scan returned no candidates");
+    recordGate(groupId, { stage: "scan", verdict: "silent", reason });
+  }
+
   const suppressed = annotated.filter(ins => !ins.keep);
   if (suppressed.length) {
     console.log(`[metacognitive] suppressed ${suppressed.length} weak insight(s) for group ${groupId}: ` +
       suppressed.map(ins => `"${ins.title}" (confidence: ${ins.confidence})`).join(", "));
+    for (const ins of suppressed) {
+      recordGate(groupId, {
+        stage: "review", verdict: "suppressed", kind: ins.kind, title: ins.revised_title ?? ins.title,
+        reason: ins.drop_reason ?? `confidence ${ins.confidence}`,
+      });
+    }
   }
 
   const created: Insight[] = [];
@@ -221,11 +489,15 @@ Respond ONLY with valid JSON:
     });
     setInsightStatus(saved.id, "acknowledged"); // auto-accept live insights
     created.push({ ...saved, status: "acknowledged" });
+    recordGate(groupId, {
+      stage: "review", verdict: "spoken", kind: saved.kind, title: saved.title,
+      reason: `confidence ${ins.confidence}`, insightId: saved.id,
+    });
   }
-  for (const id of (result.dismiss ?? [])) {
-    if (existing.some(e => e.id === id)) setInsightStatus(id, "dismissed");
-  }
+  const dismissed = (result.dismiss ?? []).filter(id => existing.some(e => e.id === id));
+  for (const id of dismissed) setInsightStatus(id, "dismissed");
 
+  await finalizeMemory(created, dismissed);
   return created;
 }
 
@@ -312,6 +584,9 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
       }));
     }
     if (result.knowledge_markdown) setKnowledgeDoc(groupId, result.knowledge_markdown);
+    // Memory must learn about wisdom born here too, or the incremental engine
+    // could say the same thing again in the channel.
+    appendActiveWisdom(groupId, created);
     return created;
   } finally {
     running.delete(groupId);
@@ -373,6 +648,7 @@ Respond with ONLY valid JSON:
 type MetaInsight = {
   kind: string; title: string; body: string;
   confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean;
+  drop_reason: string | null;
   revised_title: string | null; revised_body: string | null;
 };
 
@@ -398,6 +674,7 @@ For each candidate, evaluate:
 - do_next: NOT a task or instruction. This field delivers inherited work: name the specific completed finding from another member that this reader can now build directly on, stated so they inherit it and skip that step. e.g. "Maya already mapped the morale timeline — it shows the drop came after Stalingrad, so you can start from that causality." Never assign work ("check", "map", "verify", "coordinate"); if there is no existing member work to hand over, use null.
 - missing_voice: name of a contributor whose existing work would strengthen this reader's, or null
 - keep: false if the insight is too speculative, too thin, or not yet ready to surface — otherwise true
+- drop_reason: when keep is false, one short sentence naming why (too thin, single-source, already known, speculative). null when keep is true.
 - revised_title: a sharper version of the title if the original is vague, buries the finding, or understates the evidence — otherwise null. Must be under 12 words.
 - revised_body: a revised body if you can materially improve clarity, precision, incorporate the caveat naturally, or fold in another member's actual finding so the reader inherits it directly rather than being pointed to it — otherwise null. Keep it to 1-2 sentences.
 
@@ -405,7 +682,7 @@ Only revise when you can genuinely improve the text. Null means the original is 
 Be strict on keep. It is better to suppress a weak insight than to deliver noise.
 
 Respond with ONLY valid JSON — an array matching the candidate order:
-[{"id":0,"confidence":"high","caveat":null,"do_next":"...","missing_voice":null,"keep":true,"revised_title":null,"revised_body":null},...]`;
+[{"id":0,"confidence":"high","caveat":null,"do_next":"...","missing_voice":null,"keep":true,"drop_reason":null,"revised_title":null,"revised_body":null},...]`;
 
   try {
     let text = "";
@@ -428,11 +705,11 @@ Respond with ONLY valid JSON — an array matching the candidate order:
       text = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
     } else {
       // No API — pass through all candidates with default annotations
-      return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, revised_title: null, revised_body: null }));
+      return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, drop_reason: null, revised_title: null, revised_body: null }));
     }
 
     const json = text.slice(text.indexOf("["), text.lastIndexOf("]") + 1);
-    const results = JSON.parse(json) as Array<{ id: number; confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean; revised_title: string | null; revised_body: string | null }>;
+    const results = JSON.parse(json) as Array<{ id: number; confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean; drop_reason: string | null; revised_title: string | null; revised_body: string | null }>;
 
     return candidates.map((c, i) => {
       const r = results.find(x => x.id === i);
@@ -443,13 +720,14 @@ Respond with ONLY valid JSON — an array matching the candidate order:
         do_next: r?.do_next ?? null,
         missing_voice: r?.missing_voice ?? null,
         keep: r?.keep ?? true,
+        drop_reason: r?.drop_reason ?? null,
         revised_title: r?.revised_title ?? null,
         revised_body: r?.revised_body ?? null,
       };
     });
   } catch (err) {
     console.error("[metacognitive]", (err as Error).message);
-    return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, revised_title: null, revised_body: null }));
+    return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, drop_reason: null, revised_title: null, revised_body: null }));
   }
 }
 
