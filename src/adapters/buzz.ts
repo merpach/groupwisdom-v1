@@ -380,6 +380,20 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     for (const set of unnamedAuthors.values()) set.delete(pubkey);
     log(`learned name for ${pubkey.slice(0, 8)}…: ${name}`);
     saveCursor();
+
+    // Anything this contributor posted before we knew them is filed under the
+    // pubkey prefix, in items and in the engine's memory. Left alone, wisdom
+    // cites both names in one sentence as if they were two people.
+    if (!communityProject) return;                      // nothing ingested yet, nothing to rename
+    communityProject
+      .then(projectId => gwFetch(`/projects/${projectId}/rename-contributor`, {
+        method: "POST",
+        body: JSON.stringify({ from: pubkey.slice(0, 8), to: name }),
+      }))
+      .then((r: any) => {
+        if (r?.members || r?.memoryUpdated) log(`renamed past work by ${pubkey.slice(0, 8)}… to ${name}`);
+      })
+      .catch(e => log(`rename failed for ${pubkey.slice(0, 8)}…: ${(e as Error).message}`));
   }
 
   /**

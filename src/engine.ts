@@ -408,21 +408,32 @@ At most ONE finding. Never two.
 When you do speak, the body is the whole message. It is posted on its own in a
 chat, so it must carry the finding without the title.
 
-- Write it the way a sharp colleague would say it out loud. Plain words, full
-  sentences. Not "validating the segmentation hypothesis that the value
-  proposition resonates" — say what actually happened.
-- Two sentences. Around 40 words. Stop there.
+- Finish the thought. Naming a conflict and stopping there is half a finding, and
+  it leaves the reader worse off than silence. Say what it means for them. If the
+  group's own material already holds the way through, give it: which order works,
+  which number gives way, what the two plans actually agree on. If nothing in the
+  material resolves it, name the one choice they now face, plainly enough that
+  making it is easy. Never hand someone a problem with no handle on it, and end on
+  the way forward rather than on the difficulty.
+- Everyday words, the way you would say it to a colleague at a desk. Say "so both
+  cannot happen in week one", never "making parallel execution infeasible". Say
+  "the plan puts 9,000 dollars into ads first", never "the budget allocates 40
+  percent of monthly spend to paid acquisition". Prefer verbs to nouns, and avoid
+  execution, structure, requirement, allocation, framework, infeasible, leverage,
+  alignment, and directly conflict.
+- Two sentences, three only when the third is the way through. Around 45 words.
 - No em dashes. Use full stops.
 - Hand over the finished work. Give the other contributor's actual finding, with
   their real numbers, so the reader inherits it and skips that step. Never tell
   anyone to go and do something with it. No "you can start by", no "test
   whether", no "evaluate whether", no "adapt it". If all you have is a
   suggestion of work someone could do, you have no finding.
-- Give each person's own findings and numbers, attributed to them. Never put one
+- Give each person's own findings and numbers, attributed to them. Use the name
+  each contributor is known by, and only one name per person. Never put one
   person's figure in someone else's mouth, and never smooth a disagreement into
   agreement. Where two contributions differ, that difference is the finding.
-- Frame it as what the group has built or found, not as what it lacks or has got
-  wrong.
+- Start from what the group has built, not from what is wrong with it. The work
+  is going well and this is one thing worth knowing, which is usually the truth.
 - No hedging inside the sentences. If a caveat matters it goes in the caveat field.
 
 Kinds: convergence (two people reached the same finding from different directions),
@@ -868,7 +879,7 @@ For each candidate, evaluate:
 - keep: false if the insight is too speculative, too thin, or not yet ready to surface — otherwise true
 - drop_reason: when keep is false, one short sentence naming why (too thin, single-source, already known, speculative). null when keep is true.
 - revised_title: a sharper version of the title if the original is vague, buries the finding, or understates the evidence — otherwise null. Must be under 12 words.
-- revised_body: a revised body if you can materially improve clarity or precision, or fold in another member's actual finding so the reader inherits it directly rather than being pointed to it — otherwise null. Keep it to 1-2 sentences. Two things always require a revision: a body running past two sentences or roughly 45 words, which you cut back; and any sentence suggesting the reader consult, review or clarify something, which you delete outright. A finding that only survives by pointing somewhere is not a finding.
+- revised_body: a revised body if you can materially improve clarity or precision, or fold in another member's actual finding so the reader inherits it directly rather than being pointed to it — otherwise null. Four things always require a revision. A body running past three sentences or roughly 50 words, which you cut back. Any sentence telling the reader to consult, review or clarify something, which you delete outright; a finding that only survives by pointing somewhere is not a finding. A body that names a conflict and stops, which you finish by saying what it means for the reader or which choice it leaves them; ending on the problem is the most common way these fail. And business abstraction, which you translate: "making parallel execution infeasible" becomes "so both cannot happen at once", "the budget allocates 40 percent to paid acquisition" becomes "the plan puts 9,000 dollars into ads first". Plain words, verbs over nouns, one name per contributor throughout.
 
 Only revise when you can genuinely improve the text. Null means the original is good enough.
 Be strict on keep. It is better to suppress a weak insight than to deliver noise.

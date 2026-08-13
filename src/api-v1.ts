@@ -48,6 +48,7 @@ import {
   getUserUsagePct,
   listGateRecords,
   getGroupMemoryRaw,
+  renameContributor,
   type Item,
   type Group,
   type User,
@@ -369,6 +370,20 @@ apiv1.get("/projects/:id/gate-records", (req, res) => {
   if (!g) return res.status(404).json({ error: "Project not found." });
   const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? "50"), 10) || 50, 1), 200);
   res.json({ records: listGateRecords(g.id, limit) });
+});
+
+// Used by the Buzz adapter the moment it learns an agent's real name, so work
+// already filed under a pubkey prefix stops appearing as a second person.
+apiv1.post("/projects/:id/rename-contributor", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  const g = resolveProject(req, a);
+  if (!g) return res.status(404).json({ error: "Project not found." });
+  const from = String(req.body?.from ?? "").trim();
+  const to = String(req.body?.to ?? "").trim();
+  if (!from || !to) return res.status(400).json({ error: "from and to are required." });
+  if (to.length > 40) return res.status(400).json({ error: "to is too long." });
+  res.json({ renamed: true, ...renameContributor(g.id, from, to) });
 });
 
 apiv1.get("/projects/:id/memory", (req, res) => {

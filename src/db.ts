@@ -370,6 +370,42 @@ export const listGateRecords = (groupId: string, limit = 50) =>
  * agent that will not stop talking. The spoken gate records are the log, so no
  * extra state is needed.
  */
+/**
+ * Rename a contributor everywhere the engine can still see them.
+ *
+ * When an agent's real name is learned late, its earlier work is already filed
+ * under a pubkey prefix, and new work arrives under the real name. Wisdom then
+ * cites both in one sentence ("The Marketer proposes … the strategy from
+ * 51d3b66e locks …"), which reads as two people who are one. Members and the
+ * stored memory both have to move for that to stop.
+ */
+export function renameContributor(groupId: string, from: string, to: string): { members: number; memoryUpdated: boolean } {
+  if (!from || !to || from === to) return { members: 0, memoryUpdated: false };
+
+  const existing = db.prepare("SELECT id FROM members WHERE group_id = ? AND name = ?").get(groupId, to) as { id: string } | undefined;
+  const old = db.prepare("SELECT id FROM members WHERE group_id = ? AND name = ?").get(groupId, from) as { id: string } | undefined;
+
+  let members = 0;
+  if (old && existing) {
+    // Both names already exist as members: move the items across, drop the duplicate.
+    db.prepare("UPDATE items SET member_id = ? WHERE member_id = ?").run(existing.id, old.id);
+    db.prepare("DELETE FROM members WHERE id = ?").run(old.id);
+    members = 1;
+  } else if (old) {
+    db.prepare("UPDATE members SET name = ? WHERE id = ?").run(to, old.id);
+    members = 1;
+  }
+
+  // Memory is a JSON blob, so the old name lives inside fact text and `by` alike.
+  const row = getGroupMemoryRaw(groupId);
+  let memoryUpdated = false;
+  if (row && row.memory.includes(from)) {
+    setGroupMemoryRaw(groupId, row.memory.split(from).join(to));
+    memoryUpdated = true;
+  }
+  return { members, memoryUpdated };
+}
+
 export function spokeRecently(groupId: string, minutes: number): boolean {
   const row = db.prepare(
     "SELECT COUNT(*) as n FROM gate_records WHERE group_id = ? AND verdict = 'spoken' AND created_at > datetime('now', ?)"
