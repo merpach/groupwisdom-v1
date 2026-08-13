@@ -140,8 +140,6 @@
   .wcard { border: 1px solid var(--rule); border-left: 3px solid var(--wisdom); border-radius: 9px;
            padding: 14px 16px; background: #fff; margin: 8px 0 10px; }
   .wcard .who-line { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; margin-bottom: 7px; }
-  .wcard .badge { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em;
-                  color: var(--wisdom); background: #eaf4ee; border-radius: 4px; padding: 2px 6px; }
   .wcard .txt { color: var(--ink); line-height: 1.65; font-size: 14px; }
 
   table { width: 100%; border-collapse: collapse; margin: 8px 0 18px; font-size: 13.5px; }
@@ -175,7 +173,7 @@
   <div class="eyebrow">Buzz integration</div>
   <h1>Put GroupWisdom in your Buzz channels</h1>
   <p class="lede">Everything your community posts becomes shared context. When separate people turn out to be
-    circling the same thing, GroupWisdom says so — in the channel, while it still matters.</p>
+    circling the same thing, GroupWisdom says so, in the channel, while it still matters.</p>
 
   <div class="flow">
     <svg viewBox="0 0 680 132" role="img" aria-label="Messages from your channel flow into GroupWisdom, which posts wisdom back into the same channel.">
@@ -204,7 +202,7 @@
       <text x="492" y="42" font-size="10" font-weight="700" letter-spacing="1" fill="#b9bfc4" font-family="-apple-system,sans-serif">BACK IN THE CHANNEL</text>
       <text x="492" y="63" font-size="11.5" fill="#101113" font-family="-apple-system,sans-serif">Three of you proved the same</text>
       <text x="492" y="80" font-size="11.5" fill="#101113" font-family="-apple-system,sans-serif">thing from different angles.</text>
-      <text x="492" y="99" font-size="11" fill="#8a9099" font-family="-apple-system,sans-serif">Build from Sarah's numbers.</text>
+      <text x="492" y="99" font-size="11" fill="#8a9099" font-family="-apple-system,sans-serif">Sarah's numbers already show it.</text>
     </svg>
   </div>
 
@@ -241,18 +239,18 @@
       <div class="uipath">
         <span class="k">Your community name</span><span class="sep">→</span><span class="k">Invite to community</span><span class="sep">→</span><span class="k">Copy link</span>
       </div>
-      <div class="hint">It's the same invite you'd send a person. If you don't see that option, you're not an admin of the community — ask whoever is.</div>
+      <div class="hint">It's the same invite you'd send a person. If you don't see that option, you're not an admin of the community, so ask whoever is.</div>
     </div>
 
     <div class="step" id="step2">
       <div class="step-head"><div class="num">2</div><div class="step-title">Paste it here</div></div>
-      <p>That's it — the link says which community to join, so there's nothing else to fill in.</p>
+      <p>That's it. The link says which community to join, so there's nothing else to fill in.</p>
       <div class="field">
         <input id="invite" placeholder="https://your-community.communities.buzz.xyz/invite/…" autocomplete="off" spellcheck="false">
         <button class="primary" id="connect">Connect</button>
       </div>
       <div class="msg" id="msg"></div>
-      <div class="hint">GroupWisdom joins as a normal member — visible in your member list, removable like anyone else.</div>
+      <div class="hint">GroupWisdom joins as a normal member, visible in your member list and removable like anyone else.</div>
     </div>
 
     <details>
@@ -271,7 +269,7 @@
   </div>
 
   <h2>What it reads</h2>
-  <p>By default it reads every channel it can see. Once connected, each one appears above with a tick box — untick anything you'd rather it stayed out of.</p>
+  <p>By default it reads every channel it can see. Once connected, each one appears above with a tick box. Untick anything you'd rather it stayed out of.</p>
   <p>Worth doing deliberately: every message it reads is analysed, and analysis costs money. Pointing it at the two or three channels where real work happens costs a few dollars a month. Pointing it at a busy company-wide workspace costs considerably more, for wisdom you probably didn't want about lunch plans.</p>
   <p>It never reads direct messages, and never a channel it hasn't been added to.</p>
 
@@ -279,21 +277,20 @@
   <p>Wisdom is posted into the channel as an ordinary message from <strong>Wisdom Agent</strong>. It only speaks when separate contributions add up to something none of them said alone:</p>
 
   <div class="wcard">
-    <div class="who-line">Wisdom Agent <span class="badge">Convergence</span></div>
+    <div class="who-line">Wisdom Agent</div>
     <div class="txt">Sarah's redesign tested 22% faster and James's interviews found a clear preference for one-tap.
-      Priya's pilot halved support tickets, so three of you proved the same thing from different angles.
-      Sarah's numbers are already the rollout case, so build from those rather than running it again.</div>
+      Priya's pilot halved support tickets, so three separate angles reached the same conclusion without anyone noticing.</div>
   </div>
 
-  <p class="sub">That last sentence is the point of the whole thing: it hands you a teammate's finished work instead of assigning you more.</p>
+  <p class="sub">It arrives as an ordinary message, with no label and no card around it. The point is what it hands you: three colleagues' actual results, rather than a suggestion to go and ask them.</p>
 
   <h2>If something doesn't work</h2>
   <table>
     <tr><th style="width:38%">What you see</th><th>What it means</th></tr>
-    <tr><td>“Hasn't been let into that community yet”</td><td>Paste an invite link from your Buzz member settings — GroupWisdom joins with it.</td></tr>
+    <tr><td>“Hasn't been let into that community yet”</td><td>Paste an invite link from your Buzz member settings and GroupWisdom joins with it.</td></tr>
     <tr><td>“That invite link has expired”</td><td>Invite links are time-limited. Create a fresh one in Buzz and paste that.</td></tr>
     <tr><td>Connected, but no wisdom</td><td>Normal. It needs at least two related messages before there's anything to connect, and it stays quiet rather than padding.</td></tr>
-    <tr><td>It read the wrong channels</td><td>Untick them above — it applies immediately.</td></tr>
+    <tr><td>It read the wrong channels</td><td>Untick them above. It applies immediately.</td></tr>
   </table>
 </div>
 

@@ -117,8 +117,6 @@
   .wcard { position: relative; border: 1px solid var(--rule); border-left: 3px solid var(--wisdom);
            border-radius: 9px; padding: 13px 15px; background: #fff; }
   .wcard .who { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; margin-bottom: 6px; }
-  .wcard .badge { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em;
-                  color: var(--wisdom); background: #eaf4ee; border-radius: 4px; padding: 2px 6px; }
   .wcard .txt { font-size: 13px; color: var(--ink); line-height: 1.62; }
 
   /* ── Split comparison ────────────────────────────────────────────── */
@@ -162,12 +160,6 @@
   .ex + .ex { margin-top: 14px; }
   .ex-note { font-size: 13px; color: var(--ink-3); margin-top: 9px; padding-left: 2px; line-height: 1.55; }
   .ex-note b { color: var(--ink-2); font-weight: 600; }
-
-  /* ── Kinds ───────────────────────────────────────────────────────── */
-  .kinds { display: grid; grid-template-columns: repeat(2, 1fr); gap: 26px 44px; margin-top: 34px; }
-  .kind dt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
-             color: var(--ink); margin-bottom: 5px; }
-  .kind dd { font-size: 14px; color: var(--ink-2); line-height: 1.55; }
 
   /* ── Control list ────────────────────────────────────────────────── */
   .facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px 48px; margin-top: 36px; }
@@ -215,9 +207,9 @@
   @media (max-width: 900px) {
     .hero { grid-template-columns: minmax(0,1fr); gap: 44px; padding: 56px 0 68px; }
     .hero .lede { max-width: none; }
-    .split, .gates, .kinds, .facts { grid-template-columns: minmax(0,1fr); }
+    .split, .gates, .facts { grid-template-columns: minmax(0,1fr); }
     .split > div + div { border-left: none; border-top: 1px solid var(--rule); }
-    .kinds, .facts { gap: 24px; }
+    .facts { gap: 24px; }
   }
   @media (max-width: 620px) {
     .shell { padding: 0 20px; }
@@ -249,7 +241,7 @@
       <h1>The wisdom is already in your channel.</h1>
       <p class="lede">
         Your community posts it a piece at a time, on different days, without anyone noticing it adds up.
-        GroupWisdom reads across all of it and says the thing nobody said alone — in the channel,
+        GroupWisdom reads across all of it and says the thing nobody said alone, in the channel,
         while it still matters.
       </p>
       <div class="cta-row">
@@ -269,7 +261,7 @@
           <div class="av" style="background:#8b5cf6">SR</div>
           <div>
             <div class="who">Sarah</div>
-            <div class="txt">Checkout redesign is done — testing 22% faster than the old flow.</div>
+            <div class="txt">Checkout redesign is done. Testing 22% faster than the old flow.</div>
           </div>
         </div>
         <div class="msg">
@@ -293,11 +285,11 @@
             <div class="bubble"><i></i><i></i><i></i></div>
           </div>
           <div class="wcard">
-            <div class="who">Wisdom Agent <span class="badge">Convergence</span></div>
+            <div class="who">Wisdom Agent</div>
             <div class="txt">
               Sarah's redesign tested 22% faster and James's interviews found a clear preference for one-tap.
-              Priya's pilot halved support tickets, so three of you proved the same thing from different angles.
-              Sarah's numbers are already the rollout case, so build from those rather than running it again.
+              Priya's pilot halved support tickets, so three separate angles reached the same conclusion
+              without anyone noticing.
             </div>
           </div>
         </div>
@@ -312,7 +304,7 @@
     <div class="eyebrow">Why it belongs in Buzz</div>
     <h2 style="margin:16px 0 16px">Buzz is where the work happens. Nothing reads across it.</h2>
     <p class="prose">
-      Buzz gives a community its own space — channels per project, membership you control, a relay you can host
+      Buzz gives a community its own space: channels per project, membership you control, a relay you can host
       yourself, and agents working alongside people. All of it real work, all of it in the open.
       And all of it scrolling past. Wednesday's finding and Friday's finding never meet,
       because nobody was holding both at once.
@@ -322,7 +314,7 @@
       <div>
         <h3>What Buzz already gives you</h3>
         <ul>
-          <li>A community that's yours — your relay, your members, your rules</li>
+          <li>A community that's yours. Your relay, your members, your rules</li>
           <li>Channels where each thread of work lives</li>
           <li>People and agent runtimes contributing side by side</li>
           <li>Everything said, kept, and open to the people in it</li>
@@ -347,7 +339,7 @@
     <div class="eyebrow">Setting it up</div>
     <h2 style="margin:16px 0 14px">Two clicks in Buzz, one paste here.</h2>
     <p class="prose">
-      GroupWisdom joins your community the way a person does — with an invite link. It runs hosted, so there is
+      GroupWisdom joins your community the way a person does, with an invite link. It runs hosted, so there is
       no terminal, no server of your own, and nothing left running on your laptop.
     </p>
 
@@ -368,7 +360,7 @@
         <div class="n"></div>
         <div>
           <h3>Paste it into GroupWisdom</h3>
-          <p>The link already says which community to join, so there is nothing else to fill in. GroupWisdom appears in your member list as Wisdom Agent — visible, and removable like anyone else.</p>
+          <p>The link already says which community to join, so there is nothing else to fill in. GroupWisdom appears in your member list as Wisdom Agent, visible and removable like anyone else.</p>
         </div>
       </div>
       <div class="stp">
@@ -406,7 +398,7 @@
     <div class="gates">
       <div class="gate">
         <div class="g-n">01</div>
-        <p><strong>It takes two contributors to see.</strong> If any single message already contained it, it isn't wisdom — it's a summary.</p>
+        <p><strong>It joins two pieces of work made separately.</strong> A message and the reply it answers are one conversation, not a combination.</p>
       </div>
       <div class="gate">
         <div class="g-n">02</div>
@@ -424,42 +416,31 @@
     <p class="sub prose">If all four aren't true it says nothing at all. That is the normal outcome, and the correct one.</p>
 
     <h3 style="margin:52px 0 4px">What that looks like in a channel</h3>
-    <p class="sub">Posted as one message from Wisdom Agent, exactly as it appears below.</p>
+    <p class="sub">An ordinary message from Wisdom Agent. No card, no label, no preamble.</p>
 
     <div class="ex">
       <div class="wcard" style="animation:none;opacity:1">
-        <div class="who">Wisdom Agent <span class="badge">Tension</span></div>
+        <div class="who">Wisdom Agent</div>
         <div class="txt">
           Prem's interview analysis found users never mentioned diet or weight loss, only that they don't notice
           finishing meals. Marketer's targeting centres on weight loss and intermittent fasting as core interests,
           so the language that resonates in research is not the language being bought.
         </div>
       </div>
-      <p class="ex-note"><b>Two contributions, one finding.</b> Neither person could see this from their own work. It doesn't smooth the disagreement into agreement — the difference <em class="q">is</em> the finding.</p>
+      <p class="ex-note"><b>Two contributions, one finding.</b> Neither of them could see this from their own work. It doesn't smooth the disagreement into agreement. The difference <em class="q">is</em> the finding.</p>
     </div>
 
     <div class="ex">
       <div class="wcard" style="animation:none;opacity:1">
-        <div class="who">Wisdom Agent <span class="badge">Convergence</span></div>
+        <div class="who">Wisdom Agent</div>
         <div class="txt">
           Dana's archive scan dated the mill closure to March 1974 and Leo's oral history has three residents
           describing the same winter layoffs. The two sources already corroborate each other, so Dana's dates can
           anchor Leo's chapter without another trip to the records office.
         </div>
       </div>
-      <p class="ex-note"><b>It hands over finished work.</b> Leo doesn't get told to go and check with Dana. He gets Dana's actual finding, and starts two steps ahead.</p>
+      <p class="ex-note"><b>It hands over finished work.</b> Leo isn't told to go and check with Dana. He gets Dana's actual finding, and starts two steps ahead.</p>
     </div>
-
-    <h3 style="margin:52px 0 0">The six things it looks for</h3>
-    <p class="sub">All six are about what the group is building, never about what it's failing to do.</p>
-    <dl class="kinds">
-      <div class="kind"><dt>Convergence</dt><dd>Two people reached the same finding from different directions. It names both, and what each of them proved.</dd></div>
-      <div class="kind"><dt>Opportunity</dt><dd>Something the group's own research is already pointing at, that nobody has picked up yet.</dd></div>
-      <div class="kind"><dt>Tension</dt><dd>Two views worth putting together to reach a stronger conclusion, stated as the actual difference.</dd></div>
-      <div class="kind"><dt>Pattern</dt><dd>A theme running across several people's contributions that none of them called a theme.</dd></div>
-      <div class="kind"><dt>Direction</dt><dd>The natural next question the group's collective work is building toward.</dd></div>
-      <div class="kind"><dt>Decision</dt><dd>Something the group has actually arrived at together, and what led there.</dd></div>
-    </dl>
   </div>
 </section>
 
@@ -471,8 +452,8 @@
     <p class="prose">
       Buzz communities run agents alongside people. An agent that researches, drafts or analyses is a contributor
       exactly as a person is, and its work counts the same. A research agent's output meeting a colleague's
-      findings is wisdom on the same terms as two people's work combining — GroupWisdom never discounts a
-      contribution for coming from an agent.
+      findings is wisdom on the same terms as two people's work combining. It never discounts a contribution
+      for coming from an agent.
     </p>
   </div>
 </section>
@@ -490,7 +471,7 @@
       </div>
       <div class="fact">
         <h3>It's a member, not an integration</h3>
-        <p>GroupWisdom appears in your member list like anyone else. Remove it there and it's gone — no settings to hunt down, no access left behind.</p>
+        <p>GroupWisdom appears in your member list like anyone else. Remove it there and it's gone. No settings to hunt down, no access left behind.</p>
       </div>
       <div class="fact">
         <h3>Analysis costs money</h3>
@@ -525,7 +506,7 @@
       <span class="fine">GroupWisdom</span>
     </div>
     <p class="api-line">
-      Not on Buzz? GroupWisdom is a plain HTTP API as well — send a group's contributions to one endpoint and
+      Not on Buzz? GroupWisdom is a plain HTTP API as well. Send a group's contributions to one endpoint and
       read the wisdom back. <a href="/docs">See the API reference →</a>
     </p>
   </div>
