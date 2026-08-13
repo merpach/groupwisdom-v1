@@ -73,6 +73,22 @@ export interface BuzzConfig {
  * server (buzz-hook) so both sides derive the same "Buzz: <label>" project
  * name from a connection's relay URL.
  */
+/**
+ * Names @mentioned in a message, in order, deduped.
+ *
+ * The @ must open the token or follow whitespace, so an email address is not a
+ * mention — matching "foo@example.com" would teach the adapter that somebody is
+ * called "example.com" and then attribute real work to them.
+ */
+export function parseMentions(content: string): string[] {
+  const out: string[] = [];
+  for (const m of String(content ?? "").matchAll(/(?<=^|\s)@([A-Za-z0-9_][A-Za-z0-9_.-]{0,31})/g)) {
+    const name = m[1].replace(/[._-]+$/, "");   // drop trailing punctuation: "@Marketer." → "Marketer"
+    if (name) out.push(name);
+  }
+  return [...new Set(out)];
+}
+
 export function communityLabelFromRelayUrl(relayUrl: string): string {
   const host = (() => { try { return new URL(relayUrl.replace(/^ws/, "http")).host; } catch { return relayUrl; } })();
   return host.replace(/\.communities\.buzz\.xyz$/i, "");
@@ -146,6 +162,9 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   const channelNames = new Map<string, string>();           // channel uuid → human name (from kind:39000)
   const profileNames = new Map<string, string>();           // pubkey → display name (from kind:0)
   const profileRequested = new Set<string>();               // pubkeys we've already asked about
+  const mentionNames = new Map<string, string>();           // pubkey → name learned from an @mention
+  const mentionedInChannel = new Map<string, Set<string>>();// channel → names people have @mentioned
+  const unnamedAuthors = new Map<string, Set<string>>();    // channel → posters we still have no name for
   const seenInsightIds = new Map<string, Set<string>>();    // projectId → wisdom ids already posted to Buzz
   const recentEventIds = new Map<string, string[]>();       // channel → recent nostr event ids (for #e citations)
   const pollTimers = new Map<string, NodeJS.Timeout[]>();   // projectId → pending poll timers
@@ -160,7 +179,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
 
   // ── Cursor: so a restart never loses messages posted while we were down ─────
   // Shape: { channels: { <uuid>: <last created_at> }, processed: [<event id>, …],
-  //          greeted: [<channel uuid>, …], over_budget_notified: boolean }
+  //          greeted: [<channel uuid>, …], over_budget_notified: boolean,
+  //          names: { <pubkey>: <name learned from a mention> } }
   const cursorPath = cfg.cursorFile ?? DEFAULT_CURSOR_FILE;
   const store = cfg.cursorStore ?? {
     load: () => { try { return readFileSync(cursorPath, "utf8"); } catch { return null; } },
@@ -176,6 +196,9 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     processedIds = saved.processed ?? [];
     greetedList = saved.greeted ?? [];
     notifiedOverBudget = Boolean(saved.over_budget_notified);
+    // Learned names must survive a restart: on reconnect we only replay messages
+    // since the cursor, so the mention that taught us a name may never be seen again.
+    for (const [p, n] of Object.entries(saved.names ?? {})) mentionNames.set(p, String(n));
     const n = Object.keys(cursors).length;
     if (n) log(`resuming from cursor: ${n} channel(s) tracked`);
   } catch { /* first run — no cursor yet */ }
@@ -187,6 +210,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
       store.save(JSON.stringify({
         channels: cursors, processed: processedIds,
         greeted: [...greeted], over_budget_notified: notifiedOverBudget,
+        names: Object.fromEntries(mentionNames),
       }));
     } catch (e) {
       log(`cursor save failed: ${(e as Error).message}`);
@@ -336,7 +360,63 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
 
   /** Display name for a contributor, falling back to a short pubkey. */
   function contributorName(pubkey: string): string {
-    return profileNames.get(pubkey) ?? pubkey.slice(0, 8);
+    return profileNames.get(pubkey) ?? mentionNames.get(pubkey) ?? pubkey.slice(0, 8);
+  }
+
+  // ── Learning an agent's name ─────────────────────────────────────────────────
+  // Agents often never publish a kind:0 profile, so profile lookup returns
+  // nothing and wisdom ends up attributing real work to "51d3b66e", which reads
+  // as a bug and undoes the whole point of handing over a teammate's finding.
+  // The name is right there in the room though: people write "@Marketer …". Both
+  // routes below only fire when the pairing is unambiguous. Guessing wrong would
+  // put one contributor's work in another's mouth, which is worse than a hex
+  // prefix, so when it is ambiguous we learn nothing.
+
+  function rememberName(pubkey: string, name: string) {
+    if (pubkey === pk) return;                       // never rename ourselves
+    if (profileNames.has(pubkey)) return;            // a real kind:0 profile always wins
+    if (mentionNames.get(pubkey) === name) return;
+    mentionNames.set(pubkey, name);
+    for (const set of unnamedAuthors.values()) set.delete(pubkey);
+    log(`learned name for ${pubkey.slice(0, 8)}…: ${name}`);
+    saveCursor();
+  }
+
+  /**
+   * Route 2: within one channel, when exactly one name has ever been mentioned
+   * and exactly one poster is still nameless, they are each other. Anything less
+   * clear-cut is left alone.
+   */
+  function resolveByElimination(channel: string) {
+    const names = [...(mentionedInChannel.get(channel) ?? [])]
+      .filter(n => ![...profileNames.values(), ...mentionNames.values()].includes(n));
+    const unnamed = [...(unnamedAuthors.get(channel) ?? [])]
+      .filter(p => !profileNames.has(p) && !mentionNames.has(p));
+    if (names.length === 1 && unnamed.length === 1) rememberName(unnamed[0], names[0]);
+  }
+
+  function learnNames(ev: Event) {
+    const channel = ev.tags.find(t => t[0] === "h")?.[1];
+    if (!channel) return;
+
+    // Anyone who posts without a name yet is a candidate for elimination.
+    if (ev.pubkey !== pk && !profileNames.has(ev.pubkey) && !mentionNames.has(ev.pubkey)) {
+      if (!unnamedAuthors.has(channel)) unnamedAuthors.set(channel, new Set());
+      unnamedAuthors.get(channel)!.add(ev.pubkey);
+    }
+
+    const mentions = parseMentions(ev.content ?? "");
+    if (mentions.length) {
+      if (!mentionedInChannel.has(channel)) mentionedInChannel.set(channel, new Set());
+      for (const n of mentions) mentionedInChannel.get(channel)!.add(n);
+    }
+
+    // Route 1: one mention, one tagged pubkey — an exact pairing, no inference.
+    const tagged = [...new Set(ev.tags.filter(t => t[0] === "p" && t[1]).map(t => t[1]!))]
+      .filter(p => p !== ev.pubkey && p !== pk);
+    if (mentions.length === 1 && tagged.length === 1) rememberName(tagged[0], mentions[0]);
+
+    resolveByElimination(channel);
   }
 
   function subscribeMembership() {
@@ -425,6 +505,9 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     // agent may share an identity with a human), and anything already processed.
     // EVERY other kind:9 is ingested, whether it came from a person or another agent.
     if (ev.tags.some(t => t[0] === "gw")) return;
+    // Names are learned from every message, including ones already ingested: a
+    // mention that arrived before we knew the agent still teaches us its name.
+    learnNames(ev);
     if (processedSet.has(ev.id)) return;                  // already ingested (restart replay)
     const channel = ev.tags.find(t => t[0] === "h")?.[1];
     if (!channel) return;
