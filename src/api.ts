@@ -64,6 +64,7 @@ function resolveGroup(req: any) {
 api.post("/auth/signup", async (req, res) => {
   const { name, email, password } = req.body ?? {};
   if (!name?.trim() || !email?.trim() || !password) return res.status(400).json({ error: "name, email and password required" });
+  if (String(password).length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
   if (getUserByEmail(email)) return res.status(409).json({ error: "An account with that email already exists" });
   const hash = await bcrypt.hash(password, 10);
   const user = createUser(email, hash, name.trim());

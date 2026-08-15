@@ -11,7 +11,10 @@ import { buzzHook } from "./buzz-hook.js";
 import { startBuzzSupervisor } from "./buzz-supervisor.js";
 import { runningRouter, CLUB_GROUP_ID } from "./running.js";
 import { handleMcpRequest } from "./mcp-http.js";
-import { getUserByEmail, createUser } from "./db.js";
+import { getUserByEmail, createUser, encryptExistingData, pruneOldBuzzItems, pruneOldGateRecords } from "./db.js";
+import { encryptionEnabled } from "./crypto.js";
+import { rateLimit, apiKeyOrIp } from "./ratelimit.js";
+import { randomBytes } from "node:crypto";
 
 // Ensure demo user exists for the /v1/demo endpoint
 const DEMO_EMAIL = "demo@groupwisdom.internal";
@@ -22,6 +25,27 @@ if (!getUserByEmail(DEMO_EMAIL)) {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const server = createServer(app);
+
+// Behind Railway's proxy: needed for req.ip (rate limiting) and secure cookies.
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+
+// Baseline security headers on every response. CSP is scoped to what the pages
+// actually are — self-contained HTML with inline styles and scripts, no third
+// parties — so nothing external can be injected even if markup slips through.
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Content-Security-Policy",
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+  if (process.env.NODE_ENV === "production" || process.env.RAILWAY_ENVIRONMENT) {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+
 
 // WebSocket server — clients subscribe to a group id
 const wss = new WebSocketServer({ server });
@@ -64,13 +88,29 @@ setNotifier((groupId: string, event: string) => {
   }
 });
 
+// A constant fallback secret in production means anyone who has read the source
+// can forge a session cookie. A per-boot random secret costs re-login on deploy,
+// which is the safe direction; setting SESSION_SECRET removes even that cost.
+const inProd = Boolean(process.env.NODE_ENV === "production" || process.env.RAILWAY_ENVIRONMENT);
+let sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  if (inProd) console.warn("[security] SESSION_SECRET not set — using a random per-boot secret (sessions reset on deploy). Set SESSION_SECRET to keep sessions across deploys.");
+  sessionSecret = inProd ? randomBytes(32).toString("hex") : "gw-dev-secret-change-in-prod";
+}
 app.use(session({
-  secret: process.env.SESSION_SECRET || "gw-dev-secret-change-in-prod",
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000 }, // 30 days
+  cookie: { httpOnly: true, sameSite: "lax", secure: inProd, maxAge: 30 * 24 * 60 * 60 * 1000 }, // 30 days
 }));
 app.use(express.json({ limit: "2mb" }));
+
+// Brute force and runaway loops, not billing: strict on credential guessing,
+// loose enough on the API that a busy legitimate adapter never notices.
+app.use("/api/auth", rateLimit({ name: "auth", windowMs: 60_000, max: 10 }));
+app.use("/v1", rateLimit({ name: "v1", windowMs: 60_000, max: 240, keyFn: apiKeyOrIp }));
+app.use("/buzz/connect", rateLimit({ name: "connect", windowMs: 60_000, max: 5 }));
+
 app.use("/api", api);
 app.use("/v1", apiv1);
 app.use("/buzz", buzzHook);
@@ -150,17 +190,35 @@ app.get("/docs", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "docs.html"));
 });
 
-// The manual project workspace. It still works and nothing about it changed, but
-// the product is now the Buzz integration, so "/" is the Buzz page and this lives
-// here, unlinked. Connecting a community no longer requires coming through it —
-// /buzz signs you in on its own.
-app.get("/app", (_req, res) => {
-  res.sendFile(path.join(__dirname, "..", "public", "app.html"));
 });
 
 app.get("/running", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "running.html"));
 });
+
+// ── Security housekeeping ────────────────────────────────────────────────────
+// Encrypt any plaintext rows that predate GW_DATA_KEY (idempotent), then keep
+// retention honest: raw Buzz messages live GW_BUZZ_RETENTION_DAYS (default 30,
+// 0 disables) — long enough for the engine's short tail, then gone for good.
+if (encryptionEnabled()) {
+  try {
+    const swept = encryptExistingData();
+    if (swept.items || swept.blobs) console.log(`[security] encrypted ${swept.items} item(s) and ${swept.blobs} derived record(s) at rest`);
+  } catch (err: any) { console.error("[security] encryption sweep failed:", err.message); }
+} else {
+  console.warn("[security] GW_DATA_KEY not set — content is stored unencrypted. Set it before taking real traffic.");
+}
+
+const RETENTION_DAYS = Number(process.env.GW_BUZZ_RETENTION_DAYS ?? 30);
+function runRetention() {
+  try {
+    const pruned = pruneOldBuzzItems(RETENTION_DAYS);
+    const gates = pruneOldGateRecords(90);
+    if (pruned || gates) console.log(`[security] retention: deleted ${pruned} old message(s), ${gates} old gate record(s)`);
+  } catch (err: any) { console.error("[security] retention failed:", err.message); }
+}
+runRetention();
+setInterval(runRetention, 6 * 60 * 60 * 1000).unref();
 
 const port = Number(process.env.PORT || 3000);
 server.listen(port, () => {

@@ -530,7 +530,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     const content = ev.content ?? "";
 
     if (cfg.dryRun) {
-      log(`[dry-run] would ingest into ${channel.slice(0, 8)}… from ${ev.pubkey.slice(0, 8)}…: "${content.slice(0, 50)}"`);
+      log(`[dry-run] would ingest into ${channel.slice(0, 8)}… from ${ev.pubkey.slice(0, 8)}… (${content.length} chars)`);
       return;
     }
 
@@ -550,7 +550,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
         }),
       });
       markProcessed(channel, ev);   // only after the API accepted it, so a failure retries on restart
-      log(`ingested → GroupWisdom | ${channelNames.get(channel) ?? channel.slice(0, 8)} | from ${contributorName(ev.pubkey)}: "${content.slice(0, 50)}"`);
+      // Names and sizes only — message content must never reach the host's logs.
+      log(`ingested → GroupWisdom | ${channelNames.get(channel) ?? channel.slice(0, 8)} | from ${contributorName(ev.pubkey)} (${content.length} chars)`);
       schedulePoll(projectId, ev.id, channel);
       checkBudgetNotice(channel);
     } catch (e) {

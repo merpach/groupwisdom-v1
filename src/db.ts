@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID, randomBytes } from "node:crypto";
+import { encryptField, decryptField, encryptionEnabled, isEncrypted } from "./crypto.js";
 
 const DB_PATH = process.env.GW_DB || "groupwisdom.db";
 
@@ -215,7 +216,7 @@ export function createGroup(name: string): Group {
   const apiKey = "gw_" + randomBytes(18).toString("hex");
   db.prepare("INSERT INTO groups (id, name, api_key) VALUES (?, ?, ?)").run(id, name, apiKey);
   db.prepare("INSERT INTO knowledge_docs (group_id, markdown) VALUES (?, ?)").run(
-    id, `# ${name}\n\n_Nothing shared yet. Add the first link, note, or thought._\n`);
+    id, encryptField(`# ${name}\n\n_Nothing shared yet. Add the first link, note, or thought._\n`));
   for (const [cname, access] of DEFAULT_CONNECTORS) {
     db.prepare("INSERT INTO connectors (id, group_id, name, access) VALUES (?, ?, ?, ?)")
       .run(randomUUID(), id, cname, access);
@@ -263,7 +264,7 @@ export const listMembers = (groupId: string) =>
 export const getMemberByUserId = (groupId: string, userId: string) =>
   db.prepare("SELECT * FROM members WHERE group_id = ? AND user_id = ?").get(groupId, userId) as Member | undefined;
 export const listItemsByMember = (groupId: string, memberId: string) =>
-  db.prepare("SELECT * FROM items WHERE group_id = ? AND member_id = ? ORDER BY created_at DESC").all(groupId, memberId) as Item[];
+  (db.prepare("SELECT * FROM items WHERE group_id = ? AND member_id = ? ORDER BY created_at DESC").all(groupId, memberId) as Item[]).map(decryptItem);
 export const getMemberByToken = (token: string) =>
   db.prepare("SELECT * FROM members WHERE access_token = ?").get(token) as Member | undefined;
 export const getGroupsForMember = (memberId: string) =>
@@ -271,27 +272,43 @@ export const getGroupsForMember = (memberId: string) =>
 export const getGroupsByToken = (token: string) =>
   db.prepare("SELECT g.* FROM groups g INNER JOIN members m ON m.group_id = g.id WHERE m.access_token = ? ORDER BY g.created_at").all(token) as Group[];
 
+// What a community said is encrypted before it reaches the database file and
+// decrypted here, inside the data layer, so nothing above ever sees ciphertext.
+function decryptItem<T extends Item>(i: T): T {
+  return { ...i, title: decryptField(i.title), content: decryptField(i.content) };
+}
+
 export function addItem(groupId: string, data: Partial<Item>): Item {
   const id = randomUUID();
   db.prepare(
     "INSERT INTO items (id, group_id, member_id, type, title, content, url, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
   ).run(id, groupId, data.member_id ?? null, data.type ?? "note",
-    data.title ?? "Untitled", data.content ?? "", data.url ?? "", data.source ?? "web");
-  return db.prepare("SELECT * FROM items WHERE id = ?").get(id) as Item;
+    encryptField(data.title ?? "Untitled"), encryptField(data.content ?? ""), data.url ?? "", data.source ?? "web");
+  return decryptItem(db.prepare("SELECT * FROM items WHERE id = ?").get(id) as Item);
 }
 export const listItems = (groupId: string) =>
-  db.prepare("SELECT * FROM items WHERE group_id = ? ORDER BY created_at DESC").all(groupId) as Item[];
+  (db.prepare("SELECT * FROM items WHERE group_id = ? ORDER BY created_at DESC").all(groupId) as Item[]).map(decryptItem);
 
 export type ItemWithMember = Item & { member_name: string | null };
 export const listItemsWithMembers = (groupId: string): ItemWithMember[] =>
-  db.prepare(
+  (db.prepare(
     "SELECT i.*, m.name as member_name FROM items i LEFT JOIN members m ON m.id = i.member_id WHERE i.group_id = ? ORDER BY i.created_at DESC"
-  ).all(groupId) as ItemWithMember[];
+  ).all(groupId) as ItemWithMember[]).map(decryptItem);
 
-export const searchItems = (groupId: string, q: string) =>
-  db.prepare(
-    "SELECT * FROM items WHERE group_id = ? AND (title LIKE ? OR content LIKE ? OR url LIKE ?) ORDER BY created_at DESC"
-  ).all(groupId, `%${q}%`, `%${q}%`, `%${q}%`) as Item[];
+export const searchItems = (groupId: string, q: string) => {
+  // LIKE cannot see through ciphertext, so with encryption on the match runs
+  // over decrypted rows in memory. Groups are small; this stays cheap.
+  if (!encryptionEnabled()) {
+    return db.prepare(
+      "SELECT * FROM items WHERE group_id = ? AND (title LIKE ? OR content LIKE ? OR url LIKE ?) ORDER BY created_at DESC"
+    ).all(groupId, `%${q}%`, `%${q}%`, `%${q}%`) as Item[];
+  }
+  const needle = q.toLowerCase();
+  return listItems(groupId).filter(i =>
+    i.title.toLowerCase().includes(needle) ||
+    i.content.toLowerCase().includes(needle) ||
+    (i.url ?? "").toLowerCase().includes(needle));
+};
 
 export function addInsight(
   groupId: string, kind: string, title: string, body: string,
@@ -318,28 +335,32 @@ export const setConnectorStatus = (id: string, status: string) =>
 export const touchConnector = (groupId: string, name: string) =>
   db.prepare("UPDATE connectors SET last_activity = datetime('now'), status = 'connected' WHERE group_id = ? AND name = ?").run(groupId, name);
 
-export const getKnowledgeDoc = (groupId: string) =>
-  (db.prepare("SELECT markdown, updated_at FROM knowledge_docs WHERE group_id = ?").get(groupId) as
-    { markdown: string; updated_at: string } | undefined) ?? { markdown: "", updated_at: "" };
+export const getKnowledgeDoc = (groupId: string) => {
+  const row = db.prepare("SELECT markdown, updated_at FROM knowledge_docs WHERE group_id = ?").get(groupId) as
+    { markdown: string; updated_at: string } | undefined;
+  return row ? { ...row, markdown: decryptField(row.markdown) } : { markdown: "", updated_at: "" };
+};
 export const setKnowledgeDoc = (groupId: string, markdown: string) =>
   db.prepare(
     "INSERT INTO knowledge_docs (group_id, markdown, updated_at) VALUES (?, ?, datetime('now')) " +
     "ON CONFLICT(group_id) DO UPDATE SET markdown = excluded.markdown, updated_at = datetime('now')"
-  ).run(groupId, markdown);
+  ).run(groupId, encryptField(markdown));
 
 // ── Group memory ──────────────────────────────────────────────────────────────
 // The engine's long-term working knowledge per project: a compact structured
 // summary read on every scan in place of raw history. The engine owns the JSON
 // shape (see GroupMemory in engine.ts); this layer just stores it.
 
-export const getGroupMemoryRaw = (groupId: string) =>
-  db.prepare("SELECT memory, updated_at FROM group_memory WHERE group_id = ?").get(groupId) as
+export const getGroupMemoryRaw = (groupId: string) => {
+  const row = db.prepare("SELECT memory, updated_at FROM group_memory WHERE group_id = ?").get(groupId) as
     { memory: string; updated_at: string } | undefined;
+  return row ? { ...row, memory: decryptField(row.memory) } : undefined;
+};
 export const setGroupMemoryRaw = (groupId: string, memory: string) =>
   db.prepare(
     "INSERT INTO group_memory (group_id, memory, updated_at) VALUES (?, ?, datetime('now')) " +
     "ON CONFLICT(group_id) DO UPDATE SET memory = excluded.memory, updated_at = datetime('now')"
-  ).run(groupId, memory);
+  ).run(groupId, encryptField(memory));
 
 // ── Gate records ──────────────────────────────────────────────────────────────
 // Why the engine spoke or stayed silent, one row per verdict. The silent rows
@@ -414,13 +435,13 @@ export function spokeRecently(groupId: string, minutes: number): boolean {
 }
 
 export const getProjectSummary = (groupId: string): string =>
-  ((db.prepare("SELECT summary FROM project_summaries WHERE group_id = ?").get(groupId) as { summary: string } | undefined)?.summary ?? "");
+  decryptField((db.prepare("SELECT summary FROM project_summaries WHERE group_id = ?").get(groupId) as { summary: string } | undefined)?.summary ?? "");
 
 export const setProjectSummary = (groupId: string, summary: string) =>
   db.prepare(
     "INSERT INTO project_summaries (group_id, summary, updated_at) VALUES (?, ?, datetime('now')) " +
     "ON CONFLICT(group_id) DO UPDATE SET summary = excluded.summary, updated_at = datetime('now')"
-  ).run(groupId, summary);
+  ).run(groupId, encryptField(summary));
 
 export type UserContext = { user_id: string; group_id: string; summary: string; updated_at: string; name: string };
 
@@ -428,14 +449,14 @@ export const setUserContext = (userId: string, groupId: string, summary: string)
   db.prepare(
     "INSERT INTO user_context (user_id, group_id, summary, updated_at) VALUES (?, ?, ?, datetime('now')) " +
     "ON CONFLICT(user_id, group_id) DO UPDATE SET summary = excluded.summary, updated_at = datetime('now')"
-  ).run(userId, groupId, summary);
+  ).run(userId, groupId, encryptField(summary));
 
 export const listUserContexts = (groupId: string): UserContext[] =>
-  db.prepare(
+  (db.prepare(
     "SELECT uc.user_id, uc.group_id, uc.summary, uc.updated_at, u.name " +
     "FROM user_context uc JOIN users u ON u.id = uc.user_id " +
     "WHERE uc.group_id = ? ORDER BY uc.updated_at DESC"
-  ).all(groupId) as UserContext[];
+  ).all(groupId) as UserContext[]).map(c => ({ ...c, summary: decryptField(c.summary) }));
 
 export type Invite = { id: string; group_id: string; email: string; token: string; status: string; created_at: string };
 
@@ -483,7 +504,7 @@ export const deleteItem = (itemId: string) =>
 export type PaginatedResult<T> = { data: T[]; total: number; limit: number; offset: number; has_more: boolean };
 
 export function listItemsPaginated(groupId: string, limit = 50, offset = 0): PaginatedResult<Item> {
-  const data = db.prepare("SELECT * FROM items WHERE group_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?").all(groupId, limit, offset) as Item[];
+  const data = (db.prepare("SELECT * FROM items WHERE group_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?").all(groupId, limit, offset) as Item[]).map(decryptItem);
   const total = (db.prepare("SELECT COUNT(*) as n FROM items WHERE group_id = ?").get(groupId) as { n: number }).n;
   return { data, total, limit, offset, has_more: offset + data.length < total };
 }
@@ -578,6 +599,67 @@ export function isGroupOverBudget(groupId: string): boolean {
 // total Anthropic bill across accounts: twenty communities connecting is
 // twenty separate $50 budgets. This is the kill switch for the sum. Set
 // GW_GLOBAL_BUDGET_USD on the server to tune it without a deploy.
+// ── Security housekeeping ─────────────────────────────────────────────────────
+
+/**
+ * One-time sweep on boot: encrypt every plaintext row that predates the key.
+ * Idempotent — already-encrypted rows are skipped — so it is safe to run on
+ * every start, and a deploy that adds GW_DATA_KEY converts the backlog once.
+ */
+export function encryptExistingData(): { items: number; blobs: number } {
+  if (!encryptionEnabled()) return { items: 0, blobs: 0 };
+  let items = 0, blobs = 0;
+
+  for (const row of db.prepare("SELECT id, title, content FROM items").all() as Array<{ id: string; title: string; content: string }>) {
+    if (isEncrypted(row.content) && isEncrypted(row.title)) continue;
+    db.prepare("UPDATE items SET title = ?, content = ? WHERE id = ?")
+      .run(encryptField(row.title), encryptField(row.content), row.id);
+    items++;
+  }
+  const blobTables: Array<[string, string, string]> = [
+    ["group_memory", "memory", "group_id"],
+    ["knowledge_docs", "markdown", "group_id"],
+    ["project_summaries", "summary", "group_id"],
+  ];
+  for (const [table, col, key] of blobTables) {
+    for (const row of db.prepare(`SELECT ${key} as k, ${col} as v FROM ${table}`).all() as Array<{ k: string; v: string }>) {
+      if (!row.v || isEncrypted(row.v)) continue;
+      db.prepare(`UPDATE ${table} SET ${col} = ? WHERE ${key} = ?`).run(encryptField(row.v), row.k);
+      blobs++;
+    }
+  }
+  for (const row of db.prepare("SELECT user_id, group_id, summary FROM user_context").all() as Array<{ user_id: string; group_id: string; summary: string }>) {
+    if (!row.summary || isEncrypted(row.summary)) continue;
+    db.prepare("UPDATE user_context SET summary = ? WHERE user_id = ? AND group_id = ?")
+      .run(encryptField(row.summary), row.user_id, row.group_id);
+    blobs++;
+  }
+  return { items, blobs };
+}
+
+/**
+ * Retention: raw Buzz messages are working data, not an archive. Once the
+ * engine has folded a batch into memory, the raw text is only needed for the
+ * short conversational tail, so anything older is deleted for good. Scoped to
+ * Buzz projects — the adapter ingests through the public API, so its items are
+ * identified by their project, and API customers' own data is never touched by
+ * our policy.
+ */
+export function pruneOldBuzzItems(days: number): number {
+  if (!days || days <= 0) return 0;
+  return Number(db.prepare(
+    "DELETE FROM items WHERE created_at < datetime('now', ?) AND " +
+    "(source = 'buzz' OR group_id IN (SELECT id FROM groups WHERE name LIKE 'Buzz: %'))"
+  ).run(`-${Math.floor(days)} days`).changes);
+}
+
+/** Gate records are diagnostics, not history — cap how long they accumulate. */
+export function pruneOldGateRecords(days = 90): number {
+  return Number(db.prepare(
+    "DELETE FROM gate_records WHERE created_at < datetime('now', ?)"
+  ).run(`-${Math.floor(days)} days`).changes);
+}
+
 export function isGlobalOverBudget(): boolean {
   const cap = Number(process.env.GW_GLOBAL_BUDGET_USD || 250);
   const row = db.prepare("SELECT COALESCE(SUM(cost_usd), 0) as total FROM usage_events").get() as { total: number };

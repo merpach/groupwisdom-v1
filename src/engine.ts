@@ -618,7 +618,9 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
     await finalizeMemory([], []);
     return [];
   }
-  console.log(`[scout] candidate for group ${groupId}: ${scout.hypothesis}`);
+  // The hypothesis is derived from message content, so it stays out of host
+  // logs — it is stored in the gate records, readable only with the owner's key.
+  console.log(`[scout] candidate found for group ${groupId}`);
 
   // The editor drafts only what the scout pointed at, and may still decline it.
   let result: DraftResult;
@@ -643,7 +645,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
       // Dropping it loses a genuinely good finding over a label mismatch, so fall back to
       // the most general kind instead and record that we did.
       if (!KINDS.includes(ins.kind)) {
-        console.warn(`[wisdom] relabelled unknown kind "${ins.kind}" → "pattern" for "${ins.title}"`);
+        console.warn(`[wisdom] relabelled unknown kind "${ins.kind}" → "pattern"`);
         return { ...ins, kind: "pattern" };
       }
       return ins;
@@ -673,8 +675,8 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
 
   const suppressed = annotated.filter(ins => !ins.keep);
   if (suppressed.length) {
-    console.log(`[metacognitive] suppressed ${suppressed.length} weak insight(s) for group ${groupId}: ` +
-      suppressed.map(ins => `"${ins.title}" (confidence: ${ins.confidence})`).join(", "));
+    console.log(`[metacognitive] suppressed ${suppressed.length} weak insight(s) for group ${groupId} ` +
+      `(${suppressed.map(ins => `confidence ${ins.confidence}`).join(", ")}) — details in gate records`);
     for (const ins of suppressed) {
       recordGate(groupId, {
         stage: "review", verdict: "suppressed", kind: ins.kind, title: ins.revised_title ?? ins.title,
