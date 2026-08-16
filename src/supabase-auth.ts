@@ -30,8 +30,24 @@ import { safeNext, requestOrigin } from "./http-util.js";
 export const supabaseAuth = Router();
 
 const URL_ = () => process.env.SUPABASE_URL?.trim().replace(/\/+$/, "") || "";
-const ANON = () => process.env.SUPABASE_ANON_KEY?.trim() || "";
+
+/**
+ * The browser-safe key. Supabase renamed these: new projects issue a
+ * "publishable" key (sb_publishable_…) where older ones had "anon". They are
+ * used identically in the apikey header, so either name is accepted rather
+ * than forcing a dashboard-to-code mismatch.
+ *
+ * Never the secret key (sb_secret_… or service_role). That one bypasses row
+ * level security, and nothing in this flow needs that reach.
+ */
+const ANON = () => (process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY)?.trim() || "";
 export const supabaseAuthEnabled = () => Boolean(URL_() && ANON());
+
+// Loud, early, and only once: a secret key here would be a real mistake, and
+// silently working is worse than not starting.
+if (/^sb_secret_|service_role/.test(ANON())) {
+  console.error("[supabase-auth] SUPABASE_PUBLISHABLE_KEY looks like a SECRET key. Use the publishable (browser-safe) key instead.");
+}
 
 /** Social providers offered on the sign-in page. Each must also be enabled in the Supabase dashboard. */
 const PROVIDERS = (process.env.SUPABASE_PROVIDERS?.trim() || "google")
