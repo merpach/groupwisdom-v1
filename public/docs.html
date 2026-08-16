@@ -191,11 +191,11 @@
   <div class="nav-section">Data</div>
   <a class="nav-link" href="#ingest">Ingest items</a>
   <a class="nav-link" href="#list-items">List items</a>
-  <div class="nav-section">Insights</div>
+  <div class="nav-section">Wisdom</div>
   <a class="nav-link" href="#how-it-works">How the engine works</a>
-  <a class="nav-link" href="#list-insights">List insights</a>
+  <a class="nav-link" href="#list-wisdom">List wisdom</a>
   <a class="nav-link" href="#trigger-analysis">Trigger analysis</a>
-  <a class="nav-link" href="#insight-kinds">Insight kinds</a>
+  <a class="nav-link" href="#wisdom-kinds">Wisdom kinds</a>
   <div class="nav-section">API Keys</div>
   <a class="nav-link" href="#project-keys">Project keys</a>
   <a class="nav-link" href="#create-key">Create key</a>
@@ -211,10 +211,10 @@
 
 <main>
   <h1>GroupWisdom API</h1>
-  <p style="color:#888;font-size:15px">Send your team's data. Get AI-powered insights back.</p>
+  <p style="color:#888;font-size:15px">Send your team's data. Get wisdom back.</p>
 
   <div class="intro-card">
-    <p>POST items to a project → GroupWisdom runs a two-pass analysis (Pass 1 identifies candidates, Pass 2 evaluates and sharpens them) → insights are POSTed to your <code>webhook_url</code> and available via GET anytime.</p>
+    <p>POST items to a project → GroupWisdom runs a two-pass analysis (Pass 1 identifies candidates, Pass 2 evaluates and sharpens them) → wisdom is POSTed to your <code>webhook_url</code> and available via GET anytime.</p>
   </div>
 
   <!-- DEMO -->
@@ -336,7 +336,7 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
   <table>
     <tr><th>Field</th><th>Type</th><th>Description</th></tr>
     <tr><td>name</td><td>string</td><td>Project name <span class="badge required">required</span></td></tr>
-    <tr><td>webhook_url</td><td>string</td><td>URL to receive insight callbacks <span class="badge optional">optional</span></td></tr>
+    <tr><td>webhook_url</td><td>string</td><td>URL to receive wisdom callbacks <span class="badge optional">optional</span></td></tr>
   </table>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects \
   -H "Authorization: Bearer gw_yourkey" \
@@ -350,7 +350,7 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
   "name": "Q3 User Research",
   "created_at": "2026-06-26T14:22:00Z",
   "webhook_url": "https://your-server.com/groupwisdom-hook",
-  "counts": { "items": 0, "insights": 0 }
+  "counts": { "items": 0, "wisdom": 0, "insights": 0 }
 }</pre>
 
   <h2 id="list-projects">List projects</h2>
@@ -361,7 +361,7 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
 
   <h2 id="get-project">Get project</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id</span></div>
-  <p>Returns a single project with current item and insight counts.</p>
+  <p>Returns a single project with current item and wisdom counts.</p>
 
   <h2 id="update-project">Update project</h2>
   <div class="endpoint"><span class="method patch">PATCH</span><span class="path">/v1/projects/:id</span></div>
@@ -379,7 +379,7 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
   <!-- Ingest -->
   <h2 id="ingest">Ingest items</h2>
   <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects/:id/ingest</span></div>
-  <p>Send one item or an array of items. GroupWisdom queues analysis immediately — insights are delivered to your <code>webhook_url</code> within seconds and available via GET anytime.</p>
+  <p>Send one item or an array of items. GroupWisdom queues analysis immediately — wisdom is delivered to your <code>webhook_url</code> within seconds and available via GET anytime.</p>
   <p>Returns <strong>202 Accepted</strong> — analysis is async.</p>
 
   <h3>Item fields</h3>
@@ -455,23 +455,24 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
   <p>GroupWisdom runs a <strong>two-pass analysis</strong> every time new data comes in.</p>
   <table>
     <tr><th>Pass</th><th>What happens</th></tr>
-    <tr><td><strong>Pass 1 — Candidate scan</strong></td><td>A fast Haiku model reads all items in the project and identifies candidate insights — patterns, blind spots, connections, and questions that might be worth surfacing.</td></tr>
+    <tr><td><strong>Pass 1 — Candidate scan</strong></td><td>A fast Haiku model reads all items in the project and identifies candidate findings — patterns, blind spots, connections, and questions that might be worth surfacing.</td></tr>
     <tr><td><strong>Pass 2 — Metacognitive evaluation</strong></td><td>A second model call reviews every candidate and decides: is this strong enough to surface? It assigns a confidence level, hands over the completed work a member can build on (<code>do_next</code>), notes any caveats, and names whose existing research would strengthen this one (<code>missing_voice</code>). It also rewrites the title and body when it can sharpen vague language or fold in another member's finding so the reader inherits it directly. Weak candidates are suppressed entirely.</td></tr>
   </table>
-  <p>Only insights that survive both passes are saved. The result is fewer, higher-quality insights rather than a list of everything the model noticed.</p>
-  <p>Insights are generated automatically after every <code>/ingest</code> call. You can also trigger a fresh full analysis on demand — see <a href="#trigger-analysis">Trigger analysis</a>.</p>
+  <p>Only findings that survive both passes are saved. The result is less wisdom, and better, rather than a list of everything the model noticed.</p>
+  <p>Wisdom is generated automatically after every <code>/ingest</code> call. You can also trigger a fresh full analysis on demand — see <a href="#trigger-analysis">Trigger analysis</a>.</p>
 
   <!-- List insights -->
-  <h2 id="list-insights">List insights</h2>
-  <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/insights</span></div>
-  <p>Returns insights the engine has surfaced, newest first. Supports <code>?limit</code>, <code>?offset</code>, and <code>?kind</code> filters.</p>
+  <h2 id="list-wisdom">List wisdom</h2>
+  <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/wisdom</span></div>
+  <p>Returns the wisdom the engine has surfaced, newest first. Supports <code>?limit</code>, <code>?offset</code>, and <code>?kind</code> filters.</p>
+  <p class="note"><code>GET /v1/projects/:id/insights</code> is the former name for this endpoint and still works, identically. Nothing you have running needs to change.</p>
   <p>By default returns a minimal shape — <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include metacognitive fields from Pass 2: <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, and <code>missing_voice</code>.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button># Default (minimal)
-curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights" \
+curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom" \
   -H "Authorization: Bearer gw_proj_yourkey"
 
 # Full — includes metacognitive fields
-curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?format=full" \
+curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom?format=full" \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>// Default response
 {
@@ -510,9 +511,9 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?format
   <h3>Metacognitive fields</h3>
   <table>
     <tr><th>Field</th><th>Values</th><th>Description</th></tr>
-    <tr><td>confidence</td><td><code>high</code> · <code>medium</code> · <code>low</code></td><td>How strongly the evidence supports this insight. High = 3+ independent data points; medium = 2; low = 1 or inferred.</td></tr>
+    <tr><td>confidence</td><td><code>high</code> · <code>medium</code> · <code>low</code></td><td>How strongly the evidence supports this finding. High = 3+ independent data points; medium = 2; low = 1 or inferred.</td></tr>
     <tr><td>do_next</td><td>string or null</td><td>Inherited work, not a task: the completed finding from another member that this reader can build directly on, stated so they skip that step. Null if there's no existing member work to hand over.</td></tr>
-    <tr><td>caveat</td><td>string or null</td><td>A condition or limitation that could invalidate the insight if ignored.</td></tr>
+    <tr><td>caveat</td><td>string or null</td><td>A condition or limitation that could invalidate the finding if ignored.</td></tr>
     <tr><td>missing_voice</td><td>string or null</td><td>A member whose existing work would strengthen this reader's — so their research can be folded in directly.</td></tr>
   </table>
   <p>These fields are always present in <code>format=full</code> responses — they may be <code>null</code> when not applicable.</p>
@@ -521,14 +522,14 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?format
   <!-- Trigger analysis -->
   <h2 id="trigger-analysis">Trigger analysis</h2>
   <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects/:id/analyze</span></div>
-  <p>Triggers a full two-pass analysis immediately, bypassing the automatic debounce timer. Useful when you want fresh insights on demand — for example, after a batch ingest or before showing results to a user.</p>
-  <p>Returns <strong>202 Accepted</strong> immediately. Analysis runs in the background; poll <a href="#list-insights">List insights</a> or wait for your <a href="#webhook-setup">webhook</a> to receive results.</p>
+  <p>Triggers a full two-pass analysis immediately, bypassing the automatic debounce timer. Useful when you want fresh wisdom on demand — for example, after a batch ingest or before showing results to a user.</p>
+  <p>Returns <strong>202 Accepted</strong> immediately. Analysis runs in the background; poll <a href="#list-wisdom">List wisdom</a> or wait for your <a href="#webhook-setup">webhook</a> to receive results.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects/proj_abc123/analyze \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "message": "Analysis started." }</pre>
 
-  <h2 id="insight-kinds">Insight kinds</h2>
-  <p>The engine generates insights across six categories:</p>
+  <h2 id="wisdom-kinds">Wisdom kinds</h2>
+  <p>The engine surfaces wisdom in six kinds:</p>
   <table>
     <tr><th>Kind</th><th>Description</th></tr>
     <tr><td><span class="kind connection">connection</span></td><td>Two items link in an unexpected or non-obvious way</td></tr>
@@ -542,7 +543,7 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?format
   <!-- Project API Keys -->
   <h2 id="project-keys">Project API keys</h2>
   <p>Project keys (<code>gw_proj_...</code>) are scoped to a single project. Use them in production apps instead of your personal key — if a project key leaks, you revoke just that key without touching your account or other projects.</p>
-  <p>Project keys can ingest data, read items, and read insights. They cannot create new projects or manage other keys — that requires your personal key.</p>
+  <p>Project keys can ingest data, read items, and read wisdom. They cannot create new projects or manage other keys — that requires your personal key.</p>
 
   <h2 id="create-key">Create a project key</h2>
   <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects/:id/keys</span></div>
@@ -570,8 +571,8 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/insights?format
 
   <!-- Webhooks -->
   <h2 id="webhook-setup">Webhook setup</h2>
-  <p>Set a <code>webhook_url</code> on any project (at creation or via PATCH). GroupWisdom will POST to that URL each time new insights are generated — typically within 3–5 seconds of an ingest call.</p>
-  <p>Your endpoint must return a 2xx status. Failed deliveries are retried twice — after 5 seconds, then 30 seconds. If all three attempts fail, the delivery is dropped — poll <code>/v1/projects/:id/insights</code> as a long-term fallback.</p>
+  <p>Set a <code>webhook_url</code> on any project (at creation or via PATCH). GroupWisdom will POST to that URL each time new wisdom is generated — typically within 3–5 seconds of an ingest call.</p>
+  <p>Your endpoint must return a 2xx status. Failed deliveries are retried twice — after 5 seconds, then 30 seconds. If all three attempts fail, the delivery is dropped — poll <code>/v1/projects/:id/wisdom</code> as a long-term fallback.</p>
   <p>Use <a href="https://webhook.site" target="_blank">webhook.site</a> to inspect payloads during development.</p>
 
   <h2 id="webhook-payload">Webhook payload</h2>
@@ -596,7 +597,8 @@ app.post("/groupwisdom-hook", express.raw({ type: "application/json" }), (req, r
   <p>Your <code>webhook_secret</code> is returned when you set a <code>webhook_url</code> via PATCH. Store it securely — it is only shown once.</p>
 
   <h2 id="webhook-payload-shape">Payload shape</h2>
-  <p>Webhook payloads include the full insight shape — equivalent to <code>?format=full</code> — so you have all metacognitive fields available without a follow-up GET.</p>
+  <p>Webhook payloads include the full wisdom shape — equivalent to <code>?format=full</code> — so you have all metacognitive fields available without a follow-up GET.</p>
+  <p><strong>If you built against the old names, nothing has changed for you.</strong> The payload still carries an <code>insights</code> array with identical contents alongside <code>wisdom</code>, and <code>event</code> is still <code>insights.created</code>. Existing receivers keep working untouched; use <code>wisdom</code> for anything new.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>POST https://your-server.com/groupwisdom-hook
 Content-Type: application/json
 X-GroupWisdom-Signature: sha256=abc123...
@@ -604,7 +606,7 @@ X-GroupWisdom-Signature: sha256=abc123...
 {
   "event": "insights.created",
   "group_id": "proj_abc123",
-  "insights": [
+  "wisdom": [
     {
       "id": "ins_xyz",
       "kind": "pattern",

@@ -14,7 +14,8 @@
  *   POST   /v1/projects/:id/ingest            — send items (bulk ok), triggers analysis
  *   GET    /v1/projects/:id/items             — list items (paginated)
  *   DELETE /v1/projects/:id/items/:itemId     — delete an item
- *   GET    /v1/projects/:id/insights          — get current insights (paginated)
+ *   GET    /v1/projects/:id/wisdom            — get current wisdom (paginated)
+ *   GET    /v1/projects/:id/insights          — the same, under its former name
  *   POST   /v1/projects/:id/keys              — create a project API key
  *   GET    /v1/projects/:id/keys              — list project API keys
  *   DELETE /v1/projects/:id/keys/:keyId       — revoke a project API key
@@ -98,18 +99,23 @@ function getUserId(authResult: AuthResult): string | null {
   return authResult.kind === "user" ? authResult.user.id : null;
 }
 
-// ── Insight views ─────────────────────────────────────────────────────────────
+// ── Wisdom views ──────────────────────────────────────────────────────────────
 
-function insightSimple(ins: any) { return { id: ins.id, title: ins.title, body: ins.body }; }
-function insightFull(ins: any) { return { id: ins.id, kind: ins.kind, title: ins.title, body: ins.body, status: ins.status, created_at: ins.created_at, confidence: ins.confidence ?? null, caveat: ins.caveat ?? null, do_next: ins.do_next ?? null, missing_voice: ins.missing_voice ?? null }; }
+function wisdomSimple(w: any) { return { id: w.id, title: w.title, body: w.body }; }
+function wisdomFull(w: any) { return { id: w.id, kind: w.kind, title: w.title, body: w.body, status: w.status, created_at: w.created_at, confidence: w.confidence ?? null, caveat: w.caveat ?? null, do_next: w.do_next ?? null, missing_voice: w.missing_voice ?? null }; }
 
 // ── Webhook ───────────────────────────────────────────────────────────────────
 
-async function fireWebhook(groupId: string, insights: any[]) {
+async function fireWebhook(groupId: string, wisdom: any[]) {
   const url = getGroupWebhook(groupId);
   if (!url) return;
   const secret = getGroupWebhookSecret(groupId);
-  const body = JSON.stringify({ event: "insights.created", group_id: groupId, insights: insights.map(insightFull) });
+  // `wisdom` is the documented field. `insights` carries the identical array
+  // and `event` keeps its original value, because a receiver matching on
+  // "insights.created" or reading payload.insights is code we would otherwise
+  // break from the outside, with no warning and no way for them to prepare.
+  const payload = wisdom.map(wisdomFull);
+  const body = JSON.stringify({ event: "insights.created", group_id: groupId, wisdom: payload, insights: payload });
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (secret) {
     headers["X-GroupWisdom-Signature"] = "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
@@ -132,14 +138,16 @@ async function fireWebhook(groupId: string, insights: any[]) {
 function projectView(groupId: string) {
   const g = getGroup(groupId)!;
   const items = listItems(groupId);
-  const insights = listInsights(groupId);
+  const wisdom = listInsights(groupId);
   return {
     id: g.id,
     name: g.name,
     created_at: g.created_at,
     webhook_url: getGroupWebhook(groupId),
     engine: getGroupEngine(groupId),
-    counts: { items: items.length, insights: insights.length },
+    // counts.insights is the old key, kept beside the new one for the same
+    // reason as the webhook: someone is reading it today.
+    counts: { items: items.length, wisdom: wisdom.length, insights: wisdom.length },
   };
 }
 
@@ -173,7 +181,7 @@ apiv1.post("/projects/:id/analyze", (req, res) => {
   if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
   const g = resolveProject(req, a);
   if (!g) return res.status(404).json({ error: "Project not found." });
-  cancelPendingAnalysis(g.id); // prevent incremental from racing and saving insights without metacognitive data
+  cancelPendingAnalysis(g.id); // prevent incremental from racing and saving wisdom without review-pass data
   res.status(202).json({ message: "Analysis started." });
   analyzeGroup(g.id).catch(err => console.error("[analyze]", err.message));
 });
@@ -248,11 +256,8 @@ apiv1.post("/projects/:id/test-webhook", async (req, res) => {
   const url = getGroupWebhook(g.id);
   if (!url) return res.status(400).json({ error: "No webhook URL set for this project." });
   const secret = getGroupWebhookSecret(g.id);
-  const body = JSON.stringify({
-    event: "test",
-    group_id: g.id,
-    insights: [{ id: "test-insight", title: "Webhook is working", body: "This is a test event from GroupWisdom." }],
-  });
+  const sample = [{ id: "test-wisdom", title: "Webhook is working", body: "This is a test event from GroupWisdom." }];
+  const body = JSON.stringify({ event: "test", group_id: g.id, wisdom: sample, insights: sample });
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (secret) headers["X-GroupWisdom-Signature"] = "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
   try {
@@ -305,9 +310,9 @@ apiv1.post("/projects/:id/ingest", (req, res) => {
       member_id: member?.id ?? null,
     });
     created.push(item);
-    queueIncrementalAnalysis(g.id, item, async (insights) => {
+    queueIncrementalAnalysis(g.id, item, async (wisdom) => {
       notify(g.id, "update");
-      if (insights?.length) await fireWebhook(g.id, insights);
+      if (wisdom?.length) await fireWebhook(g.id, wisdom);
     });
   }
 
@@ -343,9 +348,12 @@ apiv1.delete("/projects/:id/items/:itemId", (req, res) => {
   res.json({ deleted: true, id: req.params.itemId });
 });
 
-// ── Insights ──────────────────────────────────────────────────────────────────
+// ── Wisdom ────────────────────────────────────────────────────────────────────
+// What the engine produces is wisdom, and that is what the API calls it. The
+// older /insights path is kept working, unchanged and undocumented, because
+// people have it in running code; it is the same handler under a second name.
 
-apiv1.get("/projects/:id/insights", (req, res) => {
+function readWisdom(req: any, res: any) {
   const a = auth(req);
   if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
   const g = resolveProject(req, a);
@@ -354,9 +362,12 @@ apiv1.get("/projects/:id/insights", (req, res) => {
   const kind = req.query.kind as string | undefined;
   const full = req.query.format === "full";
   const result = listInsightsPaginated(g.id, kind, limit, offset);
-  const view = full ? insightFull : insightSimple;
+  const view = full ? wisdomFull : wisdomSimple;
   res.json({ ...result, data: result.data.map(view) });
-});
+}
+
+apiv1.get("/projects/:id/wisdom", readWisdom);
+apiv1.get("/projects/:id/insights", readWisdom);   // legacy name, still answered
 
 // ── Engine transparency ───────────────────────────────────────────────────────
 // Debug surfaces, not part of the public docs. Gate records answer "why did
