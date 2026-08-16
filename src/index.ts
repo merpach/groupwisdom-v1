@@ -194,6 +194,12 @@ app.get("/docs", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "docs.html"));
 });
 
+// Where someone building on the API finds their key. The old workspace used to
+// be the only place it appeared, and removing that left no way to get it.
+app.get("/account", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "account.html"));
+});
+
 });
 
 app.get("/running", (_req, res) => {

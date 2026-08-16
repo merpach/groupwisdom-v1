@@ -18,6 +18,8 @@ import {
 } from "./db.js";
 import { analyzeGroup, previewAnalysis, acceptInsight, updateProjectSummary, queueIncrementalAnalysis } from "./engine.js";
 import { googleAuthEnabled } from "./google-auth.js";
+import { listBuzzConnectionsForUser, rotateUserApiKey } from "./db.js";
+import { restartConnection } from "./buzz-supervisor.js";
 import { supabaseAuthEnabled, supabaseProviders, supabaseSignUp, supabaseSignIn, supabaseSendReset } from "./supabase-auth.js";
 
 export const api = Router();
@@ -134,6 +136,31 @@ api.get("/me", (req, res) => {
   const user = getUser(req);
   if (!user) return res.status(401).json({ error: "not logged in" });
   res.json({ id: user.id, name: user.name, email: user.email, api_key: user.api_key });
+});
+
+/**
+ * Issue a new personal API key. The old one stops working at once, which is
+ * the point: this is what you reach for when a key has leaked.
+ *
+ * Any connected Buzz community is restarted straight after. The supervisor
+ * hands the key to each adapter when the connection opens and the adapter
+ * holds it for the life of that connection, so without this a rotation would
+ * silently break ingestion until the next deploy.
+ */
+api.post("/auth/rotate-key", (req, res) => {
+  const user = getUser(req);
+  if (!user) return res.status(401).json({ error: "not logged in" });
+
+  const api_key = rotateUserApiKey(user.id);
+
+  let reconnected = 0;
+  for (const conn of listBuzzConnectionsForUser(user.id)) {
+    if (!conn.enabled) continue;
+    try { restartConnection(conn.id); reconnected++; }
+    catch (err: any) { console.warn(`[rotate-key] could not restart connection ${conn.id}: ${err.message}`); }
+  }
+  console.log(`[rotate-key] new key for ${user.email}, restarted ${reconnected} Buzz connection(s)`);
+  res.json({ api_key, reconnected });
 });
 
 // Which sign-in methods this server actually supports, so the page never shows

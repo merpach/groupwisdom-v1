@@ -202,6 +202,18 @@ export function createUser(email: string, passwordHash: string, name: string): U
   db.prepare("INSERT INTO users (id, email, password_hash, name, api_key) VALUES (?, ?, ?, ?, ?)").run(id, email.toLowerCase().trim(), passwordHash, name, api_key);
   return db.prepare("SELECT * FROM users WHERE id = ?").get(id) as User;
 }
+/**
+ * Issue a fresh personal API key, invalidating the old one immediately.
+ *
+ * The counterpart to showing someone their key: a key you can see but cannot
+ * replace is a key you can never recover from leaking.
+ */
+export function rotateUserApiKey(userId: string): string {
+  const api_key = "gw_" + randomBytes(18).toString("hex");
+  db.prepare("UPDATE users SET api_key = ? WHERE id = ?").run(api_key, userId);
+  return api_key;
+}
+
 export const getUserByEmail = (email: string) =>
   db.prepare("SELECT * FROM users WHERE email = ?").get(email.toLowerCase().trim()) as User | undefined;
 export const getUserById = (id: string) =>

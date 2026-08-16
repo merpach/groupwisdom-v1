@@ -582,7 +582,7 @@ async function boot() {
     return;
   }
 
-  $("who").innerHTML = esc(me.body.email) + ' <button id="signout">Sign out</button>';
+  $("who").innerHTML = '<a href="/account" style="color:var(--ink-3);text-decoration:none">API key</a> · ' + esc(me.body.email) + ' <button id="signout">Sign out</button>';
   $("signout").onclick = logout;
   await loadAgent();
   await loadConnections();
