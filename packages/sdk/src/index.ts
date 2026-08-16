@@ -11,7 +11,7 @@ export interface Project {
   created_at: string;
   webhook_url: string | null;
   webhook_secret?: string;
-  counts: { items: number; insights: number };
+  counts: { items: number; wisdom: number; /** @deprecated same value as `wisdom` */ insights: number };
 }
 
 export interface IngestItem {
@@ -40,21 +40,45 @@ export interface Item {
   created_at: string;
 }
 
-export type InsightKind = "connection" | "blind_spot" | "conflict" | "pattern" | "question" | "decision";
+/**
+ * The six kinds of wisdom the engine surfaces. All six describe what a group
+ * is building, never what it is failing to do.
+ */
+export type WisdomKind =
+  | "convergence"   // two people reached the same finding from different directions
+  | "opportunity"   // something their own work points at that nobody has picked up
+  | "tension"       // two views worth putting together, stated as the actual difference
+  | "pattern"       // a theme across several contributions none of them named
+  | "direction"     // the next question their work is building toward
+  | "decision";     // something they have arrived at, and what led there
 
-/** Simple insight — default API response */
-export interface Insight {
+/** Simple wisdom — the default API response */
+export interface Wisdom {
   id: string;
   title: string;
   body: string;
 }
 
-/** Full insight — returned when format: "full" is passed */
-export interface InsightFull extends Insight {
-  kind: InsightKind;
+/** Full wisdom — returned when format: "full" is passed */
+export interface WisdomFull extends Wisdom {
+  kind: WisdomKind;
   status: string;
   created_at: string;
+  confidence: "high" | "medium" | "low" | null;
+  /** A completed result from another member that the reader now has for free. */
+  do_next: string | null;
+  /** A condition under which this would not hold. */
+  caveat: string | null;
+  /** A contributor whose existing work would strengthen this. */
+  missing_voice: string | null;
 }
+
+/** @deprecated Use {@link WisdomKind}. */
+export type InsightKind = WisdomKind;
+/** @deprecated Use {@link Wisdom}. */
+export type Insight = Wisdom;
+/** @deprecated Use {@link WisdomFull}. */
+export type InsightFull = WisdomFull;
 
 export interface PaginatedResult<T> {
   data: T[];
@@ -84,9 +108,12 @@ export interface PaginationOptions {
   offset?: number;
 }
 
-export interface InsightListOptions extends PaginationOptions {
+export interface WisdomListOptions extends PaginationOptions {
   format?: "full";
 }
+
+/** @deprecated Use {@link WisdomListOptions}. */
+export type InsightListOptions = WisdomListOptions;
 
 class GroupWisdom {
   private apiKey: string;
@@ -166,19 +193,30 @@ class GroupWisdom {
     return this.request("DELETE", `/projects/${projectId}/items/${itemId}`);
   }
 
-  // ── Insights ────────────────────────────────────────────────────────────────
+  // ── Wisdom ──────────────────────────────────────────────────────────────────
 
   /**
-   * Get insights for a project. Returns paginated results.
+   * Get the wisdom a project has surfaced. Returns paginated results.
    * Default: { id, title, body } only.
-   * Pass format: "full" to also get kind, status, and created_at.
-   * Optionally filter by kind: connection | blind_spot | conflict | pattern | question | decision
+   * Pass format: "full" to also get kind, status, created_at, confidence,
+   * do_next, caveat and missing_voice.
+   * Optionally filter by kind: convergence | opportunity | tension | pattern | direction | decision
    */
-  listInsights(projectId: string, kind?: InsightKind, options?: InsightListOptions & { format: "full" }): Promise<PaginatedResult<InsightFull>>;
-  listInsights(projectId: string, kind?: InsightKind, options?: InsightListOptions): Promise<PaginatedResult<Insight>>;
-  listInsights(projectId: string, kind?: InsightKind, options?: InsightListOptions): Promise<PaginatedResult<Insight | InsightFull>> {
+  listWisdom(projectId: string, kind?: WisdomKind, options?: WisdomListOptions & { format: "full" }): Promise<PaginatedResult<WisdomFull>>;
+  listWisdom(projectId: string, kind?: WisdomKind, options?: WisdomListOptions): Promise<PaginatedResult<Wisdom>>;
+  listWisdom(projectId: string, kind?: WisdomKind, options?: WisdomListOptions): Promise<PaginatedResult<Wisdom | WisdomFull>> {
     const qs = buildQS({ ...options, ...(kind ? { kind } : {}) });
-    return this.request("GET", `/projects/${projectId}/insights${qs}`);
+    return this.request("GET", `/projects/${projectId}/wisdom${qs}`);
+  }
+
+  /**
+   * @deprecated Renamed to {@link listWisdom}. This still calls the API and
+   * returns the same data, so existing code keeps working unchanged.
+   */
+  listInsights(projectId: string, kind?: WisdomKind, options?: WisdomListOptions & { format: "full" }): Promise<PaginatedResult<WisdomFull>>;
+  listInsights(projectId: string, kind?: WisdomKind, options?: WisdomListOptions): Promise<PaginatedResult<Wisdom>>;
+  listInsights(projectId: string, kind?: WisdomKind, options?: WisdomListOptions): Promise<PaginatedResult<Wisdom | WisdomFull>> {
+    return this.listWisdom(projectId, kind, options as WisdomListOptions);
   }
 
   // ── Project API Keys ─────────────────────────────────────────────────────────

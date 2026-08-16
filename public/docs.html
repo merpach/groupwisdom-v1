@@ -285,9 +285,9 @@ await gw.ingest(project.id, {
   contributed_by: 'Sarah'
 })
 
-// Read insights when ready
-const insights = await gw.listInsights(project.id)
-insights.forEach(i => console.log(i.title, "—", i.body))</pre>
+// Read the wisdom when ready
+const wisdom = await gw.listWisdom(project.id)
+wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
 
   <h2 id="sdk-reference">SDK reference</h2>
   <table>
@@ -299,7 +299,8 @@ insights.forEach(i => console.log(i.title, "—", i.body))</pre>
     <tr><td>gw.updateProject(projectId, { webhook_url })</td><td>Update a project's webhook URL.</td></tr>
     <tr><td>gw.ingest(projectId, item | item[])</td><td>Send one or more items. Triggers analysis. Each item can include <code>contributed_by</code>.</td></tr>
     <tr><td>gw.listItems(projectId)</td><td>List all items in a project.</td></tr>
-    <tr><td>gw.listInsights(projectId, kind?, { format? })</td><td>Get insights. Default returns <code>{ id, title, body }</code>. Pass <code>format: "full"</code> to include <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, and <code>missing_voice</code>.</td></tr>
+    <tr><td>gw.listWisdom(projectId, kind?, { format? })</td><td>Get the project's wisdom. Default returns <code>{ id, title, body }</code>. Pass <code>format: "full"</code> to include <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, and <code>missing_voice</code>.</td></tr>
+    <tr><td>gw.listInsights(...)</td><td>The former name for <code>listWisdom</code>. Still present and returns identical data, so existing code needs no change.</td></tr>
     <tr><td>gw.analyze(projectId)</td><td>Trigger a full two-pass analysis immediately, bypassing the automatic debounce. Returns when the request is accepted — analysis runs in the background.</td></tr>
   </table>
   <p>Full TypeScript types are included — your editor will autocomplete every field.</p>
@@ -635,9 +636,9 @@ await gw.ingest("proj_abc123", [
   { title: "APAC pricing change rolled out last week", type: "note", contributed_by: "James" },
 ])
 
-// Poll for insights — or set a webhook_url to receive them automatically
-const insights = await gw.listInsights("proj_abc123")
-insights.forEach(i => console.log(i.title, "—", i.body))</pre>
+// Poll for wisdom — or set a webhook_url to receive it automatically
+const wisdom = await gw.listWisdom("proj_abc123")
+wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <p>Using raw fetch (if you prefer no dependency):</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>const GW_KEY = process.env.GROUPWISDOM_API_KEY;
 const BASE   = "https://groupwisdom.up.railway.app/v1";
