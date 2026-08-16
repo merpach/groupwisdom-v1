@@ -140,26 +140,6 @@ export async function supabaseSendReset(email: string, redirectTo: string): Prom
 
 const b64url = (b: Buffer) => b.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-supabaseAuth.get("/auth/supabase/:provider", (req: any, res) => {
-  if (!supabaseAuthEnabled()) return res.status(404).send("Supabase sign-in is not configured on this server.");
-  const provider = String(req.params.provider).toLowerCase();
-  if (!PROVIDERS.includes(provider)) return res.status(404).send("That sign-in provider is not enabled.");
-
-  // PKCE: the verifier stays in our session and never reaches the browser, so
-  // an intercepted authorization code is useless on its own.
-  const verifier = b64url(randomBytes(32));
-  req.session.sbVerifier = verifier;
-  req.session.sbNext = safeNext(req.query.next);
-
-  const challenge = b64url(createHash("sha256").update(verifier).digest());
-  const url = new URL(URL_() + "/auth/v1/authorize");
-  url.searchParams.set("provider", provider);
-  url.searchParams.set("redirect_to", `${requestOrigin(req)}/auth/supabase/callback`);
-  url.searchParams.set("code_challenge", challenge);
-  url.searchParams.set("code_challenge_method", "s256");
-  res.redirect(url.toString());
-});
-
 supabaseAuth.get("/auth/supabase/callback", async (req: any, res) => {
   if (!supabaseAuthEnabled()) return res.status(404).send("Supabase sign-in is not configured on this server.");
 
@@ -199,4 +179,28 @@ supabaseAuth.get("/auth/supabase/callback", async (req: any, res) => {
   } catch (err: any) {
     fail(`unexpected: ${err.message}`);
   }
+});
+
+supabaseAuth.get("/auth/supabase/:provider", (req: any, res) => {
+  if (!supabaseAuthEnabled()) return res.status(404).send("Supabase sign-in is not configured on this server.");
+  const provider = String(req.params.provider).toLowerCase();
+  // "callback" is handled by its own route above. Refused here too, so a
+  // future re-ordering cannot silently turn the return leg into a 404.
+  if (provider === "callback" || !PROVIDERS.includes(provider)) {
+    return res.status(404).send("That sign-in provider is not enabled.");
+  }
+
+  // PKCE: the verifier stays in our session and never reaches the browser, so
+  // an intercepted authorization code is useless on its own.
+  const verifier = b64url(randomBytes(32));
+  req.session.sbVerifier = verifier;
+  req.session.sbNext = safeNext(req.query.next);
+
+  const challenge = b64url(createHash("sha256").update(verifier).digest());
+  const url = new URL(URL_() + "/auth/v1/authorize");
+  url.searchParams.set("provider", provider);
+  url.searchParams.set("redirect_to", `${requestOrigin(req)}/auth/supabase/callback`);
+  url.searchParams.set("code_challenge", challenge);
+  url.searchParams.set("code_challenge_method", "s256");
+  res.redirect(url.toString());
 });
