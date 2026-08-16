@@ -29,7 +29,18 @@ import { safeNext, requestOrigin } from "./http-util.js";
 
 export const supabaseAuth = Router();
 
-const URL_ = () => process.env.SUPABASE_URL?.trim().replace(/\/+$/, "") || "";
+/**
+ * The project's base URL, e.g. https://abc123.supabase.co.
+ *
+ * The dashboard shows a Data API URL ending in /rest/v1, and pasting that is
+ * the obvious mistake to make: every auth call then goes to
+ * /rest/v1/auth/v1/... and 404s with nothing explaining why. Any API path
+ * suffix is trimmed here rather than left to fail at request time.
+ */
+const URL_ = () => {
+  const raw = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "") || "";
+  return raw.replace(/\/(rest|auth|storage|realtime|functions)\/v\d+$/i, "");
+};
 
 /**
  * The browser-safe key. Supabase renamed these: new projects issue a
