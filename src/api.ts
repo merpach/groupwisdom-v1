@@ -17,6 +17,7 @@ import {
   listUserContexts,
 } from "./db.js";
 import { analyzeGroup, previewAnalysis, acceptInsight, updateProjectSummary, queueIncrementalAnalysis } from "./engine.js";
+import { googleAuthEnabled } from "./google-auth.js";
 
 export const api = Router();
 
@@ -92,6 +93,12 @@ api.get("/me", (req, res) => {
   const user = getUser(req);
   if (!user) return res.status(401).json({ error: "not logged in" });
   res.json({ id: user.id, name: user.name, email: user.email, api_key: user.api_key });
+});
+
+// Which sign-in methods this server actually supports, so the page never shows
+// a Google button that would dead-end on a server without the credentials.
+api.get("/auth/providers", (_req, res) => {
+  res.json({ password: true, google: googleAuthEnabled() });
 });
 
 api.get("/groups", (req, res) => {
