@@ -85,11 +85,11 @@
   .demo-run-btn:disabled { opacity: .45; cursor: not-allowed; }
   .demo-insight { padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #ddd; background: #fafafa; opacity: 0; transform: translateY(5px); transition: opacity .4s, transform .4s; }
   .demo-insight.show { opacity: 1; transform: translateY(0); }
-  .demo-insight.connection { border-left-color: #2255cc; }
+  .demo-insight.convergence { border-left-color: #2255cc; }
   .demo-insight.pattern { border-left-color: #7c3aed; }
-  .demo-insight.blind_spot { border-left-color: #d97706; }
-  .demo-insight.conflict { border-left-color: #dc2626; }
-  .demo-insight.question { border-left-color: #059669; }
+  .demo-insight.opportunity { border-left-color: #d97706; }
+  .demo-insight.tension { border-left-color: #dc2626; }
+  .demo-insight.direction { border-left-color: #059669; }
   .demo-insight.decision { border-left-color: #64748b; }
   .demo-insight-kind { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #888; margin-bottom: 3px; }
   .demo-insight-title { font-weight: 600; color: #111; margin-bottom: 3px; font-size: 13px; }
@@ -131,11 +131,11 @@
 
   /* Kind pills */
   .kind { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin: 2px; background: #f0f0f0; color: #555; }
-  .kind.connection { background: #e8f0ff; color: #2255cc; }
+  .kind.convergence { background: #e8f0ff; color: #2255cc; }
   .kind.pattern { background: #f5e8ff; color: #6622cc; }
-  .kind.blind_spot { background: #fff5e0; color: #996600; }
-  .kind.conflict { background: #ffe8e8; color: #cc3333; }
-  .kind.question { background: #e8f5ee; color: #1d7a46; }
+  .kind.opportunity { background: #fff5e0; color: #996600; }
+  .kind.tension { background: #ffe8e8; color: #cc3333; }
+  .kind.direction { background: #e8f5ee; color: #1d7a46; }
   .kind.decision { background: #f0f0f0; color: #555; }
 
   /* Pipeline trace */
@@ -530,15 +530,15 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom?format=f
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "message": "Analysis started." }</pre>
 
   <h2 id="wisdom-kinds">Wisdom kinds</h2>
-  <p>The engine surfaces wisdom in six kinds:</p>
+  <p>The engine surfaces wisdom in six kinds. All six describe what a group is building, never what it is failing to do:</p>
   <table>
     <tr><th>Kind</th><th>Description</th></tr>
-    <tr><td><span class="kind connection">connection</span></td><td>Two items link in an unexpected or non-obvious way</td></tr>
-    <tr><td><span class="kind pattern">pattern</span></td><td>Multiple data points imply a conclusion no one stated</td></tr>
-    <tr><td><span class="kind blind_spot">blind_spot</span></td><td>Something obvious the group has not looked at</td></tr>
-    <tr><td><span class="kind conflict">conflict</span></td><td>Two pieces of information contradict each other</td></tr>
-    <tr><td><span class="kind question">question</span></td><td>Something the group should be asking but is not</td></tr>
-    <tr><td><span class="kind decision">decision</span></td><td>Something the group has decided, and what led to it</td></tr>
+    <tr><td><span class="kind convergence">convergence</span></td><td>Two people reached the same finding from different directions. It names both, and what each of them proved.</td></tr>
+    <tr><td><span class="kind opportunity">opportunity</span></td><td>Something the group's own work is already pointing at, that nobody has picked up yet.</td></tr>
+    <tr><td><span class="kind tension">tension</span></td><td>Two views worth putting together to reach a stronger conclusion, stated as the actual difference.</td></tr>
+    <tr><td><span class="kind pattern">pattern</span></td><td>A theme running across several contributions that none of them called a theme.</td></tr>
+    <tr><td><span class="kind direction">direction</span></td><td>The natural next question the group's collective work is building toward.</td></tr>
+    <tr><td><span class="kind decision">decision</span></td><td>Something the group has arrived at together, and what led there.</td></tr>
   </table>
 
   <!-- Project API Keys -->
@@ -800,7 +800,7 @@ function renderItemsPreview(items) {
 
 // ── Pipeline trace ────────────────────────────────────────────────────────────
 
-const KIND_TRACE_C = { pattern: '#a78bfa', blind_spot: '#fbbf24', connection: '#34d399', question: '#60a5fa', decision: '#94a3b8' };
+const KIND_TRACE_C = { pattern: '#a78bfa', opportunity: '#fbbf24', convergence: '#34d399', tension: '#f87171', direction: '#60a5fa', decision: '#94a3b8' };
 const CONF_TRACE_C = { high: '#4ade80', medium: '#fbbf24', low: '#94a3b8' };
 
 let _traceTimers = [];
@@ -852,7 +852,7 @@ function _traceStart(items) {
   el.innerHTML = '';
   if (hdr) hdr.textContent = 'TWO-PASS ENGINE  ·  RUNNING';
 
-  const FAKE_KINDS = ['pattern', 'blind_spot', 'connection', 'pattern'];
+  const FAKE_KINDS = ['pattern', 'convergence', 'tension', 'pattern'];
 
   function hesc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
