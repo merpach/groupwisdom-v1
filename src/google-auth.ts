@@ -21,6 +21,7 @@ import { Router } from "express";
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcrypt";
 import { getUserByEmail, createUser } from "./db.js";
+import { safeNext, requestOrigin } from "./http-util.js";
 
 export const googleAuth = Router();
 
@@ -38,20 +39,7 @@ export const googleAuthEnabled = () => Boolean(CLIENT_ID() && CLIENT_SECRET());
 function redirectUri(req: any): string {
   const override = process.env.GOOGLE_REDIRECT_URI?.trim();
   if (override) return override;
-  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] || req.protocol || "https";
-  const host = (req.headers["x-forwarded-host"] as string)?.split(",")[0] || req.get("host");
-  return `${proto}://${host}/auth/google/callback`;
-}
-
-/**
- * Only same-origin paths, so ?next= cannot be used as an open redirect.
- * Non-strings are refused outright: a repeated query parameter arrives as an
- * array, and String(["/a","/b"]) is "/a,/b", which would otherwise slip past
- * the pattern since a comma is legal in a path.
- */
-export function safeNext(next: unknown): string {
-  if (typeof next !== "string") return "/buzz";
-  return /^\/[A-Za-z0-9\-._~/?#[\]@!$&'()*+,;=]*$/.test(next) && !next.startsWith("//") ? next : "/buzz";
+  return `${requestOrigin(req)}/auth/google/callback`;
 }
 
 googleAuth.get("/auth/google", (req: any, res) => {

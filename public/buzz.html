@@ -223,17 +223,10 @@
     <div class="step" id="step0">
       <div class="step-head"><div class="num">1</div><div class="step-title" id="authTitle">Create your account</div></div>
 
-      <!-- Shown only when this server has Google credentials configured. -->
-      <div id="googleWrap" style="display:none">
-        <button class="google-btn" id="googleBtn">
-          <svg viewBox="0 0 48 48" aria-hidden="true">
-            <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2 5-4.4 6.600v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.1z"/>
-            <path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.1 15.4 46 24 46z"/>
-            <path fill="#FBBC05" d="M11.8 28.2c-.4-1.3-.7-2.7-.7-4.2s.3-2.9.7-4.2v-5.7H4.5C3 17.1 2.2 20.4 2.2 24s.8 6.9 2.3 9.9l7.3-5.7z"/>
-            <path fill="#EA4335" d="M24 10.8c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.2 29.9 2 24 2 15.4 2 8.1 6.9 4.5 14.1l7.3 5.7c1.7-5.2 6.5-9 12.2-9z"/>
-          </svg>
-          <span>Continue with Google</span>
-        </button>
+      <!-- Filled in from /api/auth/providers, so a button only appears when
+           this server can actually complete that sign-in. -->
+      <div id="socialWrap" style="display:none">
+        <div id="socialBtns"></div>
         <div class="or">or</div>
       </div>
 
@@ -245,7 +238,10 @@
         <input id="aName" placeholder="Your name" autocomplete="name">
         <input id="aEmail" type="email" placeholder="you@example.com" autocomplete="email">
         <input id="aPass" type="password" placeholder="Password" autocomplete="current-password">
-        <div><button class="primary" id="authGo">Create account</button></div>
+        <div>
+          <button class="primary" id="authGo">Create account</button>
+          <button id="forgotBtn" style="display:none;border-color:transparent;color:var(--ink-3)">Forgot password?</button>
+        </div>
       </div>
       <div class="msg" id="authMsg"></div>
     </div>
@@ -356,6 +352,49 @@ function setAuthMode(mode) {
 
 $("tabSignup").onclick = () => setAuthMode("signup");
 $("tabLogin").onclick = () => setAuthMode("login");
+
+// Social sign-in buttons, built from what the server says it supports.
+const GOOGLE_MARK = '<svg viewBox="0 0 48 48" aria-hidden="true">' +
+  '<path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2 5-4.4 6.6v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.1z"/>' +
+  '<path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.1 15.4 46 24 46z"/>' +
+  '<path fill="#FBBC05" d="M11.8 28.2c-.4-1.3-.7-2.7-.7-4.2s.3-2.9.7-4.2v-5.7H4.5C3 17.1 2.2 20.4 2.2 24s.8 6.9 2.3 9.9l7.3-5.7z"/>' +
+  '<path fill="#EA4335" d="M24 10.8c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.2 29.9 2 24 2 15.4 2 8.1 6.9 4.5 14.1l7.3 5.7c1.7-5.2 6.5-9 12.2-9z"/></svg>';
+const LABEL = { google: "Google", github: "GitHub", azure: "Microsoft", apple: "Apple", gitlab: "GitLab", discord: "Discord" };
+
+async function renderProviders() {
+  const p = await j("/api/auth/providers");
+  if (!p.ok || !p.body) return;
+
+  const buttons = [];
+  for (const prov of (p.body.social || [])) {
+    buttons.push({ href: "/auth/supabase/" + encodeURIComponent(prov) + "?next=/buzz", name: LABEL[prov] || prov, mark: prov === "google" ? GOOGLE_MARK : "" });
+  }
+  // Only when Supabase is not configured — the server prefers Supabase, since
+  // those accounts also get password reset.
+  if (p.body.google_direct) buttons.push({ href: "/auth/google?next=/buzz", name: "Google", mark: GOOGLE_MARK });
+
+  if (buttons.length) {
+    $("socialBtns").innerHTML = buttons.map(b =>
+      `<button class="google-btn" data-href="${esc(b.href)}">${b.mark}<span>Continue with ${esc(b.name)}</span></button>`
+    ).join("");
+    $("socialBtns").querySelectorAll("button").forEach(b => b.onclick = () => { location.href = b.dataset.href; });
+    $("socialWrap").style.display = "";
+  }
+
+  if (p.body.password_reset) {
+    $("forgotBtn").style.display = "";
+    $("forgotBtn").onclick = async () => {
+      const email = $("aEmail").value.trim();
+      const m = $("authMsg");
+      if (!email) { m.className = "msg err"; m.textContent = "Enter your email above first, then press Forgot password."; return; }
+      $("forgotBtn").disabled = true;
+      await j("/api/auth/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+      $("forgotBtn").disabled = false;
+      m.className = "msg ok";
+      m.textContent = "If that email has an account, a reset link is on its way.";
+    };
+  }
+}
 
 $("authGo").onclick = async () => {
   const name = $("aName").value.trim();
@@ -532,17 +571,12 @@ async function boot() {
 
   if (!signedIn) {
     setAuthMode("signup");
-    // Offer Google only when the server can actually complete the flow.
-    const p = await j("/api/auth/providers");
-    if (p.ok && p.body?.google) {
-      $("googleWrap").style.display = "";
-      $("googleBtn").onclick = () => { location.href = "/auth/google?next=/buzz"; };
-    }
-    // The callback redirects here with ?auth_error=1 when sign-in did not complete.
+    await renderProviders();
+    // A sign-in callback redirects here with ?auth_error=1 when it did not complete.
     if (new URLSearchParams(location.search).has("auth_error")) {
       const m = $("authMsg");
       m.className = "msg err";
-      m.textContent = "That Google sign-in did not complete. Try again, or use an email and password below.";
+      m.textContent = "That sign-in did not complete. Try again, or use an email and password below.";
       history.replaceState({}, "", location.pathname);
     }
     return;

@@ -15,6 +15,7 @@ import { getUserByEmail, createUser, encryptExistingData, pruneOldBuzzItems, pru
 import { encryptionEnabled } from "./crypto.js";
 import { rateLimit, apiKeyOrIp } from "./ratelimit.js";
 import { googleAuth } from "./google-auth.js";
+import { supabaseAuth } from "./supabase-auth.js";
 import { randomBytes } from "node:crypto";
 
 // Ensure demo user exists for the /v1/demo endpoint
@@ -112,6 +113,7 @@ app.use("/api/auth", rateLimit({ name: "auth", windowMs: 60_000, max: 10 }));
 app.use("/v1", rateLimit({ name: "v1", windowMs: 60_000, max: 240, keyFn: apiKeyOrIp }));
 app.use("/buzz/connect", rateLimit({ name: "connect", windowMs: 60_000, max: 5 }));
 
+app.use(supabaseAuth); // /auth/supabase/* — 404s unless SUPABASE_URL/ANON_KEY are set
 app.use(googleAuth);   // /auth/google — 404s unless GOOGLE_CLIENT_ID/SECRET are set
 app.use("/api", api);
 app.use("/v1", apiv1);

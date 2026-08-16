@@ -18,6 +18,7 @@ import {
 } from "./db.js";
 import { analyzeGroup, previewAnalysis, acceptInsight, updateProjectSummary, queueIncrementalAnalysis } from "./engine.js";
 import { googleAuthEnabled } from "./google-auth.js";
+import { supabaseAuthEnabled, supabaseProviders, supabaseSignUp, supabaseSignIn, supabaseSendReset } from "./supabase-auth.js";
 
 export const api = Router();
 
@@ -62,26 +63,66 @@ function resolveGroup(req: any) {
 
 // ── Auth routes ────────────────────────────────────────────────────────────────
 
+const account = (u: { id: string; name: string; email: string; api_key: string }) =>
+  ({ id: u.id, name: u.name, email: u.email, api_key: u.api_key });
+
 api.post("/auth/signup", async (req, res) => {
   const { name, email, password } = req.body ?? {};
   if (!name?.trim() || !email?.trim() || !password) return res.status(400).json({ error: "name, email and password required" });
   if (String(password).length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
   if (getUserByEmail(email)) return res.status(409).json({ error: "An account with that email already exists" });
+
+  // With Supabase configured it owns new passwords, which is what makes reset
+  // emails and confirmation possible. Local bcrypt remains the path when it is not.
+  if (supabaseAuthEnabled()) {
+    const r = await supabaseSignUp(String(email).trim(), String(password), String(name).trim());
+    if (!r.ok) return res.status(r.needsConfirmation ? 202 : 400).json({ error: r.error, needs_confirmation: r.needsConfirmation ?? false });
+    req.session.userId = r.user.id;
+    return res.status(201).json(account(r.user));
+  }
+
   const hash = await bcrypt.hash(password, 10);
   const user = createUser(email, hash, name.trim());
   req.session.userId = user.id;
-  res.status(201).json({ id: user.id, name: user.name, email: user.email, api_key: user.api_key });
+  res.status(201).json(account(user));
 });
 
 api.post("/auth/login", async (req, res) => {
   const { email, password } = req.body ?? {};
   if (!email || !password) return res.status(400).json({ error: "email and password required" });
+
+  // Local password first: accounts created before Supabase have their bcrypt
+  // hash here, and they must keep working. Supabase is the fallback, so a
+  // Supabase-owned account still signs in through the same form.
   const user = getUserByEmail(email);
-  if (!user) return res.status(401).json({ error: "No account found with that email" });
-  const ok = await bcrypt.compare(password, user.password_hash);
-  if (!ok) return res.status(401).json({ error: "Incorrect password" });
-  req.session.userId = user.id;
-  res.json({ id: user.id, name: user.name, email: user.email, api_key: user.api_key });
+  if (user && await bcrypt.compare(password, user.password_hash)) {
+    req.session.userId = user.id;
+    return res.json(account(user));
+  }
+
+  if (supabaseAuthEnabled()) {
+    const r = await supabaseSignIn(String(email).trim(), String(password));
+    if (r.ok) {
+      req.session.userId = r.user.id;
+      return res.json(account(r.user));
+    }
+    return res.status(401).json({ error: r.error });
+  }
+
+  // Same message either way, so this cannot be used to discover which emails have accounts.
+  res.status(401).json({ error: "Incorrect email or password" });
+});
+
+/** Password reset, available once Supabase owns the credentials. */
+api.post("/auth/reset", async (req, res) => {
+  const { email } = req.body ?? {};
+  if (!email?.trim()) return res.status(400).json({ error: "email required" });
+  if (!supabaseAuthEnabled()) return res.status(501).json({ error: "Password reset is not available on this server." });
+  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] || req.protocol || "https";
+  const host = (req.headers["x-forwarded-host"] as string)?.split(",")[0] || req.get("host");
+  await supabaseSendReset(String(email).trim(), `${proto}://${host}/buzz`);
+  // Always the same answer, whether or not that address has an account.
+  res.json({ sent: true });
 });
 
 api.post("/auth/logout", (req, res) => {
@@ -96,9 +137,17 @@ api.get("/me", (req, res) => {
 });
 
 // Which sign-in methods this server actually supports, so the page never shows
-// a Google button that would dead-end on a server without the credentials.
+// a button that would dead-end on a server without the credentials. Supabase
+// social providers take precedence over the direct Google flow when both are
+// configured, since Supabase also gives those accounts password reset.
 api.get("/auth/providers", (_req, res) => {
-  res.json({ password: true, google: googleAuthEnabled() });
+  res.json({
+    password: true,
+    supabase: supabaseAuthEnabled(),
+    social: supabaseProviders(),                        // e.g. ["google"] → /auth/supabase/google
+    google_direct: googleAuthEnabled() && !supabaseAuthEnabled(),
+    password_reset: supabaseAuthEnabled(),
+  });
 });
 
 api.get("/groups", (req, res) => {
