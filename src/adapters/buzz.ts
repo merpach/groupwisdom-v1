@@ -28,6 +28,7 @@ import { finalizeEvent, getPublicKey, type Event, type EventTemplate } from "nos
 import { makeAuthEvent } from "nostr-tools/nip42";
 import { decode as nip19decode } from "nostr-tools/nip19";
 import { verifyAuthTag, type AuthTag } from "./nip-oa.js";
+import { truncate } from "../text-util.js";
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
@@ -578,7 +579,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
       await gwFetch(`/projects/${projectId}/ingest`, {
         method: "POST",
         body: JSON.stringify({
-          title: content.slice(0, 60) || "(message)",
+          title: truncate(content, 60) || "(message)",
           content,
           type: "note",
           contributed_by: contributorName(ev.pubkey),

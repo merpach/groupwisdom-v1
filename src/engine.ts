@@ -15,6 +15,7 @@ import {
   getGroupMemoryRaw, setGroupMemoryRaw, addGateRecord, isGlobalOverBudget, spokeRecently,
   type Item, type Insight,
 } from "./db.js";
+import { truncate } from "./text-util.js";
 
 const MODEL = process.env.GW_MODEL || "claude-haiku-4-5-20251001"; // set GW_MODEL=claude-fable-5 to upgrade
 const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
@@ -126,7 +127,7 @@ function saveGroupMemory(groupId: string, mem: GroupMemory) {
 
 /** Item line for the memory prompts: short id so facts can cite their sources. */
 function memoryItemLine(i: Item & { member_name?: string | null }, contentCap: number) {
-  const content = (i.content ?? "").slice(0, contentCap);
+  const content = truncate(i.content ?? "", contentCap);
   return `[${shortId(i.id)}] [${i.type}]${i.member_name ? ` [by ${i.member_name}]` : ""} "${i.title}" — ${content}`;
 }
 
@@ -530,7 +531,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
     const by = i.member_name ? ` [by ${i.member_name}]` : "";
     const content = i.content ?? "";
     const shown = content.length > ITEM_CONTENT_LIMIT
-      ? content.slice(0, ITEM_CONTENT_LIMIT) + " …[truncated]"
+      ? truncate(content, ITEM_CONTENT_LIMIT) + " …[truncated]"
       : content;
     return `[${i.type}]${by} "${i.title}"${i.url ? ` (${i.url})` : ""} — ${shown}`;
   };
@@ -542,7 +543,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
   // size, so the scan costs the same on day one and day five hundred.
   const tail = allWithMembers.filter(i => !newItems.some(n => n.id === i.id)).slice(0, 5);
   const tailText = tail.map(i => {
-    const content = (i.content ?? "").slice(0, 300);
+    const content = truncate(i.content ?? "", 300);
     return `[${i.type}]${i.member_name ? ` [by ${i.member_name}]` : ""} "${i.title}" — ${content}`;
   }).join("\n") || "(none)";
 
