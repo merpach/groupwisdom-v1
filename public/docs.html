@@ -395,6 +395,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
     <tr><td>url</td><td>string</td><td>Link to source</td></tr>
     <tr><td>type</td><td>string</td><td><code>note</code> · <code>link</code> · <code>file</code> · <code>thought</code> (default: <code>note</code>)</td></tr>
     <tr><td>contributed_by</td><td>string</td><td>Name of the person who contributed this item. The engine uses it to attribute findings by name — so one member's completed work can be handed directly to another (<code>do_next</code>, <code>missing_voice</code>). Highly recommended.</td></tr>
+    <tr><td>channel</td><td>string</td><td>Where this came from: a room, thread, or channel id from your own app (max 100 characters). Analysis still runs across the whole project, since noticing that two rooms are building the same thing is the point. What this adds is that an item can be traced back to where it arrived, so you can answer a question inside one room without reciting the whole project. Optional. Leave it off if everything in the project shares one audience.</td></tr>
   </table>
   <p style="font-size:12px;color:#888">* At least one of <code>title</code>, <code>content</code>, or <code>url</code> is required per item.</p>
 

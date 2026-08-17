@@ -182,6 +182,13 @@ try { db.exec("ALTER TABLE buzz_connections ADD COLUMN discovered TEXT DEFAULT N
 // the members table meant deleting a project erased its spend from the user's
 // cap — delete a project, get a fresh $50.
 try { db.exec("ALTER TABLE usage_events ADD COLUMN user_id TEXT DEFAULT NULL"); } catch { /* already exists */ }
+// Provenance: which chat channel a message arrived from. NULL means we do not
+// know — either it came straight through the API, or it predates this column.
+// Memory spans a whole community on purpose (combining work across channels is
+// the point), so this is how a per-channel answer can be held to the channel
+// that asked, instead of reciting facts drawn from a channel the asker is not in.
+try { db.exec("ALTER TABLE items ADD COLUMN channel TEXT DEFAULT NULL"); } catch { /* already exists */ }
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_items_group_channel ON items(group_id, channel)"); } catch { /* fine */ }
 
 export type User = { id: string; email: string; password_hash: string; name: string; api_key: string; created_at: string };
 export type Group = { id: string; name: string; api_key: string; created_at: string };
@@ -189,6 +196,8 @@ export type Member = { id: string; group_id: string; name: string; role: string;
 export type Item = {
   id: string; group_id: string; member_id: string | null; type: string;
   title: string; content: string; url: string; source: string; created_at: string;
+  /** Chat channel this arrived from, or null when it came through the API. */
+  channel: string | null;
 };
 export type Insight = {
   id: string; group_id: string; kind: string; title: string; body: string;
@@ -305,9 +314,10 @@ function decryptItem<T extends Item>(i: T): T {
 export function addItem(groupId: string, data: Partial<Item>): Item {
   const id = randomUUID();
   db.prepare(
-    "INSERT INTO items (id, group_id, member_id, type, title, content, url, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO items (id, group_id, member_id, type, title, content, url, source, channel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
   ).run(id, groupId, data.member_id ?? null, data.type ?? "note",
-    encryptField(data.title ?? "Untitled"), encryptField(data.content ?? ""), data.url ?? "", data.source ?? "web");
+    encryptField(data.title ?? "Untitled"), encryptField(data.content ?? ""), data.url ?? "", data.source ?? "web",
+    data.channel ?? null);
   return decryptItem(db.prepare("SELECT * FROM items WHERE id = ?").get(id) as Item);
 }
 export const listItems = (groupId: string) =>

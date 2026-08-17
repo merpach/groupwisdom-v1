@@ -134,6 +134,59 @@ export function formatCard(kind: string, title: string, body: string): string {
   return `${markFor(kind)} ${title.trim()}\n${body.trim()}`;
 }
 
+/** Facts and decisions carry the short ids of the messages they came from. */
+type ScopableMemory = {
+  facts?: Array<{ sources?: string[]; [k: string]: any }>;
+  decisions?: Array<{ sources?: string[]; [k: string]: any }>;
+  open_questions?: string[];
+  [k: string]: any;
+};
+
+/** The model writes these ids back to us, so accept "[a1b2c3d4]" or a full uuid. */
+const normalizeSourceId = (s: unknown) =>
+  String(s ?? "").replace(/[^0-9a-f]/gi, "").slice(0, 8).toLowerCase();
+
+/**
+ * Hold a memory answer to the channel that asked for it.
+ *
+ * Memory is built per community, not per channel, and that is deliberate: the
+ * whole value is noticing that two people in two places are building the same
+ * thing. But reciting it back is different from acting on it. If a community
+ * has a channel someone is not in, answering "what do you know" with facts
+ * drawn from that channel hands them messages they were never sent.
+ *
+ * So when more than one channel is in play, a fact survives only if it can be
+ * traced to a message in *this* channel. Anything we cannot place — a message
+ * that arrived through the API, or one ingested before we recorded channels —
+ * is left out rather than guessed at, and open questions are dropped entirely
+ * because they carry no sources to trace. A single-channel community has
+ * nothing to leak into, so it is passed through untouched.
+ */
+export function scopeMemoryToChannel(
+  mem: ScopableMemory,
+  channel: string,
+  items: Array<{ id?: string; channel?: string | null }>,
+  opts: { multiChannel: boolean },
+): { memory: ScopableMemory; hidden: number; scoped: boolean } {
+  if (!opts.multiChannel) return { memory: mem, hidden: 0, scoped: false };
+
+  const here = new Set<string>();
+  for (const it of items) {
+    if (it?.channel && it.channel === channel && it.id) here.add(normalizeSourceId(it.id));
+  }
+  const fromHere = (sources?: string[]) =>
+    (sources ?? []).some(s => here.has(normalizeSourceId(s)));
+
+  const facts = (mem.facts ?? []).filter(f => fromHere(f?.sources));
+  const decisions = (mem.decisions ?? []).filter(d => fromHere(d?.sources));
+  const hidden =
+    (mem.facts?.length ?? 0) - facts.length +
+    (mem.decisions?.length ?? 0) - decisions.length +
+    (mem.open_questions?.length ?? 0);
+
+  return { memory: { ...mem, facts, decisions, open_questions: [] }, hidden, scoped: true };
+}
+
 /**
  * The community a relay URL serves, as a readable label. Shared with the
  * server (buzz-hook) so both sides derive the same "Buzz: <label>" project
@@ -670,6 +723,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
           content,
           type: "note",
           contributed_by: contributorName(ev.pubkey),
+          channel,     // provenance, so a per-channel answer stays inside its channel
         }),
       });
       markProcessed(channel, ev);   // only after the API accepted it, so a failure retries on restart
@@ -723,13 +777,22 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
    */
   async function commandMemory(channel: string, replyTo: string) {
     const projectId = await ensureProject();
-    const [mem, items] = await Promise.all([
+    const [full, items] = await Promise.all([
       gwFetch(`/projects/${projectId}/memory`).then((r: any) => r?.memory ?? null).catch(() => null),
       gwFetch(`/projects/${projectId}/items?limit=200`).then((r: any) => r?.data ?? []).catch(() => []),
     ]);
 
-    if (!mem || !(mem.facts?.length || mem.decisions?.length || mem.open_questions?.length)) {
+    if (!full || !(full.facts?.length || full.decisions?.length || full.open_questions?.length)) {
       postNotice(channel, "I have not built up anything yet. Once people share work here I will have something to show.", replyTo);
+      return;
+    }
+
+    // Answer about this channel, not about everything we watch. See scopeMemoryToChannel.
+    const { memory: mem, hidden, scoped } =
+      scopeMemoryToChannel(full, channel, items, { multiChannel: watched.size > 1 });
+
+    if (!(mem.facts?.length || mem.decisions?.length)) {
+      postNotice(channel, "Nothing yet from this channel. I keep what I learn to the channel it came from, so share some work here and I will have something to show.", replyTo);
       return;
     }
 
@@ -756,7 +819,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     const namePart = (by: string) =>
       (by && !/^[0-9a-f]{8,}$/i.test(by.trim())) ? ` (${by})` : "";
 
-    const lines: string[] = ["Here is what I know so far."];
+    const lines: string[] = [scoped ? "Here is what I know from this channel." : "Here is what I know so far."];
     let lastQuote = "";
 
     const facts = mem.facts ?? [];
@@ -790,11 +853,15 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
       if (questions.length > MAX_QUESTIONS) lines.push(`…and ${questions.length - MAX_QUESTIONS} more.`);
     }
 
-    const spoken = mem.active_wisdom?.length ?? 0;
+    // The count of findings already spoken is community-wide, so it would
+    // overstate a scoped answer. Left off rather than reported wrong.
+    const spoken = scoped ? 0 : (mem.active_wisdom?.length ?? 0);
     if (spoken) lines.push("", `I have shared ${spoken} finding${spoken === 1 ? "" : "s"} from this, and will not repeat ${spoken === 1 ? "it" : "them"}.`);
 
+    if (scoped && hidden) lines.push("", "I also hold notes from other channels here. Those stay in the channel they came from.");
+
     postNotice(channel, lines.join("\n"), replyTo);
-    log(`answered memory in ${channelNames.get(channel) ?? channel.slice(0, 8)}`);
+    log(`answered memory in ${channelNames.get(channel) ?? channel.slice(0, 8)}${scoped ? ` (scoped, ${hidden} withheld)` : ""}`);
   }
 
   /** Returns true when the message was a command, so it is not also ingested. */

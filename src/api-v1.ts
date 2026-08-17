@@ -316,6 +316,12 @@ apiv1.post("/projects/:id/ingest", (req, res) => {
       type: p.type ?? (p.url ? "link" : "note"),
       source: "api",
       member_id: member?.id ?? null,
+      // Where this came from, when the caller knows. Chat adapters send a channel
+      // id so a per-channel question can be answered without reaching into another
+      // channel's messages. Free-form and untrusted, so it is capped, never parsed.
+      channel: typeof p.channel === "string" && p.channel.trim()
+        ? p.channel.trim().slice(0, 100)
+        : null,
     });
     created.push(item);
     queueIncrementalAnalysis(g.id, item, async (wisdom) => {
