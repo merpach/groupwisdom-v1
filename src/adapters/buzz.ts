@@ -86,6 +86,34 @@ export function parseMentions(content: string): string[] {
 }
 
 /**
+ * Is this message addressed to us, and if so which command does it carry?
+ *
+ * Deliberately text-based rather than relying on Buzz resolving a formal
+ * handle, because we do not control how a mention is rendered and it has to
+ * work either way: "@wisdom memory", "@Wisdom Agent memory", or a message that
+ * tags our pubkey. Anything addressed to us that is not a known command returns
+ * null and flows on to be read as an ordinary contribution.
+ */
+const COMMAND_ALIASES = new Set(["wisdom", "wisdomagent", "groupwisdom"]);
+const KNOWN_COMMANDS = new Set(["memory"]);
+
+export function parseCommand(content: string, opts?: { taggedUs?: boolean }): { name: string; args: string } | null {
+  const text = String(content ?? "").trim();
+  const addressed = opts?.taggedUs === true ||
+    parseMentions(text).some(m => COMMAND_ALIASES.has(m.toLowerCase().replace(/[._-]/g, "")));
+  if (!addressed) return null;
+
+  const rest = text
+    .replace(/(?<=^|\s)@[A-Za-z0-9_][A-Za-z0-9_.-]{0,31}/g, " ")   // drop the mention itself
+    .replace(/^\s*agent\b/i, "")                                   // "@Wisdom Agent memory" → "memory"
+    .trim();
+  const [first, ...args] = rest.split(/\s+/);
+  const name = (first ?? "").toLowerCase().replace(/[^a-z]/g, "");
+  if (!KNOWN_COMMANDS.has(name)) return null;
+  return { name, args: args.join(" ").trim() };
+}
+
+/**
  * Two marks are the whole alphabet in chat: 💡 for something worth knowing,
  * ⚠ for something that needs attention. The six kinds stay intact in the API
  * and the dashboard; this is only how they look in a channel.
@@ -388,12 +416,14 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   }
 
   /** A plain agent message into a channel — carries the gw marker so we never re-ingest it. */
-  function postNotice(channel: string, text: string) {
+  function postNotice(channel: string, text: string, replyTo?: string) {
     const tmpl: EventTemplate = {
       kind: 9,
       created_at: Math.floor(Date.now() / 1000),
       content: text,
-      tags: [["h", channel], ["gw", "1"]],
+      // A reply to a command threads under it, so an answer never lands as a
+      // loose message in the channel.
+      tags: [["h", channel], ...(replyTo ? [["e", replyTo]] : []), ["gw", "1"]],
     };
     send(["EVENT", finalizeEvent(tmpl, sk)]);
   }
@@ -617,6 +647,11 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     if (ev.created_at < floorFor(channel)) return;        // predates our first sight of this channel
     const content = ev.content ?? "";
 
+    // A command is addressed to the agent, not a contribution to the group.
+    // Intercepting here also saves the model call the memory gate would spend
+    // concluding exactly that.
+    if (await handleCommand(ev, channel)) { markProcessed(channel, ev); return; }
+
     if (cfg.dryRun) {
       log(`[dry-run] would ingest into ${channel.slice(0, 8)}… from ${ev.pubkey.slice(0, 8)}… (${content.length} chars)`);
       return;
@@ -673,6 +708,109 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
         saveCursor();
       }
     } catch { /* best effort — never let a usage check break ingestion */ }
+  }
+
+  // ── Commands ─────────────────────────────────────────────────────────────────
+  // Answered as ordinary replies, with no mark: a mark means the engine found
+  // something, and a command response is the agent talking, not thinking.
+
+  /**
+   * What the agent currently knows, in plain words. The team's best debugging
+   * tool, and the honest answer to "has it actually understood us?".
+   *
+   * Facts quote the message they came from rather than printing an id, so the
+   * output can be checked against the channel by eye.
+   */
+  async function commandMemory(channel: string, replyTo: string) {
+    const projectId = await ensureProject();
+    const [mem, items] = await Promise.all([
+      gwFetch(`/projects/${projectId}/memory`).then((r: any) => r?.memory ?? null).catch(() => null),
+      gwFetch(`/projects/${projectId}/items?limit=200`).then((r: any) => r?.data ?? []).catch(() => []),
+    ]);
+
+    if (!mem || !(mem.facts?.length || mem.decisions?.length || mem.open_questions?.length)) {
+      postNotice(channel, "I have not built up anything yet. Once people share work here I will have something to show.", replyTo);
+      return;
+    }
+
+    // Short source ids map back to the message they came from, so a fact can
+    // quote its origin instead of naming an id nobody can look up.
+    const byShortId = new Map<string, any>();
+    for (const it of items) byShortId.set(String(it.id).slice(0, 8), it);
+    const quoteFor = (sources: string[] = [], len = 45) => {
+      for (const sid of sources) {
+        const it = byShortId.get(sid);
+        const text = String(it?.content ?? it?.title ?? "").replace(/\s+/g, " ").trim();
+        if (text) return truncate(text, len) + (text.length > len ? "…" : "");
+      }
+      return "";
+    };
+
+    // A chat message, not a report. Long enough to be checkable, short enough
+    // that someone actually reads it: an earlier draft ran to 3,400 characters
+    // and 31 lines, which nobody would.
+    const FACT_LINE = 110, QUOTE_LEN = 45, MAX_FACTS = 8, MAX_QUESTIONS = 5;
+
+    /** A contributor we never learned a name for is a hex prefix. Printing it
+     *  would put a raw id in the text, so it is simply left off. */
+    const namePart = (by: string) =>
+      (by && !/^[0-9a-f]{8,}$/i.test(by.trim())) ? ` (${by})` : "";
+
+    const lines: string[] = ["Here is what I know so far."];
+    let lastQuote = "";
+
+    const facts = mem.facts ?? [];
+    if (facts.length) {
+      lines.push("", "What I have established:");
+      for (const f of facts.slice(-MAX_FACTS).reverse()) {
+        const fact = truncate(String(f.fact ?? "").trim(), FACT_LINE) +
+          (String(f.fact ?? "").length > FACT_LINE ? "…" : "");
+        const q = quoteFor(f.sources, QUOTE_LEN);
+        // Several facts often come from one long message; repeating the same
+        // quote line after line is noise, so it is shown once.
+        const quote = q && q !== lastQuote ? ` — from “${q}”` : "";
+        if (q) lastQuote = q;
+        lines.push(`• ${fact}${namePart(f.by)}${quote}`);
+      }
+      if (facts.length > MAX_FACTS) lines.push(`…and ${facts.length - MAX_FACTS} more I am still holding.`);
+    }
+
+    const decisions = mem.decisions ?? [];
+    if (decisions.length) {
+      lines.push("", "What you have decided:");
+      for (const d of decisions.slice(-4).reverse()) {
+        lines.push(`• ${truncate(String(d.decision ?? "").trim(), FACT_LINE)}`);
+      }
+    }
+
+    const questions = mem.open_questions ?? [];
+    if (questions.length) {
+      lines.push("", "Still open:");
+      for (const q of questions.slice(0, MAX_QUESTIONS)) lines.push(`• ${truncate(String(q).trim(), FACT_LINE)}`);
+      if (questions.length > MAX_QUESTIONS) lines.push(`…and ${questions.length - MAX_QUESTIONS} more.`);
+    }
+
+    const spoken = mem.active_wisdom?.length ?? 0;
+    if (spoken) lines.push("", `I have shared ${spoken} finding${spoken === 1 ? "" : "s"} from this, and will not repeat ${spoken === 1 ? "it" : "them"}.`);
+
+    postNotice(channel, lines.join("\n"), replyTo);
+    log(`answered memory in ${channelNames.get(channel) ?? channel.slice(0, 8)}`);
+  }
+
+  /** Returns true when the message was a command, so it is not also ingested. */
+  async function handleCommand(ev: Event, channel: string): Promise<boolean> {
+    const taggedUs = ev.tags.some(t => t[0] === "p" && t[1] === pk);
+    const cmd = parseCommand(ev.content ?? "", { taggedUs });
+    if (!cmd) return false;
+
+    if (cfg.dryRun) { log(`[dry-run] would answer command: ${cmd.name}`); return true; }
+    try {
+      if (cmd.name === "memory") await commandMemory(channel, ev.id);
+    } catch (e) {
+      log(`command ${cmd.name} failed: ${(e as Error).message}`);
+      postNotice(channel, "Something went wrong reading that back. Try again in a moment.", ev.id);
+    }
+    return true;
   }
 
   // ── Reactions become verdicts ────────────────────────────────────────────────
