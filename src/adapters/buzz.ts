@@ -69,11 +69,6 @@ export interface BuzzConfig {
 }
 
 /**
- * The community a relay URL serves, as a readable label. Shared with the
- * server (buzz-hook) so both sides derive the same "Buzz: <label>" project
- * name from a connection's relay URL.
- */
-/**
  * Names @mentioned in a message, in order, deduped.
  *
  * The @ must open the token or follow whitespace, so an email address is not a
@@ -89,6 +84,32 @@ export function parseMentions(content: string): string[] {
   return [...new Set(out)];
 }
 
+/**
+ * Two marks are the whole alphabet in chat: 💡 for something worth knowing,
+ * ⚠ for something that needs attention. The six kinds stay intact in the API
+ * and the dashboard; this is only how they look in a channel.
+ *
+ * Only `tension` earns the warning, because it is the one kind that names a
+ * conflict, whether that is two readings of the same evidence or two bookings
+ * that cannot both stand. `opportunity` is deliberately a lamp rather than a
+ * warning: it is an opening the group's own work created, not a gap it failed
+ * to close.
+ */
+export const markFor = (kind: string) => (kind === "tension" ? "⚠" : "💡");
+
+/**
+ * A mark, a headline, a body, and nothing else. No labels, no confidence, no
+ * sources, no footer: those stay complete in the API object and the dashboard.
+ */
+export function formatCard(kind: string, title: string, body: string): string {
+  return `${markFor(kind)} ${title.trim()}\n${body.trim()}`;
+}
+
+/**
+ * The community a relay URL serves, as a readable label. Shared with the
+ * server (buzz-hook) so both sides derive the same "Buzz: <label>" project
+ * name from a connection's relay URL.
+ */
 export function communityLabelFromRelayUrl(relayUrl: string): string {
   const host = (() => { try { return new URL(relayUrl.replace(/^ws/, "http")).host; } catch { return relayUrl; } })();
   return host.replace(/\.communities\.buzz\.xyz$/i, "");
@@ -303,10 +324,23 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   // this, that silence reads as broken at the exact moment someone is watching
   // closest. One message, once per channel ever (persisted in the cursor), and
   // it doubles as disclosure that the agent is reading.
+  /**
+   * The intro, posted once when the agent joins a channel.
+   *
+   * The specified text ends with three offers: asking under a card for its
+   * sources, 👍/👎 reactions, and @wisdom feedback. None of those are built
+   * yet, and an introduction that opens with promises the agent cannot keep
+   * costs more trust than the sentences would have earned. Each line below is
+   * uncommented the day its feature lands, at which point this matches the
+   * spec verbatim.
+   */
   const HELLO =
-    "Hello, I am the Wisdom Agent. I read what gets shared here and speak only " +
-    "when separate contributions add up to something nobody said alone, which " +
-    "is rare by design. Quiet means I am listening.";
+    "👋 I'm Wisdom Agent. I read everything in this channel so nothing important " +
+    "slips by. Most of the time I stay quiet. When your messages add up to " +
+    "something worth knowing, a clash, a gap, a deadline at risk, I post it here.";
+    // + " Ask under any of my posts and I'll show exactly which messages it came from."   ← with source citations
+    // + " A 👍 or 👎 tells me how I'm doing,"                                             ← with reaction feedback
+    // + " and @wisdom feedback sends a note to the team behind me."                       ← with the feedback command
 
   function greetChannel(channel: string) {
     if (!authed || cfg.dryRun) return;   // pre-auth posts are rejected; dry-run never posts
@@ -463,17 +497,18 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   }
 
   // ── Step 4: post wisdom back into the channel, citing sources via #e ──────────
+
   function postWisdom(channel: string, wisdom: Wisdom, triggerEventId: string) {
     const recent = recentEventIds.get(channel) ?? [];
     const sources = [triggerEventId, ...recent.filter(id => id !== triggerEventId)].slice(0, MAX_CITATIONS);
     const tmpl: EventTemplate = {
       kind: 9,
       created_at: Math.floor(Date.now() / 1000),
-      // The body alone. It is written to stand on its own, and appending do_next
-      // was what turned every card into homework: the body handed over the
-      // finding, then a trailing "so you can start by…" handed back a chore.
-      // do_next still exists on the dashboard, where a to-do belongs.
-      content: wisdom.body.trim(),
+      // A mark, a headline, a body. Nothing else: no labels, no confidence, no
+      // sources, no footer. Those stay complete in the API object and the
+      // dashboard, where they belong. do_next in particular stays off the card,
+      // because appending it turned every finding into a chore.
+      content: formatCard(wisdom.kind, wisdom.title, wisdom.body),
       tags: [
         ["h", channel],
         ...sources.map(id => ["e", id]),

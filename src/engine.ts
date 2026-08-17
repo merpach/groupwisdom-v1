@@ -423,6 +423,10 @@ chat, so it must carry the finding without the title.
   alignment, and directly conflict.
 - Two sentences, three only when the third is the way through. Around 45 words.
 - No em dashes. Use full stops.
+- Time only when the material contains a real date or deadline, and then say it
+  the way a person would: "worth sorting before Friday", "in about three weeks".
+  Never a raw timestamp. If nothing in the material fixes a date, say nothing
+  about time at all.
 - Hand over the finished work. Give the other contributor's actual finding, with
   their real numbers, so the reader inherits it and skips that step. Never tell
   anyone to go and do something with it. No "you can start by", no "test
@@ -438,13 +442,19 @@ chat, so it must carry the finding without the title.
 
 Kinds: convergence (two people reached the same finding from different directions),
 opportunity (something their own work points at that nobody has picked up),
-tension (two views worth putting together, stated as the actual difference),
+tension (two things that cannot both hold, or two views worth putting together;
+a booking that clashes with a flight is a tension just as much as two people
+reading the same evidence differently, and either way you state the actual
+difference),
 pattern (a theme across several contributions none of them named), direction (the
 next question their work is building toward), decision (something they have
 arrived at, and what led there). Choose the one that actually fits.
 
-Give a short title too, one sentence for the dashboard, but write the body so it
-still reads correctly with the title removed.
+The title is the card's headline, shown above the body in the channel, so write
+it as the finding itself rather than a label for one. At most EIGHT words.
+"Tickets booked after the flight home", never "Scheduling insight detected" and
+never "Campus activation conflicts with partnership-first sequencing". Say the
+thing. The body must still read correctly on its own with the headline removed.
 
 Also list IDs of any existing wisdom now stale, resolved, or superseded.
 
@@ -696,6 +706,8 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
     });
     setInsightStatus(saved.id, "acknowledged"); // auto-accept live insights
     created.push({ ...saved, status: "acknowledged" });
+    const headlineWords = saved.title.trim().split(/\s+/).length;
+    if (headlineWords > 8) console.warn(`[card] headline ran to ${headlineWords} words: "${saved.title}"`);
     recordGate(groupId, {
       stage: "review", verdict: "spoken", kind: saved.kind, title: saved.title,
       reason: `confidence ${ins.confidence}`, insightId: saved.id,
@@ -825,7 +837,7 @@ Tasks:
 1. Surface NEW insights only where there is real signal. Allowed kinds:
    - convergence: two members arrived at the same finding from different angles — name both
    - opportunity: something the group's existing research is pointing toward that nobody has pursued yet
-   - tension: two perspectives worth bringing together to reach a stronger conclusion
+   - tension: two things that cannot both hold, or two perspectives worth bringing together; a booking that clashes with a flight counts as much as two readings of the same evidence
    - pattern: a theme emerging across multiple members' contributions
    - direction: the natural next question the group's collective work is building toward
    - decision: something the group has collectively arrived at, and what led to it
@@ -871,7 +883,7 @@ A first-pass AI has generated candidate insights from the shared data of a group
 Group stats: ${memberNames.length} contributors (${memberNames.join(", ")}), ${itemCount} items total.
 
 Candidate insights:
-${candidates.map((ins, i) => `[${i}] (${ins.kind}) "${ins.title}": ${ins.body}`).join("\n")}
+${candidates.map((ins, i) => `[${i}] (${ins.kind}) headline [${ins.title.trim().split(/\s+/).length} words]: "${ins.title}"\n    body: ${ins.body}`).join("\n")}
 
 For each candidate, evaluate:
 - confidence: "high" (3+ independent data points), "medium" (2 points), or "low" (1 point or inferred)
@@ -880,7 +892,7 @@ For each candidate, evaluate:
 - missing_voice: name of a contributor whose existing work would strengthen this reader's, or null
 - keep: false if the insight is too speculative, too thin, or not yet ready to surface — otherwise true
 - drop_reason: when keep is false, one short sentence naming why (too thin, single-source, already known, speculative). null when keep is true.
-- revised_title: a sharper version of the title if the original is vague, buries the finding, or understates the evidence — otherwise null. Must be under 12 words.
+- revised_title: the card's headline, and the first thing anyone reads. Each candidate above shows its current word count. Any headline over EIGHT words REQUIRES a revised_title of eight or fewer; returning null for one of those is a failure. Also rewrite when it reads as a label rather than the finding, or buries what was found. Shorter is better. Cut ruthlessly: drop qualifiers and detail, keep the thing that happened. The body carries the specifics. Before you return a revised_title, count its words yourself. If it is nine or more, cut it again.
 - revised_body: a revised body if you can materially improve clarity or precision, or fold in another member's actual finding so the reader inherits it directly rather than being pointed to it — otherwise null. Four things always require a revision. A body running past three sentences or roughly 50 words, which you cut back. Any sentence telling the reader to consult, review or clarify something, which you delete outright; a finding that only survives by pointing somewhere is not a finding. A body that names a conflict and stops, which you finish by saying what it means for the reader or which choice it leaves them; ending on the problem is the most common way these fail. And business abstraction, which you translate: "making parallel execution infeasible" becomes "so both cannot happen at once", "the budget allocates 40 percent to paid acquisition" becomes "the plan puts 9,000 dollars into ads first". Plain words, verbs over nouns, one name per contributor throughout.
 
 Only revise when you can genuinely improve the text. Null means the original is good enough.
@@ -964,7 +976,7 @@ Tasks:
 1. Surface NEW insights only where there is real signal. Allowed kinds:
    - convergence: two members arrived at the same finding from different angles — name both
    - opportunity: something the group's existing research is pointing toward that nobody has pursued yet
-   - tension: two perspectives worth bringing together to reach a stronger conclusion
+   - tension: two things that cannot both hold, or two perspectives worth bringing together; a booking that clashes with a flight counts as much as two readings of the same evidence
    - pattern: a theme emerging across multiple members' contributions
    - direction: the natural next question the group's collective work is building toward
    - decision: something the group has collectively arrived at, and what led to it
