@@ -50,6 +50,14 @@ import {
   listGateRecords,
   getGroupMemoryRaw,
   renameContributor,
+  getInsight,
+  recordWisdomFeedback,
+  withdrawWisdomFeedback,
+  getFeedbackBySourceEvent,
+  listWisdomFeedback,
+  feedbackSummary,
+  VERDICTS,
+  type WisdomVerdict,
   type Item,
   type Group,
   type User,
@@ -368,6 +376,79 @@ function readWisdom(req: any, res: any) {
 
 apiv1.get("/projects/:id/wisdom", readWisdom);
 apiv1.get("/projects/:id/insights", readWisdom);   // legacy name, still answered
+
+// ── Wisdom feedback ───────────────────────────────────────────────────────────
+// Verdicts on findings. Never rendered back into a channel: reactions are
+// public in the relay, but what we conclude from them is ours.
+
+/** Record a verdict. Authorised by a key that can reach the finding's project. */
+apiv1.post("/wisdom/:id/feedback", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+
+  const found = getInsight(req.params.id);
+  if (!found) return res.status(404).json({ error: "Wisdom not found." });
+
+  // Reuse the project check by resolving against the finding's own project, so
+  // one account can never leave feedback on another's wisdom.
+  const g = resolveProject({ ...req, params: { id: found.group_id } }, a);
+  if (!g) return res.status(404).json({ error: "Wisdom not found." });
+
+  const verdict = String(req.body?.verdict ?? "").toLowerCase() as WisdomVerdict;
+  if (!VERDICTS.includes(verdict)) {
+    return res.status(400).json({ error: `verdict must be one of: ${VERDICTS.join(", ")}` });
+  }
+  const member = String(req.body?.member ?? "").slice(0, 128);
+  const sourceEventId = req.body?.source_event_id ? String(req.body.source_event_id).slice(0, 128) : null;
+
+  recordWisdomFeedback({ groupId: found.group_id, insightId: found.id, member, verdict, sourceEventId });
+  res.status(201).json({ recorded: true, verdict });
+});
+
+/**
+ * Withdraw a verdict, for when someone removes their reaction.
+ *
+ * Ownership is checked, not just authentication. Reaction event ids are public
+ * in the relay, so without this anyone watching it could withdraw verdicts on
+ * another account's wisdom.
+ */
+apiv1.delete("/wisdom/feedback/:sourceEventId", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+
+  const row = getFeedbackBySourceEvent(String(req.params.sourceEventId));
+  if (!row) return res.json({ withdrawn: false });
+  const g = resolveProject({ ...req, params: { id: row.group_id } }, a);
+  if (!g) return res.status(404).json({ error: "Not found." });
+
+  res.json({ withdrawn: withdrawWisdomFeedback(row.source_event_id!) });
+});
+
+/** A project's own verdicts and totals, for the account that owns it. */
+apiv1.get("/projects/:id/feedback", (req, res) => {
+  const a = auth(req);
+  if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
+  const g = resolveProject(req, a);
+  if (!g) return res.status(404).json({ error: "Project not found." });
+  const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? "100"), 10) || 100, 1), 500);
+  res.json({ summary: feedbackSummary(g.id), feedback: listWisdomFeedback(g.id, limit) });
+});
+
+/**
+ * Every account's totals in one place, for whoever runs this service. Gated on
+ * GW_ADMIN_EMAIL: unset, the route does not exist, so there is no ambient
+ * privilege sitting in the code waiting to be reachable. Totals only, never
+ * anyone's wisdom text.
+ */
+apiv1.get("/feedback/summary", (req, res) => {
+  const admin = process.env.GW_ADMIN_EMAIL?.trim().toLowerCase();
+  if (!admin) return res.status(404).json({ error: "Not found." });
+  const a = auth(req);
+  if (!a || a.kind !== "user" || a.user!.email.toLowerCase() !== admin) {
+    return res.status(404).json({ error: "Not found." });   // same answer as unset, so it reveals nothing
+  }
+  res.json({ summary: feedbackSummary() });
+});
 
 // ── Engine transparency ───────────────────────────────────────────────────────
 // Debug surfaces, not part of the public docs. Gate records answer "why did

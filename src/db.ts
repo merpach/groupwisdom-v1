@@ -144,6 +144,17 @@ CREATE TABLE IF NOT EXISTS gate_records (
   insight_id TEXT DEFAULT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS wisdom_feedback (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL REFERENCES groups(id),
+  insight_id TEXT NOT NULL,           -- the finding being judged
+  member TEXT NOT NULL DEFAULT '',    -- who judged it; a Buzz pubkey, already public in the relay
+  verdict TEXT NOT NULL,              -- helpful | wrong | late
+  source_event_id TEXT DEFAULT NULL,  -- the reaction event, so un-reacting can withdraw it
+  withdrawn INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (insight_id, member)          -- one live verdict per person per card; newest wins
+);
 CREATE TABLE IF NOT EXISTS usage_events (
   id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL,
@@ -254,6 +265,7 @@ export function deleteGroup(id: string) {
   db.prepare("DELETE FROM buzz_workspaces WHERE project_id = ?").run(id);
   db.prepare("DELETE FROM group_memory WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM gate_records WHERE group_id = ?").run(id);
+  db.prepare("DELETE FROM wisdom_feedback WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM groups WHERE id = ?").run(id);
 }
 
@@ -396,6 +408,80 @@ export function addGateRecord(groupId: string, rec: {
 export const listGateRecords = (groupId: string, limit = 50) =>
   db.prepare("SELECT * FROM gate_records WHERE group_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?")
     .all(groupId, limit) as GateRecord[];
+
+// ── Wisdom feedback ───────────────────────────────────────────────────────────
+// Verdicts on findings, gathered from reactions in the channel. The reactions
+// themselves are public events in the relay; what we derive from them lives
+// only here and is never posted back into a channel. This is the first signal
+// that tells us whether the engine is any good, as opposed to merely quiet.
+
+export type WisdomVerdict = "helpful" | "wrong" | "late";
+export const VERDICTS: WisdomVerdict[] = ["helpful", "wrong", "late"];
+
+export type FeedbackRow = {
+  id: string; group_id: string; insight_id: string; member: string;
+  verdict: string; source_event_id: string | null; withdrawn: number; created_at: string;
+};
+
+export const getInsight = (id: string) =>
+  db.prepare("SELECT * FROM insights WHERE id = ?").get(id) as Insight | undefined;
+
+/**
+ * Record one person's verdict on one finding. A second reaction from the same
+ * member replaces the first rather than stacking, because someone changing
+ * their mind is one opinion, not two.
+ */
+export function recordWisdomFeedback(a: {
+  groupId: string; insightId: string; member: string; verdict: WisdomVerdict; sourceEventId?: string | null;
+}): void {
+  db.prepare(
+    "INSERT INTO wisdom_feedback (id, group_id, insight_id, member, verdict, source_event_id, withdrawn, created_at) " +
+    "VALUES (?, ?, ?, ?, ?, ?, 0, datetime('now')) " +
+    "ON CONFLICT(insight_id, member) DO UPDATE SET " +
+    "verdict = excluded.verdict, source_event_id = excluded.source_event_id, withdrawn = 0, created_at = datetime('now')"
+  ).run(randomUUID(), a.groupId, a.insightId, a.member, a.verdict, a.sourceEventId ?? null);
+}
+
+/** Which project a recorded verdict belongs to, so a withdrawal can be authorised. */
+export const getFeedbackBySourceEvent = (sourceEventId: string) =>
+  db.prepare("SELECT * FROM wisdom_feedback WHERE source_event_id = ?").get(sourceEventId) as FeedbackRow | undefined;
+
+/** Un-reacting withdraws the verdict. Kept as a row so the change itself is visible. */
+export function withdrawWisdomFeedback(sourceEventId: string): boolean {
+  return Number(db.prepare(
+    "UPDATE wisdom_feedback SET withdrawn = 1 WHERE source_event_id = ? AND withdrawn = 0"
+  ).run(sourceEventId).changes) > 0;
+}
+
+/** One project's verdicts, newest first, with the finding they judged. */
+export const listWisdomFeedback = (groupId: string, limit = 100) =>
+  db.prepare(
+    "SELECT f.*, i.kind, i.title FROM wisdom_feedback f LEFT JOIN insights i ON i.id = f.insight_id " +
+    "WHERE f.group_id = ? ORDER BY f.created_at DESC, f.rowid DESC LIMIT ?"
+  ).all(groupId, limit) as Array<FeedbackRow & { kind: string | null; title: string | null }>;
+
+/**
+ * The numbers that say whether the engine is working: how often it is called
+ * helpful against wrong, broken out by the confidence it claimed. A finding
+ * marked high-confidence and judged wrong is the alarm worth watching.
+ */
+export function feedbackSummary(groupId?: string) {
+  const where = groupId ? "WHERE f.withdrawn = 0 AND f.group_id = ?" : "WHERE f.withdrawn = 0";
+  const args = groupId ? [groupId] : [];
+  const rows = db.prepare(
+    "SELECT f.verdict, COALESCE(i.confidence, 'unknown') AS confidence, COUNT(*) AS n " +
+    "FROM wisdom_feedback f LEFT JOIN insights i ON i.id = f.insight_id " +
+    `${where} GROUP BY f.verdict, confidence`
+  ).all(...args) as Array<{ verdict: string; confidence: string; n: number }>;
+
+  const total = rows.reduce((s, r) => s + r.n, 0);
+  const byVerdict: Record<string, number> = {};
+  for (const r of rows) byVerdict[r.verdict] = (byVerdict[r.verdict] ?? 0) + r.n;
+  const highConfidenceWrong = rows
+    .filter(r => r.verdict === "wrong" && r.confidence === "high")
+    .reduce((s, r) => s + r.n, 0);
+  return { total, byVerdict, highConfidenceWrong, breakdown: rows };
+}
 
 /**
  * Did this project speak within the last N minutes? Two good findings minutes

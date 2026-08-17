@@ -124,6 +124,34 @@ const MAX_CITATIONS = 4;
 // unpredictable moment. Poll several times instead of once, deduped by wisdom id.
 const POLL_SCHEDULE_MS = [5000, 12000, 25000, 45000];
 const PROCESSED_ID_CAP = 500;    // bounded memory of event ids, for restart-safe dedup
+const POSTED_CARD_CAP = 300;     // event id → wisdom id, enough to cover any card still being reacted to
+
+/**
+ * Reaction events. NIP-25 kind 7 is the standard, and Buzz is pre-1.0 with
+ * reaction handling that has already changed once, so anything referencing one
+ * of our cards from an unexpected kind is logged rather than dropped silently.
+ * That way production tells us the truth instead of us guessing it.
+ */
+const REACTION_KINDS = [7];
+const DELETE_KIND = 5;           // NIP-09: how an un-react arrives
+
+/** Emoji to verdict. Anything else is a reaction we simply do not read. */
+const VERDICT_FOR_EMOJI: Record<string, "helpful" | "wrong" | "late"> = {
+  "\u{1F44D}": "helpful",   // 👍
+  "+": "helpful",            // NIP-25 shorthand
+  "\u{1F44E}": "wrong",     // 👎
+  "-": "wrong",
+  "\u{1F550}": "late",      // 🕐
+  "\u{23F0}": "late",       // ⏰
+};
+
+/** Reactions arrive with variation selectors and skin tones; strip them before matching. */
+function verdictForReaction(content: string): "helpful" | "wrong" | "late" | null {
+  const bare = String(content ?? "").trim()
+    .replace(/[\u{FE0F}\u{FE0E}]/gu, "")            // variation selectors
+    .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, "");        // skin tone modifiers
+  return VERDICT_FOR_EMOJI[bare] ?? null;
+}
 
 type Wisdom = {
   id: string; kind: string; title: string; body: string;
@@ -185,6 +213,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   const profileNames = new Map<string, string>();           // pubkey → display name (from kind:0)
   const profileRequested = new Set<string>();               // pubkeys we've already asked about
   const mentionNames = new Map<string, string>();           // pubkey → name learned from an @mention
+  const postedCards = new Map<string, string>();            // our posted event id → the wisdom id it carried
+  const reactionOwners = new Map<string, string>();         // reaction event id → the wisdom it judged
   const mentionedInChannel = new Map<string, Set<string>>();// channel → names people have @mentioned
   const unnamedAuthors = new Map<string, Set<string>>();    // channel → posters we still have no name for
   const seenInsightIds = new Map<string, Set<string>>();    // projectId → wisdom ids already posted to Buzz
@@ -202,7 +232,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   // ── Cursor: so a restart never loses messages posted while we were down ─────
   // Shape: { channels: { <uuid>: <last created_at> }, processed: [<event id>, …],
   //          greeted: [<channel uuid>, …], over_budget_notified: boolean,
-  //          names: { <pubkey>: <name learned from a mention> } }
+  //          names: { <pubkey>: <name learned from a mention> },
+  //          cards: [[<posted event id>, <wisdom id>], …] }
   const cursorPath = cfg.cursorFile ?? DEFAULT_CURSOR_FILE;
   const store = cfg.cursorStore ?? {
     load: () => { try { return readFileSync(cursorPath, "utf8"); } catch { return null; } },
@@ -221,6 +252,9 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     // Learned names must survive a restart: on reconnect we only replay messages
     // since the cursor, so the mention that taught us a name may never be seen again.
     for (const [p, n] of Object.entries(saved.names ?? {})) mentionNames.set(p, String(n));
+    // Which posted event was which finding. Without this a 👍 arrives as a
+    // reaction to an event id we cannot connect to anything.
+    for (const [eventId, wisdomId] of (saved.cards ?? [])) postedCards.set(String(eventId), String(wisdomId));
     const n = Object.keys(cursors).length;
     if (n) log(`resuming from cursor: ${n} channel(s) tracked`);
   } catch { /* first run — no cursor yet */ }
@@ -233,6 +267,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
         channels: cursors, processed: processedIds,
         greeted: [...greeted], over_budget_notified: notifiedOverBudget,
         names: Object.fromEntries(mentionNames),
+        cards: [...postedCards].slice(-POSTED_CARD_CAP),
       }));
     } catch (e) {
       log(`cursor save failed: ${(e as Error).message}`);
@@ -367,6 +402,16 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   // pubkey prefixes ("411dfdb2's checkout metrics") instead of people.
   function subscribeProfiles() {
     send(["REQ", "profiles", { kinds: [0] }]);
+  }
+
+  /**
+   * Reactions and un-reactions. The stock mention-driven harness wakes only on
+   * mentions, which would miss every one of these, so we take the stream.
+   * `since` bounds the replay to this session: verdicts already recorded do not
+   * need re-reading, and the pairing map only covers recent cards anyway.
+   */
+  function subscribeReactions() {
+    send(["REQ", "reactions", { kinds: [...REACTION_KINDS, DELETE_KIND], since: startedAt }]);
   }
 
   /**
@@ -523,6 +568,13 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     }
     const signed = finalizeEvent(tmpl, sk);
     send(["EVENT", signed]);
+    // Remember which event carried which finding. A reaction arrives referencing
+    // the event id, and without this pairing there is nothing to attach it to.
+    postedCards.set(signed.id, wisdom.id);
+    if (postedCards.size > POSTED_CARD_CAP * 2) {
+      for (const k of [...postedCards.keys()].slice(0, postedCards.size - POSTED_CARD_CAP)) postedCards.delete(k);
+    }
+    saveCursor();
     log(`posted ${wisdom.kind} → ${channel.slice(0, 8)}… citing ${sources.length} source(s)`);
   }
 
@@ -623,6 +675,52 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     } catch { /* best effort — never let a usage check break ingestion */ }
   }
 
+  // ── Reactions become verdicts ────────────────────────────────────────────────
+  // The only signal that tells us whether the engine is any good rather than
+  // merely quiet. Nothing here is ever posted back into the channel: the
+  // reaction is already public, what we conclude from it is not.
+
+  async function handleReaction(ev: Event) {
+    // A reaction points at what it judges with `e` tags. Ours is whichever one
+    // we recognise as a card we posted.
+    const targets = ev.tags.filter(t => t[0] === "e" && t[1]).map(t => t[1]!);
+    const cardEventId = targets.find(id => postedCards.has(id));
+    if (!cardEventId) return;                       // a reaction to an ordinary message
+
+    const wisdomId = postedCards.get(cardEventId)!;
+    const verdict = verdictForReaction(ev.content);
+    if (!verdict) return;                           // a 🎉 is not a verdict, and that is fine
+
+    if (cfg.dryRun) { log(`[dry-run] would record ${verdict} on ${wisdomId.slice(0, 8)}…`); return; }
+
+    try {
+      await gwFetch(`/wisdom/${wisdomId}/feedback`, {
+        method: "POST",
+        body: JSON.stringify({ verdict, member: ev.pubkey, source_event_id: ev.id }),
+      });
+      reactionOwners.set(ev.id, wisdomId);
+      log(`feedback: ${verdict} on ${wisdomId.slice(0, 8)}… from ${contributorName(ev.pubkey)}`);
+    } catch (e) {
+      log(`feedback failed for ${wisdomId.slice(0, 8)}…: ${(e as Error).message}`);
+    }
+  }
+
+  /** An un-react is a deletion of the reaction event, which withdraws the verdict. */
+  async function handleReactionDelete(ev: Event) {
+    const removed = ev.tags.filter(t => t[0] === "e" && t[1]).map(t => t[1]!)
+      .filter(id => reactionOwners.has(id));
+    if (!removed.length || cfg.dryRun) return;
+    for (const reactionId of removed) {
+      try {
+        await gwFetch(`/wisdom/feedback/${reactionId}`, { method: "DELETE" });
+        reactionOwners.delete(reactionId);
+        log(`feedback withdrawn (reaction removed)`);
+      } catch (e) {
+        log(`withdraw failed: ${(e as Error).message}`);
+      }
+    }
+  }
+
   function handleFrame(data: WebSocket.RawData) {
     let frame: unknown[];
     try { frame = JSON.parse(data.toString()); } catch { return; }
@@ -662,6 +760,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
       case "EVENT": {
         const ev = frame[2] as Event;
         if (ev.kind === 9) handleMessage(ev).catch(e => log(`handleMessage error: ${e.message}`));
+        else if (REACTION_KINDS.includes(ev.kind)) handleReaction(ev).catch(e => log(`handleReaction error: ${e.message}`));
+        else if (ev.kind === DELETE_KIND) handleReactionDelete(ev).catch(e => log(`handleReactionDelete error: ${e.message}`));
         else if (ev.kind === 44100) {
           const channel = ev.tags.find(t => t[0] === "h")?.[1];
           if (channel) subscribeChannel(channel);
@@ -671,6 +771,11 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
             const name = meta.display_name || meta.name;
             if (name) profileNames.set(ev.pubkey, String(name).slice(0, 40));
           } catch { /* malformed profile — keep the pubkey fallback */ }
+        } else if (ev.tags.some(t => t[0] === "e" && t[1] && postedCards.has(t[1]))) {
+          // Something referenced one of our cards from a kind we do not handle.
+          // Buzz is pre-1.0 and its reaction handling has changed before, so
+          // this is how production tells us the real kind rather than us guessing.
+          log(`unhandled kind ${ev.kind} references one of our cards (content: ${JSON.stringify(String(ev.content ?? "").slice(0, 16))})`);
         } else if (ev.kind === 39000) {
           // Discovery: every channel this identity can see, including ones it created
           // itself (which never get a kind:44100 membership event).
@@ -700,6 +805,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
 
   function subscribeAll() {
     subscribeProfiles();
+    subscribeReactions();
     subscribeMembership();
     discoverChannels();                                       // finds every channel, incl. self-created ones
     for (const c of cfg.channels ?? []) subscribeChannel(c);   // optional explicit override/restriction
