@@ -16,6 +16,7 @@ import {
   type Item, type Insight,
 } from "./db.js";
 import { truncate } from "./text-util.js";
+import { channelScopeEnabled, visibleTo, scopeMemory } from "./channel-scope.js";
 
 const MODEL = process.env.GW_MODEL || "claude-haiku-4-5-20251001"; // set GW_MODEL=claude-fable-5 to upgrade
 const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
@@ -492,33 +493,47 @@ export function cancelPendingAnalysis(groupId: string): void {
 
 /** Queue an incremental Wisdom pass. Debounces 3s so burst adds are batched. */
 export function queueIncrementalAnalysis(groupId: string, item: Item, onComplete?: (insights: Insight[]) => void) {
-  const existing = pendingAnalysis.get(groupId);
+  // Batched per channel, not per project. Two channels talking inside the same
+  // three seconds used to merge into one scan, and a scan that spans channels
+  // cannot produce a finding that is safe to post in either of them.
+  const channel = item.channel ?? null;
+  const key = channelScopeEnabled() ? `${groupId}::${channel ?? ""}` : groupId;
+  const existing = pendingAnalysis.get(key);
   if (existing) {
     clearTimeout(existing.timer);
     existing.items.push(item);
   } else {
-    pendingAnalysis.set(groupId, { items: [item], timer: null! });
+    pendingAnalysis.set(key, { items: [item], timer: null! });
   }
-  const pending = pendingAnalysis.get(groupId)!;
+  const pending = pendingAnalysis.get(key)!;
   pending.timer = setTimeout(async () => {
     const items = pending.items;
-    pendingAnalysis.delete(groupId);
+    pendingAnalysis.delete(key);
     const [newInsights] = await Promise.all([
-      runIncrementalWisdom(groupId, items).catch(err => { console.error("[wisdom]", err.message); return [] as Insight[]; }),
+      runIncrementalWisdom(groupId, items, channel).catch(err => { console.error("[wisdom]", err.message); return [] as Insight[]; }),
       checkContextOverlapForWisdom(groupId, items).catch(err => console.error("[overlap]", err.message)),
     ]);
     onComplete?.(newInsights ?? []);
   }, 3000);
 }
 
-async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<Insight[]> {
+async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChannel: string | null = null): Promise<Insight[]> {
   const group = getGroup(groupId);
   if (!group) return [];
-  const existing = listInsights(groupId);
-  const allWithMembers = listItemsWithMembers(groupId);
+  // What this scan is allowed to see. A card lands in one channel, so it must be
+  // built only from what that channel can see: everything below is filtered
+  // before a single token reaches a model. `visibleTo` keeps untagged content in
+  // scope, so a project fed only through the API is unaffected. Scoping applies
+  // only when we know which channel we are drawing for.
+  const scoping = channelScopeEnabled() && !!scanChannel;
+  const allItems = listItemsWithMembers(groupId);
+  const allWithMembers = scoping ? allItems.filter(i => visibleTo(scanChannel, i)) : allItems;
+  const existing = scoping
+    ? listInsights(groupId).filter(i => visibleTo(scanChannel, i))
+    : listInsights(groupId);
 
   // Build a map of member_id → name for new items (they come in as plain Items)
-  const memberNames = new Map(allWithMembers.filter(i => i.member_name).map(i => [i.id, i.member_name!]));
+  const memberNames = new Map(allItems.filter(i => i.member_name).map(i => [i.id, i.member_name!]));
   const newWithNames = newItems.map(i => ({ ...i, member_name: memberNames.get(i.id) ?? null }));
 
   // How much of each item the incremental prompt may see. 120 characters was far
@@ -576,11 +591,24 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
         .catch((err: any) => { console.warn(`[memory] update failed for group ${groupId}: ${err.message}`); return null; })
     : null;
 
+  // Memory keeps learning across the whole community — that is the point of it,
+  // and `update` above is written unscoped. What gets *shown* to the scout and
+  // the editor is narrower: only facts this channel could have seen. Traced
+  // against the unfiltered item list, because telling a fact from another
+  // channel apart from one we simply cannot place needs to know both exist.
+  const visibleMemory = scoping
+    ? scopeMemory(scanMemory, scanChannel, allItems, { strict: false }).memory
+    : scanMemory;
   const memoryText = JSON.stringify({
-    purpose: scanMemory.purpose, facts: scanMemory.facts,
-    decisions: scanMemory.decisions, open_questions: scanMemory.open_questions,
+    purpose: visibleMemory.purpose, facts: visibleMemory.facts,
+    decisions: visibleMemory.decisions, open_questions: visibleMemory.open_questions,
   });
-  const wisdomText = scanMemory.active_wisdom.map(w => `[${w.id}] [${w.kind}] ${w.title}`).join("\n") || "(none)";
+  // Headlines we already spoke, so we do not repeat ourselves — but only the ones
+  // spoken into this channel. Another channel's headline is its own content.
+  const visibleWisdomIds = new Set(existing.map(e => e.id));
+  const wisdomText = scanMemory.active_wisdom
+    .filter(w => !scoping || visibleWisdomIds.has(w.id))
+    .map(w => `[${w.id}] [${w.kind}] ${w.title}`).join("\n") || "(none)";
 
   // The batch's items must reach memory on every exit from here on — silence,
   // parse failure and spoken wisdom alike — or they simply never happened as
@@ -704,6 +732,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[]): Promise<
       caveat: ins.caveat ? stripEmDashes(ins.caveat) : undefined,
       do_next: ins.do_next ? stripEmDashes(ins.do_next) : undefined,
       missing_voice: ins.missing_voice ?? undefined,
+      channel: scanChannel,   // drawn for one channel, so only shown back to it
     });
     setInsightStatus(saved.id, "acknowledged"); // auto-accept live insights
     created.push({ ...saved, status: "acknowledged" });

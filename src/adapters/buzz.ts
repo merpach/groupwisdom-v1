@@ -29,6 +29,7 @@ import { makeAuthEvent } from "nostr-tools/nip42";
 import { decode as nip19decode } from "nostr-tools/nip19";
 import { verifyAuthTag, type AuthTag } from "./nip-oa.js";
 import { truncate } from "../text-util.js";
+import { scopeMemory, channelScopeEnabled, type ScopableMemory } from "../channel-scope.js";
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
@@ -134,33 +135,32 @@ export function formatCard(kind: string, title: string, body: string): string {
   return `${markFor(kind)} ${title.trim()}\n${body.trim()}`;
 }
 
-/** Facts and decisions carry the short ids of the messages they came from. */
-type ScopableMemory = {
-  facts?: Array<{ sources?: string[]; [k: string]: any }>;
-  decisions?: Array<{ sources?: string[]; [k: string]: any }>;
-  open_questions?: string[];
-  [k: string]: any;
-};
-
-/** The model writes these ids back to us, so accept "[a1b2c3d4]" or a full uuid. */
-const normalizeSourceId = (s: unknown) =>
-  String(s ?? "").replace(/[^0-9a-f]/gi, "").slice(0, 8).toLowerCase();
+/**
+ * May this card be posted into this channel?
+ *
+ * A finding is drawn for one channel, from only what that channel can see, and
+ * belongs nowhere else. Wisdom carrying no channel is refused too: it was drawn
+ * without that restriction, so it may rest on any channel in the community.
+ * With scoping off, everything is postable and this is the old behaviour.
+ */
+export function postableInChannel(w: { channel?: string | null }, channel: string): boolean {
+  if (!channelScopeEnabled()) return true;
+  return !!w.channel && w.channel === channel;
+}
 
 /**
  * Hold a memory answer to the channel that asked for it.
  *
- * Memory is built per community, not per channel, and that is deliberate: the
- * whole value is noticing that two people in two places are building the same
- * thing. But reciting it back is different from acting on it. If a community
- * has a channel someone is not in, answering "what do you know" with facts
- * drawn from that channel hands them messages they were never sent.
+ * Reciting memory back is not the same as acting on it: answering "what do you
+ * know" in one channel with facts drawn from another hands someone messages
+ * they were never sent. So a fact survives only if it traces to a message this
+ * channel may see, and this caller runs strict, withholding anything it cannot
+ * place at all. A single-channel community has nothing to leak into and is
+ * passed through untouched.
  *
- * So when more than one channel is in play, a fact survives only if it can be
- * traced to a message in *this* channel. Anything we cannot place — a message
- * that arrived through the API, or one ingested before we recorded channels —
- * is left out rather than guessed at, and open questions are dropped entirely
- * because they carry no sources to trace. A single-channel community has
- * nothing to leak into, so it is passed through untouched.
+ * The tracing rule itself lives in channel-scope, shared with the engine so
+ * both sides place a fact the same way. See `visibleTo` there for why strict
+ * is right here and wrong for a scan.
  */
 export function scopeMemoryToChannel(
   mem: ScopableMemory,
@@ -168,23 +168,9 @@ export function scopeMemoryToChannel(
   items: Array<{ id?: string; channel?: string | null }>,
   opts: { multiChannel: boolean },
 ): { memory: ScopableMemory; hidden: number; scoped: boolean } {
-  if (!opts.multiChannel) return { memory: mem, hidden: 0, scoped: false };
-
-  const here = new Set<string>();
-  for (const it of items) {
-    if (it?.channel && it.channel === channel && it.id) here.add(normalizeSourceId(it.id));
-  }
-  const fromHere = (sources?: string[]) =>
-    (sources ?? []).some(s => here.has(normalizeSourceId(s)));
-
-  const facts = (mem.facts ?? []).filter(f => fromHere(f?.sources));
-  const decisions = (mem.decisions ?? []).filter(d => fromHere(d?.sources));
-  const hidden =
-    (mem.facts?.length ?? 0) - facts.length +
-    (mem.decisions?.length ?? 0) - decisions.length +
-    (mem.open_questions?.length ?? 0);
-
-  return { memory: { ...mem, facts, decisions, open_questions: [] }, hidden, scoped: true };
+  if (!opts.multiChannel || !channelScopeEnabled()) return { memory: mem, hidden: 0, scoped: false };
+  const { memory, hidden } = scopeMemory(mem, channel, items, { strict: true });
+  return { memory, hidden, scoped: true };
 }
 
 /**
@@ -237,6 +223,8 @@ function verdictForReaction(content: string): "helpful" | "wrong" | "late" | nul
 type Wisdom = {
   id: string; kind: string; title: string; body: string;
   confidence?: string | null; caveat?: string | null; do_next?: string | null; missing_voice?: string | null;
+  /** The channel this was drawn for. Null means it was not drawn for one. */
+  channel?: string | null;
 };
 
 // ── Key handling ────────────────────────────────────────────────────────────
@@ -298,9 +286,10 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   const reactionOwners = new Map<string, string>();         // reaction event id → the wisdom it judged
   const mentionedInChannel = new Map<string, Set<string>>();// channel → names people have @mentioned
   const unnamedAuthors = new Map<string, Set<string>>();    // channel → posters we still have no name for
-  const seenInsightIds = new Map<string, Set<string>>();    // projectId → wisdom ids already posted to Buzz
+  const seenInsightIds = new Map<string, Set<string>>();    // projectId → wisdom that already existed when we connected
+  const postedByChannel = new Map<string, Set<string>>();   // projectId::channel → wisdom already posted there
   const recentEventIds = new Map<string, string[]>();       // channel → recent nostr event ids (for #e citations)
-  const pollTimers = new Map<string, NodeJS.Timeout[]>();   // projectId → pending poll timers
+  const pollTimers = new Map<string, NodeJS.Timeout[]>();   // projectId::channel → pending poll timers
   const watched = new Set<string>();
 
   let ws: WebSocket | null = null;
@@ -663,25 +652,32 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
 
   // ── Step 3 (delayed): poll the real API for wisdom that resulted from recent ingests ──
   function schedulePoll(projectId: string, triggerEventId: string, channel: string) {
-    // Restart the sequence on each new message — wisdom is deduped by id, so
-    // overlapping polls are harmless, and several attempts mean slow engine runs
-    // still get delivered rather than silently dropped.
-    for (const t of pollTimers.get(projectId) ?? []) clearTimeout(t);
+    // Per channel, not per project. Both of these used to be keyed by project,
+    // which meant a message in one channel cancelled another channel's pending
+    // poll and then claimed its card — posting it into the wrong room.
+    const key = `${projectId}::${channel}`;
+    // Restart the sequence on each new message in this channel — wisdom is deduped
+    // by id, so overlapping polls are harmless, and several attempts mean slow
+    // engine runs still get delivered rather than silently dropped.
+    for (const t of pollTimers.get(key) ?? []) clearTimeout(t);
 
     const pollOnce = async () => {
       try {
         const res = await gwFetch(`/projects/${projectId}/insights?format=full&limit=20`);
-        const seen = seenInsightIds.get(projectId) ?? new Set<string>();
-        const fresh: Wisdom[] = (res.data ?? []).filter((w: Wisdom) => !seen.has(w.id));
-        if (fresh.length) log(`API returned ${fresh.length} new wisdom for ${projectId.slice(0, 8)}…`);
-        for (const w of fresh) { seen.add(w.id); postWisdom(channel, w, triggerEventId); }
-        seenInsightIds.set(projectId, seen);
+        const preexisting = seenInsightIds.get(projectId) ?? new Set<string>();
+        const posted = postedByChannel.get(key) ?? new Set<string>();
+        const fresh: Wisdom[] = (res.data ?? [])
+          .filter((w: Wisdom) => !preexisting.has(w.id) && !posted.has(w.id))
+          .filter((w: Wisdom) => postableInChannel(w, channel));
+        if (fresh.length) log(`API returned ${fresh.length} new wisdom for ${channelNames.get(channel) ?? channel.slice(0, 8)}`);
+        for (const w of fresh) { posted.add(w.id); postWisdom(channel, w, triggerEventId); }
+        postedByChannel.set(key, posted);
       } catch (e) {
         log(`poll error: ${(e as Error).message}`);
       }
     };
 
-    pollTimers.set(projectId, POLL_SCHEDULE_MS.map(ms => setTimeout(pollOnce, ms)));
+    pollTimers.set(key, POLL_SCHEDULE_MS.map(ms => setTimeout(pollOnce, ms)));
   }
 
   // ── Steps 1 & 2: map an incoming Buzz message to a real GroupWisdom ingest call ──

@@ -189,6 +189,9 @@ try { db.exec("ALTER TABLE usage_events ADD COLUMN user_id TEXT DEFAULT NULL"); 
 // that asked, instead of reciting facts drawn from a channel the asker is not in.
 try { db.exec("ALTER TABLE items ADD COLUMN channel TEXT DEFAULT NULL"); } catch { /* already exists */ }
 try { db.exec("CREATE INDEX IF NOT EXISTS idx_items_group_channel ON items(group_id, channel)"); } catch { /* fine */ }
+// The channel a finding was drawn for, so a later scan for a different channel
+// is not shown its headline as "already said".
+try { db.exec("ALTER TABLE insights ADD COLUMN channel TEXT DEFAULT NULL"); } catch { /* already exists */ }
 
 export type User = { id: string; email: string; password_hash: string; name: string; api_key: string; created_at: string };
 export type Group = { id: string; name: string; api_key: string; created_at: string };
@@ -203,6 +206,8 @@ export type Insight = {
   id: string; group_id: string; kind: string; title: string; body: string;
   status: string; created_at: string;
   confidence: string | null; caveat: string | null; do_next: string | null; missing_voice: string | null;
+  /** Channel this was drawn for, or null when it spans the whole project. */
+  channel: string | null;
 };
 export type Connector = {
   id: string; group_id: string; name: string; access: string; status: string;
@@ -346,13 +351,14 @@ export const searchItems = (groupId: string, q: string) => {
 
 export function addInsight(
   groupId: string, kind: string, title: string, body: string,
-  meta?: { confidence?: string; caveat?: string; do_next?: string; missing_voice?: string },
+  meta?: { confidence?: string; caveat?: string; do_next?: string; missing_voice?: string; channel?: string | null },
 ): Insight {
   const id = randomUUID();
   db.prepare(
-    "INSERT INTO insights (id, group_id, kind, title, body, confidence, caveat, do_next, missing_voice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO insights (id, group_id, kind, title, body, confidence, caveat, do_next, missing_voice, channel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   ).run(id, groupId, kind, title, body,
-    meta?.confidence ?? null, meta?.caveat ?? null, meta?.do_next ?? null, meta?.missing_voice ?? null);
+    meta?.confidence ?? null, meta?.caveat ?? null, meta?.do_next ?? null, meta?.missing_voice ?? null,
+    meta?.channel ?? null);
   return db.prepare("SELECT * FROM insights WHERE id = ?").get(id) as Insight;
 }
 export const listInsights = (groupId: string, kind?: string) =>

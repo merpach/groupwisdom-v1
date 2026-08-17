@@ -110,7 +110,7 @@ function getUserId(authResult: AuthResult): string | null {
 // ── Wisdom views ──────────────────────────────────────────────────────────────
 
 function wisdomSimple(w: any) { return { id: w.id, title: w.title, body: w.body }; }
-function wisdomFull(w: any) { return { id: w.id, kind: w.kind, title: w.title, body: w.body, status: w.status, created_at: w.created_at, confidence: w.confidence ?? null, caveat: w.caveat ?? null, do_next: w.do_next ?? null, missing_voice: w.missing_voice ?? null }; }
+function wisdomFull(w: any) { return { id: w.id, kind: w.kind, title: w.title, body: w.body, status: w.status, created_at: w.created_at, confidence: w.confidence ?? null, caveat: w.caveat ?? null, do_next: w.do_next ?? null, missing_voice: w.missing_voice ?? null, channel: w.channel ?? null }; }
 
 // ── Webhook ───────────────────────────────────────────────────────────────────
 
