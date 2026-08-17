@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms of Service · GroupWisdom</title>
+<meta name="description" content="The terms you agree to when using GroupWisdom, including what the service does not promise and the limits of our liability.">
+<style>
+  :root {
+    --ink: #101113; --ink-2: #4a4e55; --ink-3: #8a9099;
+    --rule: #e6e8ea; --rule-2: #f1f3f4; --paper: #fff; --panel: #f6f7f8;
+    --accent: #1b4fff; --warn: #9c3128;
+    --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: "SF Mono", "Fira Mono", ui-monospace, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--sans); font-size: 15px; line-height: 1.7; color: var(--ink-2);
+         background: var(--paper); -webkit-font-smoothing: antialiased; }
+  a { color: var(--ink); }
+  .nav-wrap { border-bottom: 1px solid var(--rule); margin-bottom: 48px; }
+  .nav { max-width: 760px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; gap: 20px; height: 62px; }
+  .brand { font-size: 15px; font-weight: 700; letter-spacing: -.2px; text-decoration: none; margin-right: auto; color: var(--ink); }
+  .brand .for { color: var(--ink-3); font-weight: 400; }
+  .nav a.link { font-size: 13.5px; color: var(--ink-2); text-decoration: none; }
+  .shell { max-width: 760px; margin: 0 auto; padding: 0 24px 120px; }
+  .eyebrow { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em;
+             color: var(--ink-3); display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .eyebrow::after { content: ""; height: 1px; width: 30px; background: var(--accent); opacity: .55; }
+  h1 { font-family: var(--display); font-size: 40px; font-weight: 600; line-height: 1.1;
+       letter-spacing: -.02em; margin-bottom: 10px; color: var(--ink); }
+  h2 { font-family: var(--display); font-size: 23px; font-weight: 600; margin: 44px 0 12px;
+       padding-top: 36px; border-top: 1px solid var(--rule); color: var(--ink); }
+  h3 { font-size: 15px; font-weight: 700; margin: 22px 0 6px; color: var(--ink); }
+  p { margin-bottom: 12px; }
+  ul { margin: 0 0 14px 20px; }
+  li { margin-bottom: 7px; }
+  .updated { color: var(--ink-3); font-size: 13.5px; margin-bottom: 6px; }
+  .lede { font-size: 17px; line-height: 1.65; margin-bottom: 8px; }
+  .box { border: 1px solid var(--rule); background: var(--panel); border-radius: 9px; padding: 16px 18px; margin: 16px 0; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.warn { border-color: #f0d6d2; background: #fdf4f3; }
+  .box.warn p, .box.warn li { color: var(--warn); }
+  .caps { font-weight: 600; color: var(--ink); }
+  .fill { background: #fff5e0; border-bottom: 1px solid #e0c060; padding: 0 3px; font-family: var(--mono); font-size: 13px; }
+  footer { border-top: 1px solid var(--rule); margin-top: 56px; padding-top: 22px; font-size: 13.5px; color: var(--ink-3); }
+  footer a { color: var(--ink-2); text-decoration: none; margin-right: 18px; }
+  @media (max-width: 620px) { h1 { font-size: 31px; } }
+</style>
+</head>
+<body>
+
+<div class="nav-wrap">
+  <div class="nav">
+    <a class="brand" href="/">GroupWisdom <span class="for">for Buzz</span></a>
+    <a class="link" href="/privacy">Privacy</a>
+    <a class="link" href="/docs">API</a>
+  </div>
+</div>
+
+<div class="shell">
+  <div class="eyebrow">Legal</div>
+  <h1>Terms of Service</h1>
+  <p class="updated">Last updated 16 August 2026</p>
+  <p class="lede">These terms are the agreement between you and us for using GroupWisdom. Using the service means you accept them. If you do not accept them, do not use it.</p>
+
+  <div class="box">
+    <p><strong>Who you are agreeing with.</strong> GroupWisdom is operated by <span class="fill">[LEGAL ENTITY NAME]</span> of <span class="fill">[REGISTERED ADDRESS]</span> ("we", "us"). Contact: <span class="fill">[support@yourdomain]</span>.</p>
+  </div>
+
+  <h2>1. What the service is</h2>
+  <p>GroupWisdom reads what a group has shared, through our API or a connected Buzz community, and returns machine-generated findings we call wisdom. It is a software tool that produces suggestions from text. It is not a person, an adviser, or a decision-maker.</p>
+
+  <h2>2. Eligibility and accounts</h2>
+  <ul>
+    <li>You must be at least 16 and able to enter a contract. If you use it for an organisation, you confirm you may bind that organisation.</li>
+    <li>Give accurate account information and keep it current.</li>
+    <li>You are responsible for everything done with your account and your API keys, including by anyone you give them to.</li>
+    <li>Keep your API key secret. If it leaks, replace it immediately from your account page. We are not responsible for activity or charges arising from a key you exposed.</li>
+  </ul>
+
+  <h2>3. Your responsibility for what you connect</h2>
+  <div class="box warn">
+    <p><strong>This is the most important obligation in these terms.</strong> Connecting a community sends other people's messages to us and to our model provider. Those people are not our customers and may have no idea it is happening.</p>
+  </div>
+  <p>By connecting a community, or by sending content through the API, you represent and warrant that:</p>
+  <ul>
+    <li>You have the authority to do so, including from whoever owns or administers that community.</li>
+    <li>You have given any notice and obtained any consent that the law where those people live requires.</li>
+    <li>You have the right to let us and our providers process that content for the purposes described in our <a href="/privacy">Privacy Policy</a>.</li>
+    <li>You will not connect channels carrying content whose members would not reasonably expect it to be processed by an outside service.</li>
+  </ul>
+  <p>You are the controller of that content. We process it on your instructions. If someone raises a claim about content you connected, section 9 applies.</p>
+
+  <h2>4. Acceptable use</h2>
+  <p>Do not use GroupWisdom to:</p>
+  <ul>
+    <li>Break the law, infringe anyone's rights, or violate anyone's privacy.</li>
+    <li>Send content you have no right to send.</li>
+    <li>Send special category data such as health, biometric, financial account or government identifier information.</li>
+    <li>Attack, overload, probe or reverse engineer the service, or work around usage limits, rate limits or access controls.</li>
+    <li>Resell or white-label the service without our written agreement.</li>
+    <li>Use output to make decisions with legal or similarly significant effects on a person, including employment, credit, housing, insurance, education or law enforcement decisions.</li>
+  </ul>
+  <p>We may suspend or terminate access that breaches this section, without notice where the risk warrants it.</p>
+
+  <h2>5. Wisdom is generated by a model, and can be wrong</h2>
+  <div class="box warn">
+    <p class="caps">READ THIS BEFORE ACTING ON ANYTHING THE SERVICE SAYS.</p>
+    <p>Wisdom is produced by an AI model. It can be <strong>inaccurate, incomplete, out of date, misattributed, or simply wrong</strong>. It may state something with confidence that is false. It may attribute a finding, a number or an opinion to the wrong person. It may miss what mattered most, and it stays silent far more often than it speaks.</p>
+    <p>It is <strong>not</strong> professional advice of any kind: not legal, financial, medical, tax, employment or safety advice. Verify anything before you rely on it, especially anything attributed to a named person and any number.</p>
+    <p><strong>You are solely responsible for any decision you or your group make, whether or not it was influenced by output from this service.</strong></p>
+  </div>
+
+  <h2>6. Availability, changes and early-stage status</h2>
+  <p>GroupWisdom is early-stage software offered without any uptime commitment. We may change, suspend, limit or discontinue any part of it, including free usage allowances, at any time. We may impose or adjust limits on analysis volume and spend. Features may break, behaviour may change between releases, and we may stop the service entirely on reasonable notice.</p>
+  <p>You are responsible for keeping your own copies of anything you would not want to lose. Do not use this service as your only record of anything important.</p>
+
+  <h2>7. Third-party services</h2>
+  <p>The service depends on others, including our model, hosting and authentication providers, and on the Buzz relay operator for any community you connect. We do not control them and are not responsible for their acts, omissions, outages, pricing, terms or security. Your use of Buzz is governed by whatever terms apply between you and its operator.</p>
+
+  <h2>8. No warranties</h2>
+  <div class="box warn">
+    <p class="caps">THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITH ALL FAULTS AND WITHOUT WARRANTY OF ANY KIND.</p>
+    <p>To the fullest extent permitted by law, we disclaim all warranties, express, implied or statutory, including any implied warranty of merchantability, fitness for a particular purpose, title, non-infringement, and any warranty arising from course of dealing or usage of trade.</p>
+    <p>We do not warrant that the service will be uninterrupted, timely, secure or error free, that any defect will be corrected, or that output will be accurate, complete, useful or suitable for any purpose.</p>
+  </div>
+  <p>Some jurisdictions do not allow the exclusion of certain warranties, so parts of this section may not apply to you. Nothing here limits rights that cannot lawfully be limited.</p>
+
+  <h2>9. Limitation of liability</h2>
+  <div class="box warn">
+    <p class="caps">TO THE FULLEST EXTENT PERMITTED BY LAW, WE WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE, BUSINESS, GOODWILL, DATA OR ANTICIPATED SAVINGS, EVEN IF WE HAVE BEEN ADVISED THAT SUCH LOSS WAS POSSIBLE.</p>
+    <p>This applies to any claim arising out of or relating to the service, including claims based on:</p>
+    <ul>
+      <li>Output that was inaccurate, incomplete, misattributed or acted upon.</li>
+      <li>Any decision made by you, your group, or anyone else.</li>
+      <li>Loss, corruption or deletion of content, including under our retention policy.</li>
+      <li>Downtime, delay, silence when you expected output, or unwanted output.</li>
+      <li>Unauthorised access to content, or the acts of any third-party provider.</li>
+    </ul>
+    <p class="caps">OUR TOTAL AGGREGATE LIABILITY FOR ALL CLAIMS IN ANY 12-MONTH PERIOD WILL NOT EXCEED THE GREATER OF (A) THE AMOUNT YOU PAID US FOR THE SERVICE IN THAT PERIOD, OR (B) ONE HUNDRED US DOLLARS ($100).</p>
+  </div>
+  <p>These limits apply regardless of the legal theory, whether contract, tort, negligence, strict liability or otherwise, and survive any failure of an essential purpose of a limited remedy. Some jurisdictions do not allow certain limitations, so parts of this section may not apply to you, and nothing here excludes liability for fraud, for death or personal injury caused by negligence, or for anything else that cannot lawfully be excluded.</p>
+
+  <h2>10. Indemnity</h2>
+  <p>You will defend, indemnify and hold us harmless from any claim, demand, loss, liability, cost or expense, including reasonable legal fees, arising out of or relating to: content you sent or connected; your breach of these terms, in particular section 3; your violation of any law or of anyone's rights; or any decision made using output from the service.</p>
+
+  <h2>11. Your content and ours</h2>
+  <p>You keep all rights in the content you send. You grant us a limited, worldwide, non-exclusive, royalty-free licence to host, process, transmit and display that content, and to create derived summaries and wisdom from it, solely to provide and secure the service. That licence ends when the content is deleted, except for copies retained in backups until they age out.</p>
+  <p>We do not use your content to train models. We keep all rights in the service, its software, and its documentation.</p>
+
+  <h2>12. Fees</h2>
+  <p>The service is currently offered without charge, subject to usage limits we may set or change. Nothing here obliges us to keep it free. If we introduce fees, we will give notice and you may stop using it.</p>
+
+  <h2>13. Suspension and termination</h2>
+  <p>You may stop at any time by disconnecting your communities and asking us to delete your account. We may suspend or terminate access at any time, with or without notice, including for breach of these terms, risk to the service or others, or because we discontinue the service. On termination your right to use it ends, and sections 3, 5, 8, 9, 10, 11 and 15 survive.</p>
+
+  <h2>14. Changes to these terms</h2>
+  <p>We may update these terms. The date at the top shows the current version, and material changes will be notified through the service or by email. Continuing to use GroupWisdom after a change means you accept it.</p>
+
+  <h2>15. Governing law and disputes</h2>
+  <p>These terms are governed by the laws of <span class="fill">[STATE / COUNTRY]</span>, without regard to conflict of law rules. The courts of <span class="fill">[JURISDICTION]</span> have exclusive jurisdiction, and you and we consent to that venue. Any claim must be brought within one year of the events giving rise to it, to the extent the law allows.</p>
+
+  <h2>16. General</h2>
+  <p>If any provision is held unenforceable, the rest stays in force and that provision is limited to the minimum extent necessary. Our failure to enforce something is not a waiver. You may not assign these terms without our consent; we may assign them to a successor. These terms and the <a href="/privacy">Privacy Policy</a> are the entire agreement between us about the service.</p>
+
+  <footer>
+    <a href="/">Home</a><a href="/privacy">Privacy Policy</a><a href="/docs">API reference</a>
+  </footer>
+</div>
+</body>
+</html>

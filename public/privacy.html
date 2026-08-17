@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy · GroupWisdom</title>
+<meta name="description" content="What GroupWisdom collects, how long it is kept, who processes it, and how to have it deleted.">
+<style>
+  :root {
+    --ink: #101113; --ink-2: #4a4e55; --ink-3: #8a9099;
+    --rule: #e6e8ea; --rule-2: #f1f3f4; --paper: #fff; --panel: #f6f7f8;
+    --accent: #1b4fff; --warn: #9c3128;
+    --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: "SF Mono", "Fira Mono", ui-monospace, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--sans); font-size: 15px; line-height: 1.7; color: var(--ink-2);
+         background: var(--paper); -webkit-font-smoothing: antialiased; }
+  a { color: var(--ink); }
+  .nav-wrap { border-bottom: 1px solid var(--rule); margin-bottom: 48px; }
+  .nav { max-width: 760px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; gap: 20px; height: 62px; }
+  .brand { font-size: 15px; font-weight: 700; letter-spacing: -.2px; text-decoration: none; margin-right: auto; color: var(--ink); }
+  .brand .for { color: var(--ink-3); font-weight: 400; }
+  .nav a.link { font-size: 13.5px; color: var(--ink-2); text-decoration: none; }
+  .shell { max-width: 760px; margin: 0 auto; padding: 0 24px 120px; }
+  .eyebrow { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em;
+             color: var(--ink-3); display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .eyebrow::after { content: ""; height: 1px; width: 30px; background: var(--accent); opacity: .55; }
+  h1 { font-family: var(--display); font-size: 40px; font-weight: 600; line-height: 1.1;
+       letter-spacing: -.02em; margin-bottom: 10px; color: var(--ink); }
+  h2 { font-family: var(--display); font-size: 23px; font-weight: 600; margin: 44px 0 12px;
+       padding-top: 36px; border-top: 1px solid var(--rule); color: var(--ink); }
+  h3 { font-size: 15px; font-weight: 700; margin: 22px 0 6px; color: var(--ink); }
+  p { margin-bottom: 12px; }
+  ul { margin: 0 0 14px 20px; }
+  li { margin-bottom: 7px; }
+  .updated { color: var(--ink-3); font-size: 13.5px; margin-bottom: 6px; }
+  .lede { font-size: 17px; line-height: 1.65; color: var(--ink-2); margin-bottom: 8px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 18px; font-size: 14px; }
+  th { text-align: left; font-weight: 700; color: var(--ink); border-bottom: 1px solid var(--rule); padding: 9px 12px 9px 0; }
+  td { border-bottom: 1px solid var(--rule-2); padding: 10px 12px 10px 0; vertical-align: top; }
+  .box { border: 1px solid var(--rule); background: var(--panel); border-radius: 9px; padding: 16px 18px; margin: 16px 0; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.warn { border-color: #f0d6d2; background: #fdf4f3; }
+  .box.warn p { color: var(--warn); }
+  .fill { background: #fff5e0; border-bottom: 1px solid #e0c060; padding: 0 3px; font-family: var(--mono); font-size: 13px; }
+  footer { border-top: 1px solid var(--rule); margin-top: 56px; padding-top: 22px; font-size: 13.5px; color: var(--ink-3); }
+  footer a { color: var(--ink-2); text-decoration: none; margin-right: 18px; }
+  @media (max-width: 620px) { h1 { font-size: 31px; } }
+</style>
+</head>
+<body>
+
+<div class="nav-wrap">
+  <div class="nav">
+    <a class="brand" href="/">GroupWisdom <span class="for">for Buzz</span></a>
+    <a class="link" href="/terms">Terms</a>
+    <a class="link" href="/docs">API</a>
+  </div>
+</div>
+
+<div class="shell">
+  <div class="eyebrow">Legal</div>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated 16 August 2026</p>
+  <p class="lede">This describes what GroupWisdom collects, how long it is kept, who else processes it, and how to have it removed. It is written to match what the software actually does.</p>
+
+  <div class="box">
+    <p><strong>Who we are.</strong> GroupWisdom is operated by <span class="fill">[LEGAL ENTITY NAME]</span> of <span class="fill">[REGISTERED ADDRESS]</span>. For anything in this policy, write to <span class="fill">[privacy@yourdomain]</span>.</p>
+  </div>
+
+  <h2>1. What we collect</h2>
+
+  <h3>Account information</h3>
+  <p>Your name, email address, and a password. If you sign in with Google, we receive your name and verified email address from that sign-in and never see your Google password. Passwords for accounts created with email are stored only as a one-way hash, or held by our authentication provider, and are never readable by us.</p>
+
+  <h3>Content you or your community send</h3>
+  <ul>
+    <li><strong>Through the API.</strong> Whatever you send to the ingest endpoint: text, titles, links, and the contributor name you attach to each item.</li>
+    <li><strong>Through a connected Buzz community.</strong> The messages posted in the channels you select. This includes messages written by other members of that community and by any agents operating in it.</li>
+  </ul>
+  <p>We do not read direct messages, and we do not read any channel you have not selected. Unticking a channel stops it being read immediately.</p>
+
+  <h3>What we derive from it</h3>
+  <p>The engine keeps a compact summary of what a project knows, called its memory, along with the wisdom it has surfaced and a record of why it stayed silent. These are generated from your content and are treated the same way as it.</p>
+
+  <h3>Technical information</h3>
+  <p>Ordinary server logs: timestamps, request paths, status codes, response sizes, IP address, and identifiers such as a project id. <strong>Message content is deliberately kept out of our logs.</strong></p>
+
+  <h3>What we do not collect</h3>
+  <ul>
+    <li>No analytics, advertising, or third-party tracking scripts of any kind. The site sets one cookie, described in section 6.</li>
+    <li>No payment details. We do not process payments through this service.</li>
+    <li>We do not ask for, and ask you not to send, special category data such as health, biometric, or government identifiers.</li>
+  </ul>
+
+  <h2>2. How we use it</h2>
+  <ul>
+    <li>To run the service: analysing what a group has shared and returning wisdom to it.</li>
+    <li>To operate your account, authenticate you, and enforce usage limits.</li>
+    <li>To keep the service secure, diagnose faults, and prevent abuse.</li>
+    <li>To meet legal obligations.</li>
+  </ul>
+  <p><strong>We do not sell your data, share it for advertising, or use your content to train our own models.</strong></p>
+
+  <h2>3. Who else processes it</h2>
+  <p>Running the service means passing some data to the providers below. Each is bound by its own terms, and we have chosen providers whose terms do not permit training on content submitted through their APIs.</p>
+  <table>
+    <tr><th>Provider</th><th>What reaches them</th><th>Why</th></tr>
+    <tr><td>Anthropic</td><td>Project content and derived memory, at the moment of analysis</td><td>The model that produces wisdom</td></tr>
+    <tr><td>Railway</td><td>Everything, as the hosting platform holding the database</td><td>Hosting and storage</td></tr>
+    <tr><td>Supabase</td><td>Email address and authentication data</td><td>Sign-in, password reset</td></tr>
+    <tr><td>Google</td><td>Name and verified email, only if you use Google sign-in</td><td>Optional sign-in</td></tr>
+    <tr><td>Buzz relay operator</td><td>Nothing new from us; your messages already live there</td><td>The community you connect</td></tr>
+  </table>
+  <p>An alternative analysis engine from another model provider can be enabled on a project by request. It is off by default. If you enable it, that project's content is processed by that provider under their terms instead, and we will tell you who they are before switching it on.</p>
+  <p>These providers operate in the United States and elsewhere, so your information may be processed outside your country.</p>
+
+  <h2>4. How it is protected</h2>
+  <ul>
+    <li><strong>Encrypted at rest.</strong> Message content, derived memory, knowledge documents and summaries are encrypted with AES-256-GCM before being written to storage.</li>
+    <li><strong>Encrypted in transit.</strong> All connections use TLS.</li>
+    <li><strong>Kept out of logs.</strong> Our logs record identifiers and sizes, never message text.</li>
+    <li><strong>Access control.</strong> Every API request requires a key scoped to your account or a single project.</li>
+  </ul>
+  <div class="box warn">
+    <p>No system is perfectly secure. Encryption at rest protects against exposure of the stored database and its backups. It cannot protect against someone who compromises the running service, and it cannot protect content after it leaves us for a provider listed above.</p>
+  </div>
+
+  <h2>5. How long it is kept</h2>
+  <table>
+    <tr><th>What</th><th>Kept for</th></tr>
+    <tr><td>Raw messages from a connected Buzz community</td><td>30 days, then deleted automatically</td></tr>
+    <tr><td>A project's memory and the wisdom surfaced</td><td>Until you delete the project</td></tr>
+    <tr><td>Records of why the engine spoke or stayed silent</td><td>90 days</td></tr>
+    <tr><td>Items you send through the API</td><td>Until you delete them or the project</td></tr>
+    <tr><td>Account information</td><td>Until your account is deleted</td></tr>
+    <tr><td>Server logs</td><td>As retained by our hosting provider</td></tr>
+  </table>
+  <p>Deleting a project removes its items, memory, wisdom, members and records together.</p>
+
+  <h2>6. Cookies</h2>
+  <p>One cookie, used to keep you signed in. It is httpOnly, so page scripts cannot read it, and it expires after 30 days. There are no advertising, analytics or cross-site cookies, so there is nothing here to consent to or opt out of.</p>
+
+  <h2>7. Your choices and rights</h2>
+  <ul>
+    <li><strong>See what we hold.</strong> Your items, memory and wisdom are readable through the API at any time with your key.</li>
+    <li><strong>Delete a project.</strong> Removes everything belonging to it.</li>
+    <li><strong>Disconnect a community.</strong> Stops all reading immediately. Removing GroupWisdom in Buzz has the same effect.</li>
+    <li><strong>Delete your account.</strong> Write to <span class="fill">[privacy@yourdomain]</span> from your account address and we will delete your account and its data within 30 days.</li>
+  </ul>
+  <p>Depending on where you live, you may also have rights to access, correct, port, or restrict processing of your information, and to complain to a data protection authority. Write to us and we will help.</p>
+
+  <h2>8. If you connect a community</h2>
+  <div class="box">
+    <p>When you connect a Buzz community, messages written by <strong>other people</strong> are sent to us for analysis. Those people are not our customers and may not know this is happening.</p>
+    <p>You are responsible for having the authority to do this and for telling the members of that community. Choose the channels deliberately, and do not connect channels carrying information those members would not expect to be processed by an outside service.</p>
+  </div>
+
+  <h2>9. Children</h2>
+  <p>GroupWisdom is not intended for anyone under 16, and we do not knowingly collect information from them. If you believe a child has provided us information, write to us and we will delete it.</p>
+
+  <h2>10. Changes</h2>
+  <p>We may update this policy as the service changes. The date at the top shows the current version, and we will give notice of material changes through the service or by email.</p>
+
+  <h2>11. Contact</h2>
+  <p>Questions, requests, or complaints: <span class="fill">[privacy@yourdomain]</span>.</p>
+
+  <footer>
+    <a href="/">Home</a><a href="/terms">Terms of Service</a><a href="/docs">API reference</a>
+  </footer>
+</div>
+</body>
+</html>

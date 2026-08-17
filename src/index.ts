@@ -200,6 +200,14 @@ app.get("/account", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "account.html"));
 });
 
+app.get("/privacy", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "privacy.html"));
+});
+
+app.get("/terms", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "terms.html"));
+});
+
 });
 
 app.get("/running", (_req, res) => {

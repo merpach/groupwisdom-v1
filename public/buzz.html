@@ -238,6 +238,7 @@
         <input id="aName" placeholder="Your name" autocomplete="name">
         <input id="aEmail" type="email" placeholder="you@example.com" autocomplete="email">
         <input id="aPass" type="password" placeholder="Password" autocomplete="current-password">
+        <p class="hint" id="legalNote" style="margin:0">By creating an account you agree to the <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</p>
         <div>
           <button class="primary" id="authGo">Create account</button>
           <button id="forgotBtn" style="display:none;border-color:transparent;color:var(--ink-3)">Forgot password?</button>
@@ -312,6 +313,11 @@
     <tr><td>Connected, but no wisdom</td><td>Normal. It needs at least two related messages before there's anything to connect, and it stays quiet rather than padding.</td></tr>
     <tr><td>It read the wrong channels</td><td>Untick them above. It applies immediately.</td></tr>
   </table>
+
+  <p class="sub" style="margin-top:40px;padding-top:20px;border-top:1px solid var(--rule)">
+    <a href="/privacy" style="color:var(--ink-3)">Privacy Policy</a> ·
+    <a href="/terms" style="color:var(--ink-3)">Terms of Service</a>
+  </p>
 </div>
 
 <script>
@@ -347,6 +353,7 @@ function setAuthMode(mode) {
   $("aName").style.display = signup ? "" : "none";
   $("aPass").autocomplete = signup ? "new-password" : "current-password";
   $("authGo").textContent = signup ? "Create account" : "Sign in";
+  $("legalNote").style.display = signup ? "" : "none";
   $("authMsg").className = "msg";
 }
 
