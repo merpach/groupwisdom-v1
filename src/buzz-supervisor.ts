@@ -11,7 +11,7 @@
  *     └── supervisor ──▶ one adapter per connected community
  *                          │
  *                message ──┴──▶ that channel's GroupWisdom project
- *                                        │  two-pass engine
+ *                                        │  wisdom engine  
  *                wisdom ◀─────────────────┘  back into the Buzz chat
  *
  * Why a held connection rather than webhooks: Buzz's hosted relay stores

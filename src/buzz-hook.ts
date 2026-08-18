@@ -6,7 +6,7 @@
  *
  *   Buzz channel ──(workflow: message_posted → call_webhook)──▶ POST /buzz/ingest
  *                                                                     │
- *                                            GroupWisdom two-pass engine
+ *                                            GroupWisdom engine        
  *                                                                     │
  *   Buzz channel ◀──(workflow: webhook → send_message)──── POST {relay}/hooks/{id}
  *

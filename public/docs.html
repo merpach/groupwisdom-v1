@@ -196,6 +196,9 @@
   <a class="nav-link" href="#list-items">List items</a>
   <div class="nav-section">Wisdom</div>
   <a class="nav-link" href="#how-it-works">How the engine works</a>
+  <a class="nav-link" href="#memory">What it has understood</a>
+  <a class="nav-link" href="#gate-records">Why it stayed quiet</a>
+  <a class="nav-link" href="#usage">Usage</a>
   <a class="nav-link" href="#list-wisdom">List wisdom</a>
   <a class="nav-link" href="#trigger-analysis">Trigger analysis</a>
   <a class="nav-link" href="#wisdom-kinds">Wisdom kinds</a>
@@ -217,12 +220,12 @@
   <p style="color:#888;font-size:15px">Send your team's data. Get wisdom back.</p>
 
   <div class="intro-card">
-    <p>POST items to a project → GroupWisdom runs a two-pass analysis (Pass 1 identifies candidates, Pass 2 evaluates and sharpens them) → wisdom is POSTed to your <code>webhook_url</code> and available via GET anytime.</p>
+    <p>POST items to a project → GroupWisdom decides whether there is anything worth saying, and usually there is not → when there is, wisdom is POSTed to your <code>webhook_url</code> and available via GET anytime.</p>
   </div>
 
   <!-- DEMO -->
   <h2 id="demo">Live demo</h2>
-  <p>Pick a scenario and click <strong>Run demo</strong>. Real data goes in via the API, the two-pass engine runs live, and the right panel traces every step of the process.</p>
+  <p>Pick a scenario and click <strong>Run demo</strong>. Real data goes in via the API, the engine runs live, and the right panel traces it.</p>
 
   <div class="scenario-row">
     <button class="scenario-btn active" onclick="setScenario('product', this)">📦 Product team</button>
@@ -241,7 +244,7 @@
       <div class="engine-toggle">
         <span class="engine-toggle-label">Engine</span>
         <div class="engine-toggle-btns">
-          <button class="active" onclick="setDemoEngine('claude')">Claude Haiku</button>
+          <button class="active" onclick="setDemoEngine('claude')">Claude</button>
           <button class="muse" onclick="setDemoEngine('muse-spark')">Muse Spark</button>
         </div>
       </div>
@@ -261,7 +264,7 @@
 
     <!-- Right panel — engine trace -->
     <div class="demo-panel">
-      <div class="demo-panel-hdr dark" id="trace-hdr">TWO-PASS ENGINE</div>
+      <div class="demo-panel-hdr dark" id="trace-hdr">GROUPWISDOM ENGINE</div>
       <div class="demo-panel-body dark" id="demo-terminal" style="min-height:280px;overflow-y:auto">
         <span class="t-empty">Click Run Demo to watch the engine work...</span>
       </div>
@@ -305,7 +308,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
     <tr><td>gw.listItems(projectId)</td><td>List all items in a project.</td></tr>
     <tr><td>gw.listWisdom(projectId, kind?, { format? })</td><td>Get the project's wisdom. Default returns <code>{ id, title, body }</code>. Pass <code>format: "full"</code> to include <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, and <code>missing_voice</code>.</td></tr>
     <tr><td>gw.listInsights(...)</td><td>The former name for <code>listWisdom</code>. Still present and returns identical data, so existing code needs no change.</td></tr>
-    <tr><td>gw.analyze(projectId)</td><td>Trigger a full two-pass analysis immediately, bypassing the automatic debounce. Returns when the request is accepted — analysis runs in the background.</td></tr>
+    <tr><td>gw.analyze(projectId)</td><td>Trigger a full re-analysis of the project immediately, bypassing the automatic debounce. Returns when the request is accepted — analysis runs in the background.</td></tr>
   </table>
   <p>Full TypeScript types are included — your editor will autocomplete every field.</p>
 
@@ -374,7 +377,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <table>
     <tr><th>Field</th><th>Type</th><th>Description</th></tr>
     <tr><td>webhook_url</td><td>string | null</td><td>Set to <code>null</code> to remove the webhook</td></tr>
-    <tr><td>engine</td><td>string</td><td><code>claude</code> (default) or <code>muse-spark</code> — sets which model runs Pass 1 and Pass 2 analysis for this project</td></tr>
+    <tr><td>engine</td><td>string</td><td><code>claude</code> (default) or <code>muse-spark</code> — sets which model runs analysis for this project</td></tr>
   </table>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X PATCH https://groupwisdom.up.railway.app/v1/projects/proj_abc123 \
   -H "Authorization: Bearer gw_yourkey" \
@@ -395,7 +398,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
     <tr><td>url</td><td>string</td><td>Link to source</td></tr>
     <tr><td>type</td><td>string</td><td><code>note</code> · <code>link</code> · <code>file</code> · <code>thought</code> (default: <code>note</code>)</td></tr>
     <tr><td>contributed_by</td><td>string</td><td>Name of the person who contributed this item. The engine uses it to attribute findings by name — so one member's completed work can be handed directly to another (<code>do_next</code>, <code>missing_voice</code>). Highly recommended.</td></tr>
-    <tr><td>channel</td><td>string</td><td>Where this came from: a room, thread, or channel id from your own app (max 100 characters). Analysis still runs across the whole project, since noticing that two rooms are building the same thing is the point. What this adds is that an item can be traced back to where it arrived, so you can answer a question inside one room without reciting the whole project. Optional. Leave it off if everything in the project shares one audience.</td></tr>
+    <tr><td>channel</td><td>string</td><td>Where this came from: a room, thread, or channel id from your own app (max 100 characters). Changes what a finding may be built from — see <a href="#how-it-works">How the engine works</a>. Optional.</td></tr>
   </table>
   <p style="font-size:12px;color:#888">* At least one of <code>title</code>, <code>content</code>, or <code>url</code> is required per item.</p>
 
@@ -458,26 +461,79 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
 
   <!-- How the engine works -->
   <h2 id="how-it-works">How the engine works</h2>
-  <p>GroupWisdom runs a <strong>two-pass analysis</strong> every time new data comes in.</p>
-  <table>
-    <tr><th>Pass</th><th>What happens</th></tr>
-    <tr><td><strong>Pass 1 — Candidate scan</strong></td><td>A fast Haiku model reads all items in the project and identifies candidate findings — patterns, blind spots, connections, and questions that might be worth surfacing.</td></tr>
-    <tr><td><strong>Pass 2 — Metacognitive evaluation</strong></td><td>A second model call reviews every candidate and decides: is this strong enough to surface? It assigns a confidence level, hands over the completed work a member can build on (<code>do_next</code>), notes any caveats, and names whose existing research would strengthen this one (<code>missing_voice</code>). It also rewrites the title and body when it can sharpen vague language or fold in another member's finding so the reader inherits it directly. Weak candidates are suppressed entirely.</td></tr>
-  </table>
-  <p>Only findings that survive both passes are saved. The result is less wisdom, and better, rather than a list of everything the model noticed.</p>
-  <p>Wisdom is generated automatically after every <code>/ingest</code> call. You can also trigger a fresh full analysis on demand — see <a href="#trigger-analysis">Trigger analysis</a>.</p>
+  <p>Analysis runs automatically a few seconds after each <code>/ingest</code>. Most of the time it produces nothing, and that is the intended result.</p>
+
+  <p>Every batch passes through a series of checks before anything is written. The first ones ask whether there is anything here worth thinking about at all: a question to a colleague, a status ping, or a message that restates what the project already knows does not go any further. Only what survives is drafted, and a final review decides whether the draft is strong enough to keep, sharpens the wording, and attaches <code>confidence</code>, <code>do_next</code>, <code>caveat</code> and <code>missing_voice</code>. Weak candidates are dropped rather than softened.</p>
+
+  <p>The practical effect is that the great majority of ingested messages never reach the drafting stage, so they cost a fraction of a full analysis.</p>
+
+  <h3>Cost does not grow with your project</h3>
+  <p>The engine reasons from a compact working memory of what your group has established, not from your accumulated history. That memory is bounded and folded forward as new items arrive, so a scan on a project's five hundredth day costs about what it cost on the first. Adding history makes the findings better without making the analysis more expensive.</p>
+  <p><code>POST /v1/projects/:id/analyze</code> is the exception, and the reason it exists as a separate call: it re-reads the project in full. Use it deliberately rather than on a schedule.</p>
+
+  <h3>Why it stayed quiet</h3>
+  <p>Silence is a decision, and every one is recorded with its reason. If you are wondering why a message you expected to produce something did not, you can read the record rather than guess — see <a href="#gate-records">Why it stayed quiet</a>.</p>
+
+  <h3>What a finding is allowed to draw on</h3>
+  <p>If you send a <code>channel</code> with your items, findings become channel-aware: what the engine says in one place is built only from what that place can see, while its understanding of the project as a whole still spans everything you send. Anything it can trace to a different channel stays there. Leave <code>channel</code> off and the project is treated as one audience, which is the right choice when everyone sees everything.</p>
+
+  <!-- Memory -->
+  <h2 id="memory">What it has understood</h2>
+  <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/memory</span></div>
+  <p>Returns the working memory the engine reasons from: the project's purpose as it understands it, the facts it has established and who contributed them, the decisions it has seen made, and the questions it still considers open. Each fact carries the items it came from.</p>
+  <p>This is the fastest way to answer "is it actually following what we are doing". If a finding looks wrong, this shows you what it was built on. It is also the first place to look when the engine has gone quiet and you expected otherwise.</p>
+  <p><code>memory</code> is <code>null</code> on a project that has not accumulated anything yet.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/memory" \
+  -H "Authorization: Bearer gw_proj_yourkey"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
+  "memory": {
+    "purpose": "Shipping the mobile checkout redesign",
+    "facts": [
+      { "fact": "The redesign tested 22% faster than the current flow", "by": "Sarah", "sources": ["a1b2c3d4"] }
+    ],
+    "decisions": [
+      { "decision": "Ship behind a flag", "sources": ["e5f6a7b8"] }
+    ],
+    "open_questions": ["Who owns the migration for saved cards?"]
+  },
+  "updated_at": "2026-08-17 21:40:11"
+}</pre>
+
+  <!-- Gate records -->
+  <h2 id="gate-records">Why it stayed quiet</h2>
+  <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/gate-records</span></div>
+  <p>The engine says nothing most of the time, on purpose. Every one of those decisions is recorded with the reason for it, so silence is auditable rather than mysterious. Supports <code>?limit</code> (default 50, max 200), newest first.</p>
+  <p><code>verdict</code> is one of <code>silent</code> (nothing was worth saying), <code>suppressed</code> (something was drafted and the review dropped it), <code>spoken</code> (a finding was surfaced, with its <code>insight_id</code>), or <code>error</code>.</p>
+  <p>If your integration seems too quiet, read this before assuming it is broken. Most of the time it will tell you the messages were requests, restatements, or a single person thinking aloud, none of which the engine treats as something to combine.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/gate-records?limit=20" \
+  -H "Authorization: Bearer gw_proj_yourkey"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
+  "records": [
+    { "stage": "scan",   "verdict": "silent",     "reason": "No new contribution: a question to a colleague adds nothing to combine", "created_at": "..." },
+    { "stage": "review", "verdict": "suppressed", "title": "Team is aligned on timing", "reason": "confidence low", "created_at": "..." },
+    { "stage": "review", "verdict": "spoken",     "title": "Paid ads must start before partners commit", "insight_id": "...", "created_at": "..." }
+  ]
+}</pre>
+
+  <!-- Usage -->
+  <h2 id="usage">Usage</h2>
+  <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/usage</span></div>
+  <p>How much of your analysis allowance you have used, across every project on your account. Returns <code>percent_used</code> and <code>limit_reached</code>. When the limit is reached, ingest still accepts your items and the engine stops analysing them until the allowance resets, so nothing is lost.</p>
+  <p class="note">Requires your personal API key. Project keys cannot read account-wide usage.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://groupwisdom.up.railway.app/v1/usage" \
+  -H "Authorization: Bearer gw_yourkey"</pre>
 
   <!-- List insights -->
   <h2 id="list-wisdom">List wisdom</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/wisdom</span></div>
   <p>Returns the wisdom the engine has surfaced, newest first. Supports <code>?limit</code>, <code>?offset</code>, and <code>?kind</code> filters.</p>
   <p class="note"><code>GET /v1/projects/:id/insights</code> is the former name for this endpoint and still works, identically. Nothing you have running needs to change.</p>
-  <p>By default returns a minimal shape — <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include metacognitive fields from Pass 2: <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, and <code>missing_voice</code>.</p>
+  <p>By default returns a minimal shape — <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include the review fields: <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, and <code>missing_voice</code>.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button># Default (minimal)
 curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom" \
   -H "Authorization: Bearer gw_proj_yourkey"
 
-# Full — includes metacognitive fields
+# Full — includes the review fields
 curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom?format=full" \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>// Default response
@@ -514,7 +570,7 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom?format=f
   ...
 }</pre>
 
-  <h3>Metacognitive fields</h3>
+  <h3>Review fields</h3>
   <table>
     <tr><th>Field</th><th>Values</th><th>Description</th></tr>
     <tr><td>confidence</td><td><code>high</code> · <code>medium</code> · <code>low</code></td><td>How strongly the evidence supports this finding. High = 3+ independent data points; medium = 2; low = 1 or inferred.</td></tr>
@@ -528,7 +584,7 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom?format=f
   <!-- Trigger analysis -->
   <h2 id="trigger-analysis">Trigger analysis</h2>
   <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects/:id/analyze</span></div>
-  <p>Triggers a full two-pass analysis immediately, bypassing the automatic debounce timer. Useful when you want fresh wisdom on demand — for example, after a batch ingest or before showing results to a user.</p>
+  <p>Triggers a full re-analysis of the project immediately, bypassing the automatic debounce timer. Useful when you want fresh wisdom on demand — for example, after a batch ingest or before showing results to a user.</p>
   <p>Returns <strong>202 Accepted</strong> immediately. Analysis runs in the background; poll <a href="#list-wisdom">List wisdom</a> or wait for your <a href="#webhook-setup">webhook</a> to receive results.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects/proj_abc123/analyze \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
@@ -603,7 +659,7 @@ app.post("/groupwisdom-hook", express.raw({ type: "application/json" }), (req, r
   <p>Your <code>webhook_secret</code> is returned when you set a <code>webhook_url</code> via PATCH. Store it securely — it is only shown once.</p>
 
   <h2 id="webhook-payload-shape">Payload shape</h2>
-  <p>Webhook payloads include the full wisdom shape — equivalent to <code>?format=full</code> — so you have all metacognitive fields available without a follow-up GET.</p>
+  <p>Webhook payloads include the full wisdom shape, equivalent to <code>?format=full</code>, so you have every review field without a follow-up GET.</p>
   <p><strong>If you built against the old names, nothing has changed for you.</strong> The payload still carries an <code>insights</code> array with identical contents alongside <code>wisdom</code>, and <code>event</code> is still <code>insights.created</code>. Existing receivers keep working untouched; use <code>wisdom</code> for anything new.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>POST https://your-server.com/groupwisdom-hook
 Content-Type: application/json
@@ -829,7 +885,7 @@ function _traceReset() {
   const el = document.getElementById('demo-terminal');
   const hdr = document.getElementById('trace-hdr');
   if (el) el.innerHTML = '<span class="t-empty">Click Run Demo to watch the engine work...</span>';
-  if (hdr) hdr.textContent = 'TWO-PASS ENGINE';
+  if (hdr) hdr.textContent = 'GROUPWISDOM ENGINE';
 }
 
 function _traceAppend(el, html, cls, delay) {
@@ -855,7 +911,7 @@ function _traceStart(items) {
   const hdr = document.getElementById('trace-hdr');
   if (!el) return;
   el.innerHTML = '';
-  if (hdr) hdr.textContent = 'TWO-PASS ENGINE  ·  RUNNING';
+  if (hdr) hdr.textContent = 'GROUPWISDOM ENGINE  ·  RUNNING';
 
   const FAKE_KINDS = ['pattern', 'convergence', 'tension', 'pattern'];
 
@@ -873,10 +929,10 @@ function _traceStart(items) {
     t += 320;
   });
 
-  // Phase 2 — Pass 1
+  // Phase 2 — reading
   t += 500;
-  const engineLabel = activeEngine === 'muse-spark' ? 'Muse Spark' : 'Haiku';
-  _traceAppend(el, `Pass 1  ·  ${engineLabel} scanning ${items.length} items`, 'trace-sep', t); t += 600;
+  const engineLabel = activeEngine === 'muse-spark' ? 'Muse Spark' : 'Claude';
+  _traceAppend(el, `Reading  ·  ${engineLabel}, ${items.length} items`, 'trace-sep', t); t += 600;
   FAKE_KINDS.forEach((kind, i) => {
     const weak = i === FAKE_KINDS.length - 1;
     const kc = KIND_TRACE_C[kind] || '#888';
@@ -886,9 +942,9 @@ function _traceStart(items) {
     t += 320;
   });
 
-  // Phase 3 — Pass 2 (waits for real results)
+  // Phase 3 — review (waits for real results)
   t += 500;
-  _traceAppend(el, `Pass 2  ·  Evaluating ${FAKE_KINDS.length} candidates`, 'trace-sep', t);
+  _traceAppend(el, `Reviewing  ·  ${FAKE_KINDS.length} candidates`, 'trace-sep', t);
   _traceTimers.push(setTimeout(() => {
     if (!document.getElementById('demo-terminal')) return;
     if (_traceResultsReady) {
@@ -910,7 +966,7 @@ function _traceShowResults(insights) {
   if (!el) return;
   const wait = document.getElementById('trace-wait');
   if (wait) wait.remove();
-  if (hdr) hdr.textContent = 'TWO-PASS ENGINE  ·  DONE';
+  if (hdr) hdr.textContent = 'GROUPWISDOM ENGINE  ·  DONE';
 
   function hesc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -986,7 +1042,7 @@ async function runDemo() {
     });
   } catch (e) { resetDemo(); return; }
 
-  // Step 3 — trigger two-pass analysis
+  // Step 3 — trigger a full analysis
   try {
     await fetch(`${baseUrl}/projects/${projectId}/analyze`, {
       method: 'POST',

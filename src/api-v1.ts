@@ -182,7 +182,8 @@ apiv1.post("/demo", (req, res) => {
 });
 
 // ── Analyze ──────────────────────────────────────────────────────────────────
-// Triggers the full two-pass analysis (Pass 1 + metacognitive Pass 2) on demand.
+// Triggers a full re-analysis of the project on demand, unlike the automatic
+// path which reasons from memory and a short tail.
 
 apiv1.post("/projects/:id/analyze", (req, res) => {
   const a = auth(req);

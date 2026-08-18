@@ -4,7 +4,7 @@
  * The loop (see BUZZ_INTEGRATION.md):
  *   1. Listen  — subscribe to kind:9 messages in the agent's channels.
  *   2. Map     — each event → an ingest call against the real GroupWisdom /v1 API.
- *   3. Think   — the API's own two-pass engine runs, server-side, on your account.
+ *   3. Think   — the API's own engine runs, server-side, on your account.
  *   4. Speak   — poll for new wisdom, post it back as a kind:9 event citing sources.
  *
  * This talks to GroupWisdom exactly the way any external integration would — over the
@@ -261,7 +261,7 @@ const DEFAULT_GW_BASE_URL = "https://groupwisdom-v1-production.up.railway.app/v1
 const DEFAULT_CURSOR_FILE = ".buzz-cursor.json";
 const RECENT_LIMIT = 15;         // event ids kept per project for source citation
 const MAX_CITATIONS = 4;
-// The API debounces ingest ~3s then runs a two-pass engine, so wisdom lands at an
+// The API debounces ingest ~3s then runs its gates and drafting, so wisdom lands at an
 // unpredictable moment. Poll several times instead of once, deduped by wisdom id.
 const POLL_SCHEDULE_MS = [5000, 12000, 25000, 45000];
 const PROCESSED_ID_CAP = 500;    // bounded memory of event ids, for restart-safe dedup
