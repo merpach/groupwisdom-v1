@@ -96,7 +96,7 @@ export function parseMentions(content: string): string[] {
  * null and flows on to be read as an ordinary contribution.
  */
 const COMMAND_ALIASES = new Set(["wisdom", "wisdomagent", "groupwisdom"]);
-const KNOWN_COMMANDS = new Set(["memory"]);
+const KNOWN_COMMANDS = new Set(["memory", "mute", "unmute"]);
 
 export function parseCommand(content: string, opts?: { taggedUs?: boolean }): { name: string; args: string } | null {
   const text = String(content ?? "").trim();
@@ -112,6 +112,37 @@ export function parseCommand(content: string, opts?: { taggedUs?: boolean }): { 
   const name = (first ?? "").toLowerCase().replace(/[^a-z]/g, "");
   if (!KNOWN_COMMANDS.has(name)) return null;
   return { name, args: args.join(" ").trim() };
+}
+
+/**
+ * How long a mute lasts. Bare `@wisdom mute` holds until someone lifts it;
+ * `@wisdom mute today` lifts itself at midnight.
+ *
+ * Midnight is UTC, because the agent has no way to know which day a channel
+ * keeps. A team in California muting at 4pm would get quiet only until 5pm,
+ * which is not what they meant, so the confirmation says when it will wake.
+ */
+export const MUTE_FOREVER = 0;
+
+/** Milliseconds until the next UTC midnight after `now`. */
+export function nextMidnightUtc(now: number): number {
+  const d = new Date(now);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0, 0);
+}
+
+/**
+ * Read the argument of a mute command. Anything we do not recognise is treated
+ * as an open-ended mute rather than refused: someone typing "@wisdom mute pls"
+ * wants quiet, and arguing about the word would be the opposite of the point.
+ */
+export function muteUntil(args: string, now: number): number {
+  return /\btoday\b/i.test(args ?? "") ? nextMidnightUtc(now) : MUTE_FOREVER;
+}
+
+/** Is this channel muted at `now`? A lapsed "today" mute is simply over. */
+export function isMutedAt(until: number | undefined, now: number): boolean {
+  if (until === undefined) return false;
+  return until === MUTE_FOREVER || until > now;
 }
 
 /**
@@ -197,6 +228,7 @@ const MAX_CITATIONS = 4;
 const POLL_SCHEDULE_MS = [5000, 12000, 25000, 45000];
 const PROCESSED_ID_CAP = 500;    // bounded memory of event ids, for restart-safe dedup
 const POSTED_CARD_CAP = 300;     // event id → wisdom id, enough to cover any card still being reacted to
+const HELD_CAP = 20;             // findings kept per muted channel; only one is ever spoken on unmute
 
 /**
  * Reaction events. NIP-25 kind 7 is the standard, and Buzz is pre-1.0 with
@@ -325,6 +357,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   const recentEventIds = new Map<string, string[]>();       // channel → recent nostr event ids (for #e citations)
   const pollTimers = new Map<string, NodeJS.Timeout[]>();   // projectId::channel → pending poll timers
   const watched = new Set<string>();
+  const mutedUntil = new Map<string, number>();             // channel → MUTE_FOREVER, or ms when it lifts
+  const heldWhileMuted = new Map<string, string[]>();       // channel → wisdom ids that passed the gate unheard
 
   let ws: WebSocket | null = null;
   let authPending: string | null = null;
@@ -337,7 +371,9 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   // Shape: { channels: { <uuid>: <last created_at> }, processed: [<event id>, …],
   //          greeted: [<channel uuid>, …], over_budget_notified: boolean,
   //          names: { <pubkey>: <name learned from a mention> },
-  //          cards: [[<posted event id>, <wisdom id>], …] }
+  //          cards: [[<posted event id>, <wisdom id>], …],
+  //          muted: { <channel uuid>: <0 for open-ended, or ms when it lifts> },
+  //          held: { <channel uuid>: [<wisdom id>, …] } }
   const cursorPath = cfg.cursorFile ?? DEFAULT_CURSOR_FILE;
   const store = cfg.cursorStore ?? {
     load: () => { try { return readFileSync(cursorPath, "utf8"); } catch { return null; } },
@@ -359,6 +395,10 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     // Which posted event was which finding. Without this a 👍 arrives as a
     // reaction to an event id we cannot connect to anything.
     for (const [eventId, wisdomId] of (saved.cards ?? [])) postedCards.set(String(eventId), String(wisdomId));
+    // Mute has to survive a redeploy. A channel that asked for quiet and got a
+    // card back thirty seconds later because we restarted has been ignored.
+    for (const [ch, until] of Object.entries(saved.muted ?? {})) mutedUntil.set(ch, Number(until));
+    for (const [ch, ids] of Object.entries(saved.held ?? {})) heldWhileMuted.set(ch, (ids as string[]).map(String));
     const n = Object.keys(cursors).length;
     if (n) log(`resuming from cursor: ${n} channel(s) tracked`);
   } catch { /* first run — no cursor yet */ }
@@ -372,6 +412,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
         greeted: [...greeted], over_budget_notified: notifiedOverBudget,
         names: Object.fromEntries(mentionNames),
         cards: [...postedCards].slice(-POSTED_CARD_CAP),
+        muted: Object.fromEntries(mutedUntil),
+        held: Object.fromEntries([...heldWhileMuted].map(([c, ids]) => [c, ids.slice(-HELD_CAP)])),
       }));
     } catch (e) {
       log(`cursor save failed: ${(e as Error).message}`);
@@ -650,7 +692,21 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
 
   // ── Step 4: post wisdom back into the channel, citing sources via #e ──────────
 
+  /** Muted right now? Checked at the moment of speaking, so "today" lapses on its own. */
+  const isMuted = (channel: string) => isMutedAt(mutedUntil.get(channel), Date.now());
+
   function postWisdom(channel: string, wisdom: Wisdom, triggerEventId: string) {
+    // Mute governs unprompted speech, and a card is the most unprompted thing
+    // we do. The finding is kept rather than dropped: the work of finding it was
+    // already paid for, and on unmute one of them may still be worth saying.
+    if (isMuted(channel)) {
+      const held = heldWhileMuted.get(channel) ?? [];
+      if (!held.includes(wisdom.id)) held.push(wisdom.id);
+      heldWhileMuted.set(channel, held.slice(-HELD_CAP));
+      saveCursor();
+      log(`held ${wisdom.kind} for muted ${channelNames.get(channel) ?? channel.slice(0, 8)} (${held.length} waiting)`);
+      return;
+    }
     const recent = recentEventIds.get(channel) ?? [];
     const sources = [triggerEventId, ...recent.filter(id => id !== triggerEventId)].slice(0, MAX_CITATIONS);
     const tmpl: EventTemplate = {
@@ -813,7 +869,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     ]);
 
     if (!full || !(full.facts?.length || full.decisions?.length || full.open_questions?.length)) {
-      postNotice(channel, "I have not built up anything yet. Once people share work here I will have something to show.", replyTo);
+      postNotice(channel, "I have not built up anything yet. Once people share work here I will have something to show."
+        + mutedLine(channel), replyTo);
       return;
     }
 
@@ -828,7 +885,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
       const tagged = items.filter((i: any) => i?.channel === channel).length;
       log(`memory empty after scoping in ${channelNames.get(channel) ?? channel.slice(0, 8)}: ` +
         `${full.facts?.length ?? 0} fact(s) held, ${hidden} withheld, ${tagged}/${items.length} item(s) tagged here`);
-      postNotice(channel, "Nothing yet from this channel. I keep what I learn to the channel it came from, so share some work here and I will have something to show.", replyTo);
+      postNotice(channel, "Nothing yet from this channel. I keep what I learn to the channel it came from, so share some work here and I will have something to show."
+        + mutedLine(channel), replyTo);
       return;
     }
 
@@ -896,11 +954,83 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
 
     if (scoped && hidden) lines.push("", "I also hold notes from other channels here. Those stay in the channel they came from.");
 
+    // Someone asking what the agent knows while it is muted is often asking why
+    // it has gone quiet. Answer both questions at once.
+    const muted = mutedLine(channel);
+    if (muted) lines.push("", muted.trim());
+
     postNotice(channel, lines.join("\n"), replyTo);
     log(`answered memory in ${channelNames.get(channel) ?? channel.slice(0, 8)}${scoped ? ` (scoped, ${hidden} withheld)` : ""}`);
   }
 
   /** Returns true when the message was a command, so it is not also ingested. */
+  /** How the memory answer reports being muted. Empty when it is not. */
+  function mutedLine(channel: string): string {
+    if (!isMuted(channel)) return "";
+    const until = mutedUntil.get(channel)!;
+    const held = (heldWhileMuted.get(channel) ?? []).length;
+    const when = until === MUTE_FOREVER
+      ? "until someone says @wisdom unmute"
+      : `until ${new Date(until).toISOString().slice(11, 16)} UTC`;
+    const waiting = held ? ` I am holding ${held} finding${held === 1 ? "" : "s"} for when I am back.` : "";
+    return ` I am muted here ${when}.${waiting}`;
+  }
+
+  /**
+   * Any member may silence the agent in their own channel, and any member may
+   * wake it. There is no permission check on purpose: the cost of a wrong mute
+   * is a quiet channel someone can undo in four words, and gating it would mean
+   * the person being talked at too much is the one who cannot stop it.
+   */
+  function commandMute(channel: string, args: string, ev: Event) {
+    const until = muteUntil(args, Date.now());
+    mutedUntil.set(channel, until);
+    saveCursor();
+    const wake = until === MUTE_FOREVER
+      ? "@wisdom unmute to wake me."
+      : `I wake at ${new Date(until).toISOString().slice(11, 16)} UTC, or @wisdom unmute sooner.`;
+    postNotice(channel, `🔇 Muted here. I keep reading and remembering, and I answer if you mention me. ${wake}`, ev.id);
+    // Who silenced it, by name where we know one. Never the message content.
+    log(`muted ${channelNames.get(channel) ?? channel.slice(0, 8)} by ${contributorName(ev.pubkey)}` +
+        `${until === MUTE_FOREVER ? "" : ` until ${new Date(until).toISOString()}`}`);
+  }
+
+  /**
+   * Waking up must not dump a backlog. Everything held is re-checked against the
+   * API, because a finding can be dismissed or superseded while we were quiet,
+   * and at most one survives into the channel. The rest die silently: they were
+   * true when we found them, and stale news is worse than none.
+   */
+  async function commandUnmute(channel: string, ev: Event) {
+    const was = mutedUntil.has(channel);
+    mutedUntil.delete(channel);
+    const held = heldWhileMuted.get(channel) ?? [];
+    heldWhileMuted.delete(channel);
+    saveCursor();
+    log(`unmuted ${channelNames.get(channel) ?? channel.slice(0, 8)} by ${contributorName(ev.pubkey)}` +
+        `${was ? "" : " (was not muted)"}, ${held.length} finding(s) held`);
+
+    if (!held.length) { postNotice(channel, "🔊 Back.", ev.id); return; }
+
+    let live: Wisdom | null = null;
+    try {
+      const projectId = await ensureProject();
+      const res = await gwFetch(`/projects/${projectId}/insights?format=full&limit=50`);
+      const byId = new Map<string, Wisdom>((res.data ?? []).map((w: Wisdom) => [w.id, w]));
+      // Newest first: if only one thing gets said, say the most current one.
+      for (const id of [...held].reverse()) {
+        const w = byId.get(id);
+        if (w && postableInChannel(w, channel)) { live = w; break; }
+      }
+    } catch (e) {
+      log(`unmute could not re-check held findings: ${(e as Error).message}`);
+    }
+
+    if (!live) { postNotice(channel, "🔊 Back.", ev.id); return; }
+    postNotice(channel, "🔊 Back. One thing worth knowing from while I was quiet:", ev.id);
+    postWisdom(channel, live, ev.id);
+  }
+
   async function handleCommand(ev: Event, channel: string): Promise<boolean> {
     const taggedUs = ev.tags.some(t => t[0] === "p" && t[1] === pk);
     const cmd = parseCommand(ev.content ?? "", { taggedUs });
@@ -909,6 +1039,8 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
     if (cfg.dryRun) { log(`[dry-run] would answer command: ${cmd.name}`); return true; }
     try {
       if (cmd.name === "memory") await commandMemory(channel, ev.id);
+      else if (cmd.name === "mute") commandMute(channel, cmd.args, ev);
+      else if (cmd.name === "unmute") await commandUnmute(channel, ev);
     } catch (e) {
       log(`command ${cmd.name} failed: ${(e as Error).message}`);
       postNotice(channel, "Something went wrong reading that back. Try again in a moment.", ev.id);
