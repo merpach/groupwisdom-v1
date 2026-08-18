@@ -269,18 +269,47 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
 
   // ── GroupWisdom HTTP client — real API calls, your key, your account ────────
   async function gwFetch(path: string, init?: RequestInit): Promise<any> {
-    const res = await fetch(gwBase + path, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${cfg.groupwisdomApiKey}`,
-        "Content-Type": "application/json",
-        ...(init?.headers ?? {}),
-      },
-    });
-    const text = await res.text();
-    const json = text ? JSON.parse(text) : null;
-    if (!res.ok) throw new Error(`GroupWisdom API ${res.status}: ${text}`);
-    return json;
+    const method = (init?.method ?? "GET").toUpperCase();
+    // A redeploy takes the API away for a few seconds, and the platform answers
+    // in the meantime with an HTML error page. Reads retry once so that shows up
+    // as a pause rather than an error in the channel. Writes never retry: a
+    // repeated ingest would bill for the same message and analyse it twice.
+    const attempts = method === "GET" ? 2 : 1;
+    let last: Error = new Error("GroupWisdom API unreachable");
+
+    for (let i = 0; i < attempts; i++) {
+      if (i) await new Promise(r => setTimeout(r, 1500));
+      let status: number | undefined;
+      let gotHtml = false;
+      try {
+        const res = await fetch(gwBase + path, {
+          ...init,
+          headers: {
+            Authorization: `Bearer ${cfg.groupwisdomApiKey}`,
+            "Content-Type": "application/json",
+            ...(init?.headers ?? {}),
+          },
+        });
+        status = res.status;
+        const text = await res.text();
+        // A JSON API answering in HTML means something answered for it — a proxy
+        // or an edge error page while the container is being replaced. Worth one
+        // more try whatever status came with it.
+        gotHtml = /^\s*<(!doctype|html)/i.test(text);
+        // Status first. Parsing first meant an HTML error page surfaced as
+        // "Unexpected token '<'", hiding the status that would have explained it.
+        if (!res.ok) throw new Error(`GroupWisdom API ${res.status}: ${truncate(text, 200)}`);
+        if (!text) return null;
+        try { return JSON.parse(text); }
+        catch { throw new Error(`GroupWisdom API ${res.status} returned ${res.headers.get("content-type") ?? "no content-type"}, not JSON`); }
+      } catch (e) {
+        last = e as Error;
+        // Only a server-side or transport failure is worth trying again. A 401
+        // or a 404 from the API itself will say the same thing twice.
+        if (status !== undefined && status < 500 && !gotHtml) break;
+      }
+    }
+    throw last;
   }
 
   const channelNames = new Map<string, string>();           // channel uuid → human name (from kind:39000)
