@@ -153,14 +153,19 @@ export function postableInChannel(w: { channel?: string | null }, channel: strin
  *
  * Reciting memory back is not the same as acting on it: answering "what do you
  * know" in one channel with facts drawn from another hands someone messages
- * they were never sent. So a fact survives only if it traces to a message this
- * channel may see, and this caller runs strict, withholding anything it cannot
- * place at all. A single-channel community has nothing to leak into and is
- * passed through untouched.
+ * they were never sent. So a fact traceable to another channel is dropped, and
+ * a single-channel community, having nothing to leak into, is passed through
+ * untouched.
  *
- * The tracing rule itself lives in channel-scope, shared with the engine so
- * both sides place a fact the same way. See `visibleTo` there for why strict
- * is right here and wrong for a scan.
+ * This ran strict at first — withholding anything it could not positively place
+ * in this channel — and on real data that emptied the answer completely and
+ * kept doing so. Every fact in a community predating channel tagging cites
+ * messages that carry no channel, so nothing could be placed and the command
+ * had nothing to say. It now uses the same rule as the engine, which draws the
+ * line at what a fact can be traced *away* to rather than what it can be traced
+ * to. Nothing recited is more exposed than what a card already draws on, and
+ * the leak this exists to stop, a fact known only from another channel, stays
+ * shut either way.
  */
 export function scopeMemoryToChannel(
   mem: ScopableMemory,
@@ -169,7 +174,7 @@ export function scopeMemoryToChannel(
   opts: { multiChannel: boolean },
 ): { memory: ScopableMemory; hidden: number; scoped: boolean } {
   if (!opts.multiChannel || !channelScopeEnabled()) return { memory: mem, hidden: 0, scoped: false };
-  const { memory, hidden } = scopeMemory(mem, channel, items, { strict: true });
+  const { memory, hidden } = scopeMemory(mem, channel, items, { strict: false });
   return { memory, hidden, scoped: true };
 }
 
@@ -788,6 +793,12 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
       scopeMemoryToChannel(full, channel, items, { multiChannel: watched.size > 1 });
 
     if (!(mem.facts?.length || mem.decisions?.length)) {
+      // Counts only, never content. An empty answer used to be silent, which
+      // made "it says nothing" impossible to tell apart from "it knows nothing"
+      // without reading the database.
+      const tagged = items.filter((i: any) => i?.channel === channel).length;
+      log(`memory empty after scoping in ${channelNames.get(channel) ?? channel.slice(0, 8)}: ` +
+        `${full.facts?.length ?? 0} fact(s) held, ${hidden} withheld, ${tagged}/${items.length} item(s) tagged here`);
       postNotice(channel, "Nothing yet from this channel. I keep what I learn to the channel it came from, so share some work here and I will have something to show.", replyTo);
       return;
     }
