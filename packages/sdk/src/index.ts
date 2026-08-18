@@ -1,4 +1,4 @@
-const DEFAULT_BASE_URL = "https://groupwisdom.up.railway.app";
+const DEFAULT_BASE_URL = "https://testgroupwisdom.com";
 
 export interface GroupWisdomOptions {
   apiKey: string;

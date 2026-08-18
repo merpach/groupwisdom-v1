@@ -324,7 +324,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
 
   <!-- Base URL -->
   <h2 id="base-url">Base URL</h2>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>https://groupwisdom.up.railway.app/v1</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>https://testgroupwisdom.com/v1</pre>
   <p>All v1 endpoints are under <code>/v1</code>. The existing web app lives at <code>/api</code> and is unchanged.</p>
 
   <!-- Errors -->
@@ -346,7 +346,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
     <tr><td>name</td><td>string</td><td>Project name <span class="badge required">required</span></td></tr>
     <tr><td>webhook_url</td><td>string</td><td>URL to receive wisdom callbacks <span class="badge optional">optional</span></td></tr>
   </table>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://testgroupwisdom.com/v1/projects \
   -H "Authorization: Bearer gw_yourkey" \
   -H "Content-Type: application/json" \
   -d '{
@@ -354,7 +354,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
     "webhook_url": "https://your-server.com/groupwisdom-hook"
   }'</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
-  "id": "proj_abc123",
+  "id": "5d96994a-9164-44bb-891c-caf57eb6760d",
   "name": "Q3 User Research",
   "created_at": "2026-06-26T14:22:00Z",
   "webhook_url": "https://your-server.com/groupwisdom-hook",
@@ -364,7 +364,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <h2 id="list-projects">List projects</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects</span></div>
   <p>Returns all projects you have access to.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl https://groupwisdom.up.railway.app/v1/projects \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl https://testgroupwisdom.com/v1/projects \
   -H "Authorization: Bearer gw_yourkey"</pre>
 
   <h2 id="get-project">Get project</h2>
@@ -379,7 +379,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
     <tr><td>webhook_url</td><td>string | null</td><td>Set to <code>null</code> to remove the webhook</td></tr>
     <tr><td>engine</td><td>string</td><td><code>claude</code> (default) or <code>muse-spark</code> — sets which model runs analysis for this project</td></tr>
   </table>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X PATCH https://groupwisdom.up.railway.app/v1/projects/proj_abc123 \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X PATCH https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d \
   -H "Authorization: Bearer gw_yourkey" \
   -H "Content-Type: application/json" \
   -d '{"engine": "muse-spark"}'</pre>
@@ -403,7 +403,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <p style="font-size:12px;color:#888">* At least one of <code>title</code>, <code>content</code>, or <code>url</code> is required per item.</p>
 
   <h3>Single item</h3>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects/proj_abc123/ingest \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/ingest \
   -H "Authorization: Bearer gw_yourkey" \
   -H "Content-Type: application/json" \
   -d '{
@@ -414,7 +414,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   }'</pre>
 
   <h3>Bulk ingest</h3>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects/proj_abc123/ingest \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/ingest \
   -H "Authorization: Bearer gw_yourkey" \
   -H "Content-Type: application/json" \
   -d '{
@@ -443,7 +443,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
     <tr><td>limit</td><td>50</td><td>Items per page (max 200)</td></tr>
     <tr><td>offset</td><td>0</td><td>Number of items to skip</td></tr>
   </table>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/items?limit=20&offset=0" \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/items?limit=20&offset=0" \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
   "data": [...],
@@ -456,7 +456,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <h2 id="delete-item">Delete item</h2>
   <div class="endpoint"><span class="method patch" style="background:#ffe8e8;color:#cc3333">DELETE</span><span class="path">/v1/projects/:id/items/:itemId</span></div>
   <p>Permanently removes an item from a project.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X DELETE https://groupwisdom.up.railway.app/v1/projects/proj_abc123/items/item_001 \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X DELETE https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/items/item_001 \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
 
   <!-- How the engine works -->
@@ -483,7 +483,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <p>Returns the working memory the engine reasons from: the project's purpose as it understands it, the facts it has established and who contributed them, the decisions it has seen made, and the questions it still considers open. Each fact carries the items it came from.</p>
   <p>This is the fastest way to answer "is it actually following what we are doing". If a finding looks wrong, this shows you what it was built on. It is also the first place to look when the engine has gone quiet and you expected otherwise.</p>
   <p><code>memory</code> is <code>null</code> on a project that has not accumulated anything yet.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/memory" \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/memory" \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
   "memory": {
@@ -505,7 +505,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <p>The engine says nothing most of the time, on purpose. Every one of those decisions is recorded with the reason for it, so silence is auditable rather than mysterious. Supports <code>?limit</code> (default 50, max 200), newest first.</p>
   <p><code>verdict</code> is one of <code>silent</code> (nothing was worth saying), <code>suppressed</code> (something was drafted and the review dropped it), <code>spoken</code> (a finding was surfaced, with its <code>insight_id</code>), or <code>error</code>.</p>
   <p>If your integration seems too quiet, read this before assuming it is broken. Most of the time it will tell you the messages were requests, restatements, or a single person thinking aloud, none of which the engine treats as something to combine.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/gate-records?limit=20" \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/gate-records?limit=20" \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
   "records": [
@@ -520,7 +520,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/usage</span></div>
   <p>How much of your analysis allowance you have used, across every project on your account. Returns <code>percent_used</code> and <code>limit_reached</code>. When the limit is reached, ingest still accepts your items and the engine stops analysing them until the allowance resets, so nothing is lost.</p>
   <p class="note">Requires your personal API key. Project keys cannot read account-wide usage.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://groupwisdom.up.railway.app/v1/usage" \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://testgroupwisdom.com/v1/usage" \
   -H "Authorization: Bearer gw_yourkey"</pre>
 
   <!-- List insights -->
@@ -530,17 +530,17 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <p class="note"><code>GET /v1/projects/:id/insights</code> is the former name for this endpoint and still works, identically. Nothing you have running needs to change.</p>
   <p>By default returns a minimal shape — <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include the review fields: <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, and <code>missing_voice</code>.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button># Default (minimal)
-curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom" \
+curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/wisdom" \
   -H "Authorization: Bearer gw_proj_yourkey"
 
 # Full — includes the review fields
-curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom?format=full" \
+curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/wisdom?format=full" \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>// Default response
 {
   "data": [
     {
-      "id": "ins_xyz",
+      "id": "9f2c1e04-7b3a-4d51-9c88-1a6e2f0b47d3",
       "title": "Mobile payment friction is a recurring theme",
       "body": "Four of six items point to the same checkout drop-off."
     }
@@ -555,7 +555,7 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom?format=f
 {
   "data": [
     {
-      "id": "ins_xyz",
+      "id": "9f2c1e04-7b3a-4d51-9c88-1a6e2f0b47d3",
       "kind": "pattern",
       "title": "Mobile payment friction is a recurring theme",
       "body": "Four of six items point to the same checkout drop-off.",
@@ -586,7 +586,7 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom?format=f
   <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects/:id/analyze</span></div>
   <p>Triggers a full re-analysis of the project immediately, bypassing the automatic debounce timer. Useful when you want fresh wisdom on demand — for example, after a batch ingest or before showing results to a user.</p>
   <p>Returns <strong>202 Accepted</strong> immediately. Analysis runs in the background; poll <a href="#list-wisdom">List wisdom</a> or wait for your <a href="#webhook-setup">webhook</a> to receive results.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects/proj_abc123/analyze \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/analyze \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "message": "Analysis started." }</pre>
 
@@ -614,7 +614,7 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom?format=f
     <tr><th>Field</th><th>Type</th><th>Description</th></tr>
     <tr><td>name</td><td>string</td><td>Label for this key (e.g. "Production", "Staging") <span class="badge required">required</span></td></tr>
   </table>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://groupwisdom.up.railway.app/v1/projects/proj_abc123/keys \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/keys \
   -H "Authorization: Bearer gw_your_personal_key" \
   -H "Content-Type: application/json" \
   -d '{"name": "Production"}'</pre>
@@ -628,7 +628,7 @@ curl "https://groupwisdom.up.railway.app/v1/projects/proj_abc123/wisdom?format=f
   <h2 id="revoke-key">Revoke a key</h2>
   <div class="endpoint"><span class="method patch" style="background:#ffe8e8;color:#cc3333">DELETE</span><span class="path">/v1/projects/:id/keys/:keyId</span></div>
   <p>Immediately invalidates the key. Any requests using it will receive a 401.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X DELETE https://groupwisdom.up.railway.app/v1/projects/proj_abc123/keys/key_xyz \
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X DELETE https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/keys/key_xyz \
   -H "Authorization: Bearer gw_your_personal_key"</pre>
 
   <!-- Webhooks -->
@@ -667,10 +667,10 @@ X-GroupWisdom-Signature: sha256=abc123...
 
 {
   "event": "insights.created",
-  "group_id": "proj_abc123",
+  "group_id": "5d96994a-9164-44bb-891c-caf57eb6760d",
   "wisdom": [
     {
-      "id": "ins_xyz",
+      "id": "9f2c1e04-7b3a-4d51-9c88-1a6e2f0b47d3",
       "kind": "pattern",
       "title": "Mobile payment friction is a recurring theme",
       "body": "Four of six items point to the same checkout drop-off.",
@@ -692,19 +692,19 @@ X-GroupWisdom-Signature: sha256=abc123...
 const gw = new GroupWisdom({ apiKey: process.env.GROUPWISDOM_API_KEY })
 
 // Send items from multiple contributors
-await gw.ingest("proj_abc123", [
+await gw.ingest("5d96994a-9164-44bb-891c-caf57eb6760d", [
   { title: "User retention dropped 12% in APAC", type: "note", contributed_by: "Sarah" },
   { title: "APAC pricing change rolled out last week", type: "note", contributed_by: "James" },
 ])
 
 // Poll for wisdom — or set a webhook_url to receive it automatically
-const wisdom = await gw.listWisdom("proj_abc123")
+const wisdom = await gw.listWisdom("5d96994a-9164-44bb-891c-caf57eb6760d")
 wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <p>Using raw fetch (if you prefer no dependency):</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>const GW_KEY = process.env.GROUPWISDOM_API_KEY;
-const BASE   = "https://groupwisdom.up.railway.app/v1";
+const BASE   = "https://testgroupwisdom.com/v1";
 
-await fetch(`${BASE}/projects/proj_abc123/ingest`, {
+await fetch(`${BASE}/projects/5d96994a-9164-44bb-891c-caf57eb6760d/ingest`, {
   method: "POST",
   headers: { "Authorization": `Bearer ${GW_KEY}`, "Content-Type": "application/json" },
   body: JSON.stringify({ items: [
@@ -716,7 +716,7 @@ await fetch(`${BASE}/projects/proj_abc123/ingest`, {
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>import os, requests
 
 GW_KEY = os.environ["GROUPWISDOM_API_KEY"]
-BASE   = "https://groupwisdom.up.railway.app/v1"
+BASE   = "https://testgroupwisdom.com/v1"
 HEADERS = {"Authorization": f"Bearer {GW_KEY}", "Content-Type": "application/json"}
 
 def ingest(project_id, items):
@@ -733,12 +733,12 @@ def get_insights(project_id, kind=None):
     return r.json()
 
 # Usage
-ingest("proj_abc123", [
+ingest("5d96994a-9164-44bb-891c-caf57eb6760d", [
     {"title": "User retention dropped 12% in APAC", "type": "note"},
     {"title": "APAC pricing change rolled out last week", "type": "note"},
 ])
 
-insights = get_insights("proj_abc123", kind="pattern")
+insights = get_insights("5d96994a-9164-44bb-891c-caf57eb6760d", kind="pattern")
 for ins in insights:
     print(f"[{ins['kind']}] {ins['title']}: {ins['body']}")
 </pre>

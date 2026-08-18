@@ -1,6 +1,6 @@
 {
   "name": "@groupwisdom/sdk",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Official JavaScript/TypeScript SDK for the GroupWisdom API",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -33,5 +33,14 @@
   "license": "MIT",
   "devDependencies": {
     "typescript": "^5.6.0"
+  },
+  "homepage": "https://testgroupwisdom.com/docs.html",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/merpach/groupwisdom-v1.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/merpach/groupwisdom-v1/issues"
   }
 }

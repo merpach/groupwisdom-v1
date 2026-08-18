@@ -126,6 +126,30 @@ function saveGroupMemory(groupId: string, mem: GroupMemory) {
   setGroupMemoryRaw(groupId, JSON.stringify(mem));
 }
 
+/**
+ * `missing_voice` names a member whose existing work would strengthen a finding,
+ * and a UI renders it as "ask this person". A review of the live API found it
+ * returning "Cofoundly" — not a member, not a name in any item, not a word
+ * anyone had written. The whole value of the field is that the name is real, so
+ * a name we cannot match to the roster is dropped. Null is a fine answer.
+ *
+ * Matching is loose on purpose: the model writes "Sarah" for "Sarah Chen", and
+ * refusing that would throw away correct answers to keep a wrong one out.
+ */
+export function validateMissingVoice(name: string | null | undefined, members: string[]): string | null {
+  const wanted = String(name ?? "").trim();
+  if (!wanted) return null;
+  const norm = (x: string) => x.trim().toLowerCase();
+  const exact = members.find(m => norm(m) === norm(wanted));
+  if (exact) return exact;
+  // A first name, or a full name where we hold only the first.
+  const partial = members.find(m => {
+    const a = norm(m), b = norm(wanted);
+    return a.split(/\s+/)[0] === b || b.split(/\s+/)[0] === a;
+  });
+  return partial ?? null;
+}
+
 /** Item line for the memory prompts: short id so facts can cite their sources. */
 function memoryItemLine(i: Item & { member_name?: string | null }, contentCap: number) {
   const content = truncate(i.content ?? "", contentCap);
@@ -725,13 +749,14 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
   }
 
   const created: Insight[] = [];
+  const memberNamesForVoice = listMembers(groupId).map(m => m.name);
   for (const ins of annotated) {
     if (!ins.keep) continue;
     const saved = addInsight(groupId, ins.kind, stripEmDashes(ins.revised_title ?? ins.title), stripEmDashes(ins.revised_body ?? ins.body), {
       confidence: ins.confidence,
       caveat: ins.caveat ? stripEmDashes(ins.caveat) : undefined,
       do_next: ins.do_next ? stripEmDashes(ins.do_next) : undefined,
-      missing_voice: ins.missing_voice ?? undefined,
+      missing_voice: validateMissingVoice(ins.missing_voice, memberNamesForVoice) ?? undefined,
       channel: scanChannel,   // drawn for one channel, so only shown back to it
     });
     setInsightStatus(saved.id, "acknowledged"); // auto-accept live insights
@@ -827,7 +852,7 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
         confidence: ins.confidence,
         caveat: ins.caveat ? stripEmDashes(ins.caveat) : undefined,
         do_next: ins.do_next ? stripEmDashes(ins.do_next) : undefined,
-        missing_voice: ins.missing_voice ?? undefined,
+        missing_voice: validateMissingVoice(ins.missing_voice, members.map(m => m.name)) ?? undefined,
       }));
     }
     if (result.knowledge_markdown) setKnowledgeDoc(groupId, result.knowledge_markdown);

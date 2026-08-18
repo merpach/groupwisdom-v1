@@ -66,6 +66,11 @@ import { queueIncrementalAnalysis, updateProjectSummary, analyzeGroup, cancelPen
 
 export const apiv1 = Router();
 
+// Valid values for the two documented enums. Rejecting an unknown value beats
+// accepting it and quietly doing nothing, which reads to the caller as success.
+const WISDOM_KINDS = ["convergence", "opportunity", "tension", "pattern", "direction", "decision"];
+const ENGINES = ["claude", "muse-spark"];
+
 let notify: (groupId: string, event: string) => void = () => {};
 export const setV1Notifier = (fn: typeof notify) => { notify = fn; };
 
@@ -192,7 +197,16 @@ apiv1.post("/projects/:id/analyze", (req, res) => {
   if (!g) return res.status(404).json({ error: "Project not found." });
   cancelPendingAnalysis(g.id); // prevent incremental from racing and saving wisdom without review-pass data
   res.status(202).json({ message: "Analysis started." });
-  analyzeGroup(g.id).catch(err => console.error("[analyze]", err.message));
+  // The webhook has to fire from here too. It only ever fired from the ingest
+  // path, and this route cancels exactly that path before running — so forcing
+  // an analysis was the one sequence guaranteed to deliver nothing, which is
+  // also the sequence anyone testing their webhook reaches for first.
+  analyzeGroup(g.id)
+    .then(async wisdom => {
+      notify(g.id, "update");
+      if (wisdom?.length) await fireWebhook(g.id, wisdom);
+    })
+    .catch(err => console.error("[analyze]", err.message));
 });
 
 // ── Usage ─────────────────────────────────────────────────────────────────────
@@ -215,8 +229,13 @@ apiv1.post("/projects", (req, res) => {
   if (!name) return res.status(400).json({ error: "name is required." });
   const g = createGroup(name);
   addMember(g.id, a.user!.name, "", a.user!.email, a.user!.id);
-  if (req.body?.webhook_url) setGroupWebhook(g.id, req.body.webhook_url);
-  res.status(201).json(projectView(g.id));
+  // The signing secret is generated here and shown exactly once, same as PATCH.
+  // Creating a project with a webhook_url used to store a secret and never
+  // return it, and nothing reads it back — so signatures on that project could
+  // never be verified by anyone, for its whole life.
+  const secret = req.body?.webhook_url ? setGroupWebhook(g.id, req.body.webhook_url) : null;
+  const view = projectView(g.id);
+  res.status(201).json(secret ? { ...view, webhook_secret: secret } : view);
 });
 
 apiv1.get("/projects", (req, res) => {
@@ -242,7 +261,12 @@ apiv1.patch("/projects/:id", (req, res) => {
   if (!g) return res.status(404).json({ error: "Project not found." });
   let webhookSecret: string | null | undefined;
   if ("webhook_url" in req.body) webhookSecret = setGroupWebhook(g.id, req.body.webhook_url || null);
-  if (req.body?.engine && ["claude", "muse-spark"].includes(req.body.engine)) setGroupEngine(g.id, req.body.engine);
+  if (req.body?.engine !== undefined) {
+    if (!ENGINES.includes(req.body.engine)) {
+      return res.status(400).json({ error: `Unknown engine "${req.body.engine}". Valid engines: ${ENGINES.join(", ")}.` });
+    }
+    setGroupEngine(g.id, req.body.engine);
+  }
   const view = projectView(g.id);
   res.json(webhookSecret ? { ...view, webhook_secret: webhookSecret } : view);
 });
@@ -286,6 +310,11 @@ apiv1.post("/projects/:id/ingest", (req, res) => {
   if (!g) return res.status(404).json({ error: "Project not found." });
 
   const raw = req.body;
+  // `items` has to be an array. A string passed here used to be iterated by
+  // character, producing four "items" with no fields, all silently discarded.
+  if (raw?.items !== undefined && !Array.isArray(raw.items)) {
+    return res.status(400).json({ error: "`items` must be an array of item objects." });
+  }
   const payloads: any[] = Array.isArray(raw) ? raw : raw?.items ? raw.items : [raw];
   if (!payloads.length) return res.status(400).json({ error: "Provide one item or an items array." });
 
@@ -331,6 +360,16 @@ apiv1.post("/projects/:id/ingest", (req, res) => {
     });
   }
 
+  // Accepting nothing is a failure, not a success. Reporting 202 with
+  // "Items queued for analysis" while storing zero items is how an integration
+  // silently loses data and only finds out from an empty wisdom list.
+  if (!created.length) {
+    return res.status(400).json({
+      error: "No items were stored. Each item needs at least one of: title, content, url.",
+      accepted: 0,
+    });
+  }
+
   updateProjectSummary(g.id).catch(err => console.error("[summary]", err.message));
   notify(g.id, "update");
 
@@ -349,7 +388,11 @@ apiv1.get("/projects/:id/items", (req, res) => {
   const g = resolveProject(req, a);
   if (!g) return res.status(404).json({ error: "Project not found." });
   const { limit, offset } = parsePagination(req.query);
-  res.json(listItemsPaginated(g.id, limit, offset));
+  // contributed_by went in but never came back out, so any app showing "who
+  // contributed what" had to keep its own id-to-name map. It is data we hold.
+  const page = listItemsPaginated(g.id, limit, offset);
+  const names = new Map(listMembers(g.id).map(m => [m.id, m.name]));
+  res.json({ ...page, data: page.data.map(i => ({ ...i, contributed_by: i.member_id ? names.get(i.member_id) ?? null : null })) });
 });
 
 apiv1.delete("/projects/:id/items/:itemId", (req, res) => {
@@ -375,6 +418,11 @@ function readWisdom(req: any, res: any) {
   if (!g) return res.status(404).json({ error: "Project not found." });
   const { limit, offset } = parsePagination(req.query);
   const kind = req.query.kind as string | undefined;
+  // An unknown kind returning an empty list is indistinguishable from having no
+  // wisdom of that kind, so a typo in a filter reads as a quiet engine.
+  if (kind && !WISDOM_KINDS.includes(kind)) {
+    return res.status(400).json({ error: `Unknown kind "${kind}". Valid kinds: ${WISDOM_KINDS.join(", ")}.` });
+  }
   const full = req.query.format === "full";
   const result = listInsightsPaginated(g.id, kind, limit, offset);
   const view = full ? wisdomFull : wisdomSimple;

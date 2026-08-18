@@ -47,7 +47,7 @@ app.use((_req, res, next) => {
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
   next();
-
+});
 
 // WebSocket server — clients subscribe to a group id
 const wss = new WebSocketServer({ server });
@@ -106,6 +106,20 @@ app.use(session({
   cookie: { httpOnly: true, sameSite: "lax", secure: inProd, maxAge: 30 * 24 * 60 * 60 * 1000 }, // 30 days
 }));
 app.use(express.json({ limit: "2mb" }));
+// A JSON API must answer in JSON, including when the request body is not JSON.
+// Express's default handler renders an HTML error page, which breaks every
+// client that calls res.json() on the response — the failure arrives as a
+// parse error in their code rather than as our error message.
+app.use((err: any, _req: any, res: any, next: any) => {
+  if (!err) return next();
+  if (err.type === "entity.parse.failed" || err instanceof SyntaxError) {
+    return res.status(400).json({ error: "Request body is not valid JSON." });
+  }
+  if (err.type === "entity.too.large") {
+    return res.status(413).json({ error: "Request body is too large (limit 2mb)." });
+  }
+  return next(err);
+});
 
 // Brute force and runaway loops, not billing: strict on credential guessing,
 // loose enough on the API that a busy legitimate adapter never notices.
@@ -139,6 +153,54 @@ app.all("/gw-proxy/*", async (req, res) => {
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (req.headers.authorization) headers["Authorization"] = req.headers.authorization;
+    const fetchOpts: any = { method: req.method, headers };
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      fetchOpts.body = JSON.stringify(req.body);
+    }
+    const upstream_res = await fetch(url.toString(), fetchOpts);
+    const data = await upstream_res.json();
+    res.status(upstream_res.status).json(data);
+  } catch (err: any) {
+    res.status(502).json({ error: "Proxy error: " + err.message });
+  }
+});
+
+// Proxy for the WhatsApp Communities demo → production GroupWisdom API.
+// The project-scoped key lives only in WHATSAPP_GW_KEY (server env) and is
+// attached here; the browser never sees it and cannot override it.
+const WHATSAPP_GW_KEY = process.env.WHATSAPP_GW_KEY || "";
+app.all("/whatsapp-api/*", async (req, res) => {
+  if (!WHATSAPP_GW_KEY) return res.status(503).json({ error: "WhatsApp demo not configured (missing WHATSAPP_GW_KEY)." });
+  const upstream = "https://groupwisdom-v1-production.up.railway.app/v1/" +
+    (req.params as any)[0];
+  const url = new URL(upstream);
+  for (const [k, v] of Object.entries(req.query)) url.searchParams.set(k, String(v));
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json", "Authorization": "Bearer " + WHATSAPP_GW_KEY };
+    const fetchOpts: any = { method: req.method, headers };
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      fetchOpts.body = JSON.stringify(req.body);
+    }
+    const upstream_res = await fetch(url.toString(), fetchOpts);
+    const data = await upstream_res.json();
+    res.status(upstream_res.status).json(data);
+  } catch (err: any) {
+    res.status(502).json({ error: "Proxy error: " + err.message });
+  }
+});
+
+// Proxy for the Research Hub demo → production GroupWisdom API.
+// The project-scoped key lives only in RESEARCH_HUB_GW_KEY (server env) and is
+// attached here; the browser never sees it and cannot override it.
+const RESEARCH_HUB_GW_KEY = process.env.RESEARCH_HUB_GW_KEY || "";
+app.all("/research-api/*", async (req, res) => {
+  if (!RESEARCH_HUB_GW_KEY) return res.status(503).json({ error: "Research Hub demo not configured (missing RESEARCH_HUB_GW_KEY)." });
+  const upstream = "https://groupwisdom-v1-production.up.railway.app/v1/" +
+    (req.params as any)[0];
+  const url = new URL(upstream);
+  for (const [k, v] of Object.entries(req.query)) url.searchParams.set(k, String(v));
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json", "Authorization": "Bearer " + RESEARCH_HUB_GW_KEY };
     const fetchOpts: any = { method: req.method, headers };
     if (req.method !== "GET" && req.method !== "HEAD") {
       fetchOpts.body = JSON.stringify(req.body);
@@ -186,10 +248,6 @@ Rules: title ≤ 10 words. body 1–3 sentences, specific to the numbers given. 
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
-app.get("/buzz", (_req, res) => {
-  res.sendFile(path.join(__dirname, "..", "public", "buzz.html"));
-});
-
 app.get("/docs", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "docs.html"));
 });
@@ -208,10 +266,20 @@ app.get("/terms", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "terms.html"));
 });
 
-});
-
 app.get("/running", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "running.html"));
+});
+
+app.get("/whatsapp", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "whatsapp.html"));
+});
+
+app.get("/buzz", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "buzz.html"));
+});
+
+app.get("/research-hub", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "research-hub.html"));
 });
 
 // ── Security housekeeping ────────────────────────────────────────────────────
