@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-// groupwisdom-mcp — published to npm, runs via npx
+// Standalone MCP server over the older /api routes. It was published to npm as
+// groupwisdom-mcp; that package has been unpublished, because it described a
+// different product than the one that shipped. Kept here as the starting point
+// for a real MCP surface over /v1. Not mounted by the web server — that is
+// mcp-http.ts, which serves /mcp.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";

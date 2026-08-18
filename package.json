@@ -1,6 +1,7 @@
 {
   "name": "groupwisdom-mcp",
   "version": "1.2.0",
+  "private": true,
   "description": "Claude MCP connector for GroupWisdom \u2014 the intelligence layer for groups",
   "type": "module",
   "bin": {
