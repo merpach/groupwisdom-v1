@@ -149,6 +149,8 @@
            padding: 14px 16px; background: #fff; margin: 8px 0 10px; }
   .wcard .who-line { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; margin-bottom: 7px; }
   .wcard .txt { color: var(--ink); line-height: 1.65; font-size: 14px; }
+  .wcard.you { border-left-color: var(--rule); }
+  .wcard .txt.recall { white-space: pre-wrap; }
 
   table { width: 100%; border-collapse: collapse; margin: 8px 0 18px; font-size: 13.5px; }
   th { text-align: left; font-weight: 700; color: var(--ink); border-bottom: 1px solid var(--rule); padding: 8px 10px 8px 0; }
@@ -305,6 +307,36 @@
 
   <p class="sub">It arrives as an ordinary message, with no label and no card around it. The point is what it hands you: three colleagues' actual results, rather than a suggestion to go and ask them.</p>
 
+  <h2>Asking it what it knows</h2>
+  <p>Wisdom arrives on its own, but you can also ask. Post <code>@wisdom memory</code> in any channel it reads and it replies there with what it has established so far.</p>
+
+  <div class="wcard you">
+    <div class="who-line">Prem</div>
+    <div class="txt">@wisdom memory</div>
+  </div>
+
+  <div class="wcard">
+    <div class="who-line">Wisdom Agent</div>
+    <div class="txt recall">Here is what I know from this channel.
+
+What I have established:
+• The redesigned checkout tested 22% faster than the current one (Sarah) — from “ran the timed task with 12 people, median 41s”
+• Interviews found a clear preference for one-tap payment (James)
+• The support pilot halved tickets about failed payments (Priya)
+
+Still open:
+• Who owns the migration for existing saved cards?
+
+I also hold notes from other channels here. Those stay in the channel they came from.</div>
+  </div>
+
+  <p>This is the memory it actually reasons from, not a summary written for the occasion. If a finding looks wrong, this is how you check what it was built on.</p>
+
+  <p><strong>It answers about the channel you asked in.</strong> A community's memory is built across all the channels it reads, because noticing that two people in two places are building the same thing is the point. Saying it out loud is narrower. Anything it can trace back to another channel stays there, so asking in one channel does not hand you another channel's messages. The same rule decides what it posts: a finding is built only from what its own channel can see.</p>
+  <p class="sub">Where it is honest about the limit: a message it cannot place, because it arrived through the API or predates channel tracking, is treated as the community's rather than any one channel's. Messages sent since are tracked to the channel they came from.</p>
+
+  <p class="sub"><code>@wisdom memory</code> is the only thing it answers to today. Anything else you say to it is read as an ordinary contribution rather than a command, so nothing gets swallowed.</p>
+
   <h2>If something doesn't work</h2>
   <table>
     <tr><th style="width:38%">What you see</th><th>What it means</th></tr>
@@ -312,6 +344,8 @@
     <tr><td>“That invite link has expired”</td><td>Invite links are time-limited. Create a fresh one in Buzz and paste that.</td></tr>
     <tr><td>Connected, but no wisdom</td><td>Normal. It needs at least two related messages before there's anything to connect, and it stays quiet rather than padding.</td></tr>
     <tr><td>It read the wrong channels</td><td>Untick them above. It applies immediately.</td></tr>
+    <tr><td><code>@wisdom memory</code> comes back short</td><td>It leaves out anything belonging to another channel, so a quiet channel has less to show than the community as a whole. It fills in as people share work there.</td></tr>
+    <tr><td>“Something went wrong reading that back”</td><td>The API was briefly unreachable, usually a deploy. Ask again in a moment.</td></tr>
   </table>
 
   <p class="sub" style="margin-top:40px;padding-top:20px;border-top:1px solid var(--rule)">
