@@ -96,7 +96,7 @@ export function parseMentions(content: string): string[] {
  * null and flows on to be read as an ordinary contribution.
  */
 const COMMAND_ALIASES = new Set(["wisdom", "wisdomagent", "groupwisdom"]);
-const KNOWN_COMMANDS = new Set(["memory", "mute", "unmute"]);
+const KNOWN_COMMANDS = new Set(["memory", "mute", "unmute", "demo"]);
 
 export function parseCommand(content: string, opts?: { taggedUs?: boolean }): { name: string; args: string } | null {
   const text = String(content ?? "").trim();
@@ -113,6 +113,44 @@ export function parseCommand(content: string, opts?: { taggedUs?: boolean }): { 
   if (!KNOWN_COMMANDS.has(name)) return null;
   return { name, args: args.join(" ").trim() };
 }
+
+/**
+ * The demo script. Five ordinary work messages and the finding that sits across
+ * two of them, so a channel that has never seen the agent can watch it work in
+ * about a minute without waiting for their own conversation to produce
+ * something. Deliberately mundane: the clash is obvious the moment it is named,
+ * and nobody has to understand the product to see the point.
+ *
+ * This is fiction, and it never touches the channel's real memory. Every line
+ * goes out as an agent message carrying the `gw` marker, which the ingest path
+ * skips, so none of it is read back in, analysed, or billed.
+ */
+export const DEMO_MESSAGES = [
+  "Kickoff call with Acme is confirmed for Friday at 2 PM.",
+  "Sarah will run the product demo on the call.",
+  "Heads up: Sarah is out Friday, back Monday.",
+  "Demo slides are done, uploaded to the drive.",
+  "Acme confirmed Friday 2 PM works for them too.",
+];
+
+export const DEMO_CARD = {
+  kind: "tension",
+  title: "Friday's demo has no presenter",
+  body: "The Acme kickoff is Friday at 2 PM with Sarah running the demo, but Sarah is " +
+        "out that day. Someone else takes the demo, or the call moves.",
+};
+
+/**
+ * Said before the script starts. Not in the spec, which lists five messages and
+ * the card, but without it the first line reads as a real booking someone in the
+ * channel now has to act on.
+ */
+export const DEMO_INTRO =
+  "Here is a one minute demo on made up messages, so you can see what I do before " +
+  "your own work gets here. None of it enters this channel's memory.";
+
+/** A beat between lines. Short in tests, conversational in a real channel. */
+const DEMO_BEAT_MS = Number(process.env.GW_DEMO_BEAT_MS || 8000);
 
 /**
  * How long a mute lasts. Bare `@wisdom mute` holds until someone lifts it;
@@ -964,6 +1002,39 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
   }
 
   /** Returns true when the message was a command, so it is not also ingested. */
+  /**
+   * Run the scripted demo in this channel.
+   *
+   * Everything lands in one thread under the request, so a channel that is in
+   * the middle of real work gets one message and a thread rather than seven
+   * loose lines. It runs even when muted: mute governs unprompted speech, and
+   * somebody typing this asked for it.
+   */
+  const demoRunning = new Set<string>();
+  async function commandDemo(channel: string, replyTo: string) {
+    if (demoRunning.has(channel)) {
+      postNotice(channel, "A demo is already running here. Give it a moment.", replyTo);
+      return;
+    }
+    demoRunning.add(channel);
+    const pause = (ms: number) => new Promise(r => setTimeout(r, ms));
+    try {
+      postNotice(channel, DEMO_INTRO, replyTo);
+      for (const line of DEMO_MESSAGES) {
+        await pause(DEMO_BEAT_MS);
+        if (stopped) return;                     // a shutdown mid-demo stops cleanly
+        postNotice(channel, `“${line}”`, replyTo);
+      }
+      // A longer beat before the finding: the pause is the point of the demo.
+      await pause(DEMO_BEAT_MS * 1.5);
+      if (stopped) return;
+      postNotice(channel, formatCard(DEMO_CARD.kind, DEMO_CARD.title, DEMO_CARD.body), replyTo);
+      log(`ran demo in ${channelNames.get(channel) ?? channel.slice(0, 8)}`);
+    } finally {
+      demoRunning.delete(channel);
+    }
+  }
+
   /** How the memory answer reports being muted. Empty when it is not. */
   function mutedLine(channel: string): string {
     if (!isMuted(channel)) return "";
@@ -1041,6 +1112,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
       if (cmd.name === "memory") await commandMemory(channel, ev.id);
       else if (cmd.name === "mute") commandMute(channel, cmd.args, ev);
       else if (cmd.name === "unmute") await commandUnmute(channel, ev);
+      else if (cmd.name === "demo") await commandDemo(channel, ev.id);
     } catch (e) {
       log(`command ${cmd.name} failed: ${(e as Error).message}`);
       postNotice(channel, "Something went wrong reading that back. Try again in a moment.", ev.id);
