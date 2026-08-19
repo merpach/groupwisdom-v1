@@ -17,6 +17,7 @@ import {
 } from "./db.js";
 import { truncate } from "./text-util.js";
 import { channelScopeEnabled, visibleTo, scopeMemory } from "./channel-scope.js";
+import { nearestFinding, DEDUPE_THRESHOLD, DEDUPE_WATCH_FLOOR } from "./dedupe.js";
 
 const MODEL = process.env.GW_MODEL || "claude-haiku-4-5-20251001"; // set GW_MODEL=claude-fable-5 to upgrade
 const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
@@ -148,6 +149,46 @@ export function validateMissingVoice(name: string | null | undefined, members: s
     return a.split(/\s+/)[0] === b || b.split(/\s+/)[0] === a;
   });
   return partial ?? null;
+}
+
+/**
+ * Drop candidates that restate wisdom already on the board, and say so.
+ *
+ * The old test was an exact lowercase title match, which a model never trips:
+ * three runs over unchanged data produced three records of one fact. Suppression
+ * is recorded as a gate record rather than done silently, because a wrongly
+ * dropped finding is otherwise invisible, and near-misses are recorded too so
+ * the threshold can be set from real findings instead of guesswork.
+ */
+export function rejectRestatements<T extends { title: string; body: string }>(
+  groupId: string,
+  candidates: T[],
+  existing: Array<{ id?: string; title: string; body: string }>,
+): T[] {
+  const kept: T[] = [];
+  for (const c of candidates) {
+    const near = nearestFinding(c, existing);
+    if (near && near.score >= DEDUPE_THRESHOLD) {
+      recordGate(groupId, {
+        stage: "review", verdict: "suppressed", title: c.title,
+        reason: `restates existing wisdom "${near.of.title}" (similarity ${near.score.toFixed(2)})`,
+        insightId: near.of.id,
+      });
+      continue;
+    }
+    if (near && near.score >= DEDUPE_WATCH_FLOOR) {
+      // Kept, but close enough to be worth knowing about.
+      recordGate(groupId, {
+        stage: "review", verdict: "spoken", title: c.title,
+        reason: `near existing wisdom "${near.of.title}" (similarity ${near.score.toFixed(2)}, below the ${DEDUPE_THRESHOLD} bar)`,
+      });
+    }
+    kept.push(c);
+    // Compare later candidates in the same batch against this one too, so a
+    // single run cannot emit two phrasings of one finding.
+    existing = [...existing, c];
+  }
+  return kept;
 }
 
 /** Item line for the memory prompts: short id so facts can cite their sources. */
@@ -702,7 +743,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
   }
 
   // The editor produced candidates. Normalise them before the review pass.
-  const candidates = (result.new ?? [])
+  const rawCandidates = (result.new ?? [])
     .map(ins => {
       // The model occasionally labels wisdom with a kind outside our set (e.g. "insight").
       // Dropping it loses a genuinely good finding over a label mismatch, so fall back to
@@ -713,7 +754,8 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
       }
       return ins;
     })
-    .filter(ins => !existing.some(e => e.title.toLowerCase() === ins.title.toLowerCase()));
+    ;
+  const candidates = rejectRestatements(groupId, rawCandidates, existing);
 
   // The review pass. This runs here too, not just in the full analysis: live
   // sources (Buzz channels, the API) go through the incremental path, and
@@ -794,10 +836,7 @@ export async function previewAnalysis(groupId: string): Promise<ProposedInsight[
       ? await analyzeWithClaude(groupId, group.name, items, members.map(m => `${m.name} (${m.role})`), existing)
       : analyzeMock(group.name, items, existing);
 
-  return result.insights.filter(ins =>
-    KINDS.includes(ins.kind) &&
-    !existing.some(e => e.title.toLowerCase() === ins.title.toLowerCase())
-  );
+  return rejectRestatements(groupId, result.insights.filter(ins => KINDS.includes(ins.kind)), existing);
 }
 
 /** Save a single accepted insight and update the knowledge doc. */
@@ -829,10 +868,8 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
         : analyzeMock(group.name, items, existing);
 
     // Metacognitive second pass — filters and annotates candidate insights
-    const candidates = result.insights.filter(ins =>
-      KINDS.includes(ins.kind) &&
-      !existing.some(e => e.title.toLowerCase() === ins.title.toLowerCase())
-    );
+    const candidates = rejectRestatements(
+      groupId, result.insights.filter(ins => KINDS.includes(ins.kind)), existing);
     const annotated = candidates.length > 0
       ? await metacognitivePass(candidates, group.name, members.map(m => m.name), items.length, engine, groupId)
       : [];
@@ -1355,7 +1392,7 @@ Respond ONLY with valid JSON:
   try {
     const result = JSON.parse(json) as { overlap: { title: string; body: string } | null };
     if (result.overlap) {
-      if (existing.some(e => e.title.toLowerCase() === result.overlap!.title.toLowerCase())) return;
+      if (!rejectRestatements(groupId, [result.overlap], existing).length) return;
       const saved = addInsight(groupId, "pattern", result.overlap.title, result.overlap.body);
       setInsightStatus(saved.id, "acknowledged");
     }
