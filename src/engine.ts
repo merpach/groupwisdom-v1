@@ -191,6 +191,29 @@ export function rejectRestatements<T extends { title: string; body: string }>(
   return kept;
 }
 
+/**
+ * The label that actually ships.
+ *
+ * The review pass re-derives the kind from the final wording, which is where the
+ * decision belongs. This is the backstop under it, for the one kind that was
+ * caught plainly wrong: "decision" was returned for a finding where nothing had
+ * been decided by anyone — an engineer had found a bug. Of the six, it is the
+ * only one that asserts something about the group's own conduct rather than
+ * about their work, so it is the one worth checking mechanically.
+ *
+ * A decision needs somebody to have settled something, and settling leaves
+ * words. If none of them are anywhere in the finding, it is not a decision, and
+ * `direction` is the honest fallback: their work is heading somewhere, and no
+ * one has committed to it yet.
+ */
+const SETTLED = /\b(decid|agree|settl|chose|chosen|choos|commit|concluded|resolved|will (?:ship|use|go|move|switch|adopt|keep)|going with|opted|sign(?:ed)? off|locked in)/i;
+
+export function settleKind(kind: string, title: string, body: string): string {
+  const k = KINDS.includes(kind) ? kind : "pattern";
+  if (k !== "decision") return k;
+  return SETTLED.test(`${title} ${body}`) ? "decision" : "direction";
+}
+
 /** Item line for the memory prompts: short id so facts can cite their sources. */
 function memoryItemLine(i: Item & { member_name?: string | null }, contentCap: number) {
   const content = truncate(i.content ?? "", contentCap);
@@ -365,6 +388,15 @@ const WISDOM_TESTS = `A finding is real ONLY if every one of these holds:
    finding about: the answer is on its way. If the natural reply to your finding is
    "that is what was just asked for", it is not wisdom.
 5. It points at specific contributions that produced it.
+6. Every clause comes from them, not from you. You may join two contributions and
+   name what the join means. You may not add a reason, a benefit, a trade-off or a
+   piece of general knowledge that nobody wrote. A review of this engine caught it
+   writing "trades 2.1x higher memory use for debuggability and ecosystem fit" when
+   the contributor had reported a memory measurement and nothing else: the trade-off
+   was real engineering opinion and it was the model's, presented as the group's
+   with a confidence label on it. That is worse than an obvious mistake, because it
+   sounds exactly like something a colleague would have said. Test each clause: which
+   message says this? If none does, cut the clause.
 
 Contributors are people and AI agents alike. An agent that researches, drafts or
 analyses is a contributor exactly as a person is. A person working with one agent
@@ -507,15 +539,27 @@ chat, so it must carry the finding without the title.
   is going well and this is one thing worth knowing, which is usually the truth.
 - No hedging inside the sentences. If a caveat matters it goes in the caveat field.
 
-Kinds: convergence (two people reached the same finding from different directions),
-opportunity (something their own work points at that nobody has picked up),
-tension (two things that cannot both hold, or two views worth putting together;
-a booking that clashes with a flight is a tension just as much as two people
-reading the same evidence differently, and either way you state the actual
-difference),
-pattern (a theme across several contributions none of them named), direction (the
-next question their work is building toward), decision (something they have
-arrived at, and what led there). Choose the one that actually fits.
+KIND. Work down this list and take the FIRST one whose test passes. Do not
+weigh them against each other and pick a favourite: the same finding must get
+the same label every time it is derived, and the only way that holds is if the
+order decides it.
+
+1. tension — two things that cannot both hold, or two readings of the same
+   evidence. A booking that clashes with a flight qualifies as much as two people
+   disagreeing. Test: can you state both sides, and is it impossible for both to
+   stand? State the actual difference.
+2. convergence — two contributors reached the same place from different
+   directions. Test: can you name both, and are their routes genuinely different?
+3. decision — the group HAS SETTLED something. Test: quote the words in which
+   they settled it. If nobody wrote anything like "we will", "we are going with",
+   "agreed", "decided", then this is NOT a decision, whatever it feels like.
+   Finding a bug, measuring a result, or noticing a problem is never a decision.
+4. opportunity — their own finished work has opened something nobody has picked
+   up. Test: name the work it rests on, and what is now possible that was not.
+5. pattern — a theme across three or more contributions that none of them named.
+   Test: name the contributions.
+6. direction — the next question their work is building toward. This is the
+   fallback when nothing above fits.
 
 The title is the card's headline, shown above the body in the channel, so write
 it as the finding itself rather than a label for one. At most EIGHT words.
@@ -794,7 +838,9 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
   const memberNamesForVoice = listMembers(groupId).map(m => m.name);
   for (const ins of annotated) {
     if (!ins.keep) continue;
-    const saved = addInsight(groupId, ins.kind, stripEmDashes(ins.revised_title ?? ins.title), stripEmDashes(ins.revised_body ?? ins.body), {
+    const finalTitle = stripEmDashes(ins.revised_title ?? ins.title);
+    const finalBody = stripEmDashes(ins.revised_body ?? ins.body);
+    const saved = addInsight(groupId, settleKind(ins.revised_kind ?? ins.kind, finalTitle, finalBody), finalTitle, finalBody, {
       confidence: ins.confidence,
       caveat: ins.caveat ? stripEmDashes(ins.caveat) : undefined,
       do_next: ins.do_next ? stripEmDashes(ins.do_next) : undefined,
@@ -841,7 +887,7 @@ export async function previewAnalysis(groupId: string): Promise<ProposedInsight[
 
 /** Save a single accepted insight and update the knowledge doc. */
 export async function acceptInsight(groupId: string, kind: string, title: string, body: string): Promise<Insight> {
-  const saved = addInsight(groupId, kind, title, body);
+  const saved = addInsight(groupId, settleKind(kind, title, body), title, body);
   // also refresh knowledge doc in background
   analyzeGroup(groupId).catch(() => {});
   return saved;
@@ -885,7 +931,8 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
       const title = ins.revised_title ?? ins.title;
       const body = ins.revised_body ?? ins.body;
       if (ins.revised_title) console.log(`[metacognitive] revised title for "${ins.title}" → "${ins.revised_title}"`);
-      created.push(addInsight(groupId, ins.kind, stripEmDashes(title), stripEmDashes(body), {
+      const t = stripEmDashes(title), b = stripEmDashes(body);
+      created.push(addInsight(groupId, settleKind(ins.revised_kind ?? ins.kind, t, b), t, b, {
         confidence: ins.confidence,
         caveat: ins.caveat ? stripEmDashes(ins.caveat) : undefined,
         do_next: ins.do_next ? stripEmDashes(ins.do_next) : undefined,
@@ -959,6 +1006,7 @@ type MetaInsight = {
   confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean;
   drop_reason: string | null;
   revised_title: string | null; revised_body: string | null;
+  revised_kind: string | null;
 };
 
 async function metacognitivePass(
@@ -984,8 +1032,28 @@ For each candidate, evaluate:
 - missing_voice: name of a contributor whose existing work would strengthen this reader's, or null
 - keep: false if the insight is too speculative, too thin, or not yet ready to surface — otherwise true
 - drop_reason: when keep is false, one short sentence naming why (too thin, single-source, already known, speculative). null when keep is true.
+- revised_kind: the label, re-derived from the FINAL wording after your revisions, using the
+  ordered test below. Return it always, even when unchanged. The drafting stage guesses at a
+  label before the text is settled, which is how one finding came back as "tension" on one run
+  and "direction" on the next; deciding it once, here, from the text that actually ships, is
+  what makes it stable. Take the FIRST that passes:
+  tension (two things that cannot both hold, or two readings of one piece of evidence) /
+  convergence (two contributors reached the same place by different routes, both nameable) /
+  decision (they HAVE SETTLED it — you must be able to quote the settling words; finding a bug
+  or measuring a result is not a decision) / opportunity (their finished work opened something
+  nobody has picked up) / pattern (a theme across three or more contributions) /
+  direction (the fallback: the next question their work builds toward).
 - revised_title: the card's headline, and the first thing anyone reads. Each candidate above shows its current word count. Any headline over EIGHT words REQUIRES a revised_title of eight or fewer; returning null for one of those is a failure. Also rewrite when it reads as a label rather than the finding, or buries what was found. Shorter is better. Cut ruthlessly: drop qualifiers and detail, keep the thing that happened. The body carries the specifics. Before you return a revised_title, count its words yourself. If it is nine or more, cut it again.
 - revised_body: a revised body if you can materially improve clarity or precision, or fold in another member's actual finding so the reader inherits it directly rather than being pointed to it — otherwise null. Four things always require a revision. A body running past three sentences or roughly 50 words, which you cut back. Any sentence telling the reader to consult, review or clarify something, which you delete outright; a finding that only survives by pointing somewhere is not a finding. A body that names a conflict and stops, which you finish by saying what it means for the reader or which choice it leaves them; ending on the problem is the most common way these fail. And business abstraction, which you translate: "making parallel execution infeasible" becomes "so both cannot happen at once", "the budget allocates 40 percent to paid acquisition" becomes "the plan puts 9,000 dollars into ads first". Plain words, verbs over nouns, one name per contributor throughout.
+
+Delete any clause the group did not produce. You may join their contributions and say what
+the join means; you may not supply a reason, benefit, trade-off or piece of general knowledge
+nobody wrote. This engine was caught writing "trades 2.1x higher memory use for debuggability
+and ecosystem fit" when the contributor had reported a memory measurement and nothing else,
+and "trading brief latency spikes for zero data loss" when nobody had said either. Both were
+sound engineering opinions, and both were yours rather than theirs, shipped under a confidence
+label in their voice. Read every clause and ask which message it came from. If none did, cut it
+and put the result in revised_body.
 
 Only revise when you can genuinely improve the text. Null means the original is good enough.
 Be strict on keep. It is better to suppress a weak insight than to deliver noise.
@@ -995,7 +1063,7 @@ sentences with full stops. Never use an em dash anywhere. Keep each person's own
 and numbers attributed to that person. A revised_body stays at 1-2 sentences, around 40 words.
 
 Respond with ONLY valid JSON — an array matching the candidate order:
-[{"id":0,"confidence":"high","caveat":null,"do_next":"...","missing_voice":null,"keep":true,"drop_reason":null,"revised_title":null,"revised_body":null},...]`;
+[{"id":0,"confidence":"high","caveat":null,"do_next":"...","missing_voice":null,"keep":true,"drop_reason":null,"revised_kind":"tension","revised_title":null,"revised_body":null},...]`;
 
   try {
     let text = "";
@@ -1018,11 +1086,11 @@ Respond with ONLY valid JSON — an array matching the candidate order:
       text = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
     } else {
       // No API — pass through all candidates with default annotations
-      return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, drop_reason: null, revised_title: null, revised_body: null }));
+      return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, drop_reason: null, revised_kind: null, revised_title: null, revised_body: null }));
     }
 
     const json = text.slice(text.indexOf("["), text.lastIndexOf("]") + 1);
-    const results = JSON.parse(json) as Array<{ id: number; confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean; drop_reason: string | null; revised_title: string | null; revised_body: string | null }>;
+    const results = JSON.parse(json) as Array<{ id: number; confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean; drop_reason: string | null; revised_title: string | null; revised_body: string | null; revised_kind: string | null }>;
 
     return candidates.map((c, i) => {
       const r = results.find(x => x.id === i);
@@ -1034,13 +1102,14 @@ Respond with ONLY valid JSON — an array matching the candidate order:
         missing_voice: r?.missing_voice ?? null,
         keep: r?.keep ?? true,
         drop_reason: r?.drop_reason ?? null,
+        revised_kind: r?.revised_kind ?? null,
         revised_title: r?.revised_title ?? null,
         revised_body: r?.revised_body ?? null,
       };
     });
   } catch (err) {
     console.error("[metacognitive]", (err as Error).message);
-    return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, drop_reason: null, revised_title: null, revised_body: null }));
+    return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, drop_reason: null, revised_kind: null, revised_title: null, revised_body: null }));
   }
 }
 
