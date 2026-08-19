@@ -196,6 +196,7 @@
   <a class="nav-link" href="#list-items">List items</a>
   <div class="nav-section">Wisdom</div>
   <a class="nav-link" href="#how-it-works">How the engine works</a>
+  <a class="nav-link" href="#limits">Rate limits and allowance</a>
   <a class="nav-link" href="#memory">What it has understood</a>
   <a class="nav-link" href="#gate-records">Why it stayed quiet</a>
   <a class="nav-link" href="#usage">Usage</a>
@@ -476,6 +477,25 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
 
   <h3>What a finding is allowed to draw on</h3>
   <p>If you send a <code>channel</code> with your items, findings become channel-aware: what the engine says in one place is built only from what that place can see, while its understanding of the project as a whole still spans everything you send. Anything it can trace to a different channel stays there. Leave <code>channel</code> off and the project is treated as one audience, which is the right choice when everyone sees everything.</p>
+
+  <!-- Limits -->
+  <h2 id="limits">Rate limits and allowance</h2>
+  <p>Two separate things bound what you can do: how fast you may call the API, and how much analysis your account may run.</p>
+
+  <h3>Rate limits</h3>
+  <p>Counted per API key, in a rolling one-minute window. Exceeding one returns <code>429</code> with a JSON body, never an HTML page.</p>
+  <table>
+    <tr><th>Routes</th><th>Requests per minute</th></tr>
+    <tr><td><code>/v1/*</code> — everything in this reference</td><td>240</td></tr>
+    <tr><td>Sign-in and account routes</td><td>10</td></tr>
+    <tr><td>Connecting a Buzz community</td><td>5</td></tr>
+  </table>
+  <p>Ingest accepts arrays, so a batch of items is one request. Sending them one at a time is the usual way to reach the limit for no benefit.</p>
+
+  <h3>Analysis allowance</h3>
+  <p>Analysis costs real money to run, so every account has an allowance covering all of its projects together. Deleting a project does not return any of it.</p>
+  <p>Check where you stand with <a href="#usage">GET /v1/usage</a>, which returns <code>percent_used</code> and <code>limit_reached</code>. Nothing about it is silent: when the allowance is spent, <code>/ingest</code> keeps accepting and storing your items and the engine stops analysing them until it resets, so no data is lost and nothing fails unexpectedly.</p>
+  <p class="note">Published plans and per-item pricing are not settled yet. If you are building something that needs a specific ceiling, get in touch before you depend on the current one.</p>
 
   <!-- Memory -->
   <h2 id="memory">What it has understood</h2>

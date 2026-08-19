@@ -973,13 +973,25 @@ Insights already surfaced (do NOT repeat these):
 ${existingText}
 
 Tasks:
-1. Surface NEW insights only where there is real signal. Allowed kinds:
+1. Surface NEW insights only where there is real signal.
+
+   Every clause you write must come from them, not from you. You may join two
+   contributions and name what the join means. You may not add a reason, a benefit,
+   a trade-off or a piece of general knowledge that nobody wrote. This engine was
+   caught writing "trades 2.1x higher memory use for debuggability and ecosystem fit"
+   when the contributor had reported a memory measurement and nothing else. It was a
+   sound engineering opinion, and it was the model's, presented as the group's own.
+   Ask of each clause: which contribution says this? If none does, cut it.
+
+   Kind — work down this list and take the FIRST whose test passes, so the same
+   finding gets the same label every time it is derived:
+   - tension: two things that cannot both hold, or two readings of one piece of evidence
    - convergence: two members arrived at the same finding from different angles — name both
+   - decision: the group HAS SETTLED it, and you can quote the words in which they did.
+     Finding a bug or measuring a result is never a decision.
    - opportunity: something the group's existing research is pointing toward that nobody has pursued yet
-   - tension: two things that cannot both hold, or two perspectives worth bringing together; a booking that clashes with a flight counts as much as two readings of the same evidence
    - pattern: a theme emerging across multiple members' contributions
    - direction: the natural next question the group's collective work is building toward
-   - decision: something the group has collectively arrived at, and what led to it
    0-4 insights. Quality over quantity. Each: short title + a body of 1-2 sentences (up to ~45 words). Direct, no qualifiers. Frame everything in terms of what the group is building together, not what is missing.
    CRUCIAL — transfer knowledge, never point to it: when one member's work is relevant to another's, state that member's actual finding inline so the reader inherits it directly and lands two steps ahead. Never write "check with", "pull in", "coordinate with", or "look at" someone's work — deliver the finding itself, attributed by name.
    When two different contributors are researching overlapping topics, always surface that as a convergence — name both contributors explicitly, e.g. "Sarah and James are both building toward X from different angles."
@@ -1134,13 +1146,25 @@ Insights already surfaced (do NOT repeat these):
 ${existingText}
 
 Tasks:
-1. Surface NEW insights only where there is real signal. Allowed kinds:
+1. Surface NEW insights only where there is real signal.
+
+   Every clause you write must come from them, not from you. You may join two
+   contributions and name what the join means. You may not add a reason, a benefit,
+   a trade-off or a piece of general knowledge that nobody wrote. This engine was
+   caught writing "trades 2.1x higher memory use for debuggability and ecosystem fit"
+   when the contributor had reported a memory measurement and nothing else. It was a
+   sound engineering opinion, and it was the model's, presented as the group's own.
+   Ask of each clause: which contribution says this? If none does, cut it.
+
+   Kind — work down this list and take the FIRST whose test passes, so the same
+   finding gets the same label every time it is derived:
+   - tension: two things that cannot both hold, or two readings of one piece of evidence
    - convergence: two members arrived at the same finding from different angles — name both
+   - decision: the group HAS SETTLED it, and you can quote the words in which they did.
+     Finding a bug or measuring a result is never a decision.
    - opportunity: something the group's existing research is pointing toward that nobody has pursued yet
-   - tension: two things that cannot both hold, or two perspectives worth bringing together; a booking that clashes with a flight counts as much as two readings of the same evidence
    - pattern: a theme emerging across multiple members' contributions
    - direction: the natural next question the group's collective work is building toward
-   - decision: something the group has collectively arrived at, and what led to it
    0-4 insights. Quality over quantity. Each: short title + a body of 1-2 sentences (up to ~45 words). Direct, no qualifiers. Frame everything in terms of what the group is building together, not what is missing.
    CRUCIAL — transfer knowledge, never point to it: when one member's work is relevant to another's, state that member's actual finding inline so the reader inherits it directly and lands two steps ahead. Never write "check with", "pull in", "coordinate with", or "look at" someone's work — deliver the finding itself, attributed by name.
    When two different contributors are researching overlapping topics, always surface that as a convergence — name both contributors explicitly.
