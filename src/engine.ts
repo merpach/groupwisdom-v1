@@ -214,6 +214,50 @@ export function settleKind(kind: string, title: string, body: string): string {
   return SETTLED.test(`${title} ${body}`) ? "decision" : "direction";
 }
 
+/**
+ * Confidence a finding has actually earned.
+ *
+ * A retest caught the engine writing "Ana's switch to JSON serialization brought
+ * cache hits back to 93 percent" when the contributions said the opposite: JSON
+ * collapsed the hit rate from 94 to 31, and rolling it back produced the 93. It
+ * labelled that high confidence. A duplicate wastes attention; an inversion at
+ * high confidence gets the broken change shipped, because the label is precisely
+ * what tells a reader they need not check.
+ *
+ * The review pass could not have caught it — it never sees the contributions,
+ * only the drafted candidates, so it has nothing to check a claim against. Rather
+ * than send it every message and pay for that on each scan, it is asked to quote
+ * the words that state the finding, and the quote is checked here against what
+ * people actually wrote. A model cannot quote a sentence that does not exist, so
+ * a claim it assembled rather than read has nothing to offer and drops to medium.
+ *
+ * This does not verify that a claim is true. It removes the "high" from claims
+ * nobody made, which is the part that turns a mistake into a decision.
+ */
+const QUOTE_MIN_CHARS = 18;
+
+/** Loose enough to survive re-punctuation, tight enough that words must match. */
+const flatten = (t: string) =>
+  String(t ?? "").toLowerCase().replace(/[^a-z0-9%.]+/g, " ").replace(/\s+/g, " ").trim();
+
+export function groundConfidence(
+  confidence: string,
+  statedIn: string | null | undefined,
+  sourceText: string,
+): { confidence: string; downgraded: boolean; why: string | null } {
+  const c = ["high", "medium", "low"].includes(confidence) ? confidence : "medium";
+  if (c !== "high") return { confidence: c, downgraded: false, why: null };
+
+  const quote = flatten(statedIn ?? "");
+  if (quote.length < QUOTE_MIN_CHARS) {
+    return { confidence: "medium", downgraded: true, why: "high confidence without a quote from the contributions" };
+  }
+  if (!flatten(sourceText).includes(quote)) {
+    return { confidence: "medium", downgraded: true, why: `high confidence on a claim nobody wrote: "${String(statedIn).slice(0, 60)}"` };
+  }
+  return { confidence: "high", downgraded: false, why: null };
+}
+
 /** Item line for the memory prompts: short id so facts can cite their sources. */
 function memoryItemLine(i: Item & { member_name?: string | null }, contentCap: number) {
   const content = truncate(i.content ?? "", contentCap);
@@ -388,7 +432,14 @@ const WISDOM_TESTS = `A finding is real ONLY if every one of these holds:
    finding about: the answer is on its way. If the natural reply to your finding is
    "that is what was just asked for", it is not wisdom.
 5. It points at specific contributions that produced it.
-6. Every clause comes from them, not from you. You may join two contributions and
+6. Directions are not reversible. If the finding says one thing caused, fixed, broke or
+   improved another, the messages must say so in that order. This engine was caught writing
+   that switching to JSON "brought cache hits back to 93 percent" when the contributions said
+   JSON collapsed them from 94 to 31 and the rollback produced the 93 — two true numbers,
+   joined backwards, and a reader who trusted it would have shipped the broken change. Before
+   writing that A did something to B, find the message that says A did it. If the messages
+   only say A happened and B happened, you may say both happened and nothing more.
+7. Every clause comes from them, not from you. You may join two contributions and
    name what the join means. You may not add a reason, a benefit, a trade-off or a
    piece of general knowledge that nobody wrote. A review of this engine caught it
    writing "trades 2.1x higher memory use for debuggability and ecosystem fit" when
@@ -809,6 +860,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
     ? await metacognitivePass(
         candidates, group.name, listMembers(groupId).map(m => m.name),
         allWithMembers.length, getGroupEngine(groupId), groupId,
+        `${newText}\n${tailText}`,
       )
     : [];
 
@@ -917,7 +969,8 @@ export async function analyzeGroup(groupId: string): Promise<Insight[]> {
     const candidates = rejectRestatements(
       groupId, result.insights.filter(ins => KINDS.includes(ins.kind)), existing);
     const annotated = candidates.length > 0
-      ? await metacognitivePass(candidates, group.name, members.map(m => m.name), items.length, engine, groupId)
+      ? await metacognitivePass(candidates, group.name, members.map(m => m.name), items.length, engine, groupId,
+          items.map(i => `${i.title} ${i.content}`).join("\n"))
       : [];
 
     const suppressed = annotated.filter(ins => !ins.keep);
@@ -1019,6 +1072,7 @@ type MetaInsight = {
   drop_reason: string | null;
   revised_title: string | null; revised_body: string | null;
   revised_kind: string | null;
+  stated_in: string | null;
 };
 
 async function metacognitivePass(
@@ -1028,6 +1082,7 @@ async function metacognitivePass(
   itemCount: number,
   engine: string,
   groupId?: string,
+  sourceText = "",
 ): Promise<MetaInsight[]> {
   const prompt = `You are a metacognitive evaluator for a group intelligence engine called GroupWisdom.
 A first-pass AI has generated candidate insights from the shared data of a group called "${groupName}".
@@ -1038,7 +1093,14 @@ Candidate insights:
 ${candidates.map((ins, i) => `[${i}] (${ins.kind}) headline [${ins.title.trim().split(/\s+/).length} words]: "${ins.title}"\n    body: ${ins.body}`).join("\n")}
 
 For each candidate, evaluate:
-- confidence: "high" (3+ independent data points), "medium" (2 points), or "low" (1 point or inferred)
+- confidence: "high" only when a contribution STATES this finding and you can quote it. Counting
+  data points is not enough: a claim you assembled from two true facts can be assembled backwards.
+  "medium" when it follows from two contributions but nobody said it outright. "low" for one point
+  or a longer inference.
+- stated_in: when confidence is "high", the exact words from a contribution that state the finding,
+  copied verbatim — not paraphrased, not reassembled. null otherwise. This is checked against what
+  people actually wrote, and a quote that is not found there drops the finding to medium, so
+  inventing one gains nothing.
 - caveat: one short sentence naming the condition under which this would not hold, or null if solid. State it as a fact about the evidence — never as an instruction. Do not write "clarify", "confirm", "check", "verify" or "determine whether"; say what is assumed, not what someone should go do.
 - do_next: NOT a task, and not a suggestion of work. This field states one more completed result from another member that the reader now has for free, and then stops. e.g. "Maya's morale timeline already dates the drop to just after Stalingrad." Never write "you can", "start by", "test whether", "evaluate whether", "adapt", "check", "map", "verify" or "coordinate". If the only thing you can write is something the reader ought to go and do, use null. Most of the time null is right, because the body already carried the finding.
 - missing_voice: name of a contributor whose existing work would strengthen this reader's, or null
@@ -1075,7 +1137,7 @@ sentences with full stops. Never use an em dash anywhere. Keep each person's own
 and numbers attributed to that person. A revised_body stays at 1-2 sentences, around 40 words.
 
 Respond with ONLY valid JSON — an array matching the candidate order:
-[{"id":0,"confidence":"high","caveat":null,"do_next":"...","missing_voice":null,"keep":true,"drop_reason":null,"revised_kind":"tension","revised_title":null,"revised_body":null},...]`;
+[{"id":0,"confidence":"high","stated_in":"...","caveat":null,"do_next":"...","missing_voice":null,"keep":true,"drop_reason":null,"revised_kind":"tension","revised_title":null,"revised_body":null},...]`;
 
   try {
     let text = "";
@@ -1098,30 +1160,41 @@ Respond with ONLY valid JSON — an array matching the candidate order:
       text = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
     } else {
       // No API — pass through all candidates with default annotations
-      return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, drop_reason: null, revised_kind: null, revised_title: null, revised_body: null }));
+      return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, drop_reason: null, revised_kind: null, stated_in: null, revised_title: null, revised_body: null }));
     }
 
     const json = text.slice(text.indexOf("["), text.lastIndexOf("]") + 1);
-    const results = JSON.parse(json) as Array<{ id: number; confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean; drop_reason: string | null; revised_title: string | null; revised_body: string | null; revised_kind: string | null }>;
+    const results = JSON.parse(json) as Array<{ id: number; confidence: string; caveat: string | null; do_next: string | null; missing_voice: string | null; keep: boolean; drop_reason: string | null; revised_title: string | null; revised_body: string | null; revised_kind: string | null; stated_in: string | null }>;
 
+    const grounded = (r: any, c: { title: string }) => {
+      const g = groundConfidence(r?.confidence ?? "medium", r?.stated_in, sourceText);
+      if (g.downgraded && groupId) {
+        recordGate(groupId, {
+          stage: "review", verdict: "spoken", title: c.title,
+          reason: `confidence lowered to ${g.confidence}: ${g.why}`,
+        });
+      }
+      return g.confidence;
+    };
     return candidates.map((c, i) => {
       const r = results.find(x => x.id === i);
       return {
         ...c,
-        confidence: r?.confidence ?? "medium",
+        confidence: grounded(r, c),
         caveat: r?.caveat ?? null,
         do_next: r?.do_next ?? null,
         missing_voice: r?.missing_voice ?? null,
         keep: r?.keep ?? true,
         drop_reason: r?.drop_reason ?? null,
         revised_kind: r?.revised_kind ?? null,
+        stated_in: r?.stated_in ?? null,
         revised_title: r?.revised_title ?? null,
         revised_body: r?.revised_body ?? null,
       };
     });
   } catch (err) {
     console.error("[metacognitive]", (err as Error).message);
-    return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, drop_reason: null, revised_kind: null, revised_title: null, revised_body: null }));
+    return candidates.map(c => ({ ...c, confidence: "medium", caveat: null, do_next: null, missing_voice: null, keep: true, drop_reason: null, revised_kind: null, stated_in: null, revised_title: null, revised_body: null }));
   }
 }
 
