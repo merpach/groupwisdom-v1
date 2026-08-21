@@ -260,6 +260,12 @@ app.get("/account", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "account.html"));
 });
 
+// Where a Teams pairing code is redeemed. The bot posts this URL into the
+// channel, so it has to answer at /teams, not /teams.html.
+app.get("/teams", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "teams.html"));
+});
+
 app.get("/privacy", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "privacy.html"));
 });

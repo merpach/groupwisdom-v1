@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect your Teams team · GroupWisdom</title>
+<meta name="description" content="Enter the code GroupWisdom posted in your Teams channel and choose which project the team belongs to.">
+<meta property="og:site_name" content="GroupWisdom">
+<meta property="og:title" content="Connect your Teams team">
+<meta property="og:description" content="Enter the code GroupWisdom posted in your Teams channel and choose which project the team belongs to.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Connect your Teams team">
+<meta name="twitter:description" content="Enter the code GroupWisdom posted in your Teams channel and choose which project the team belongs to.">
+<style>
+  :root {
+    --ink:    #101113;
+    --ink-2:  #4a4e55;
+    --ink-3:  #8a9099;
+    --rule:   #e6e8ea;
+    --rule-2: #f1f3f4;
+    --paper:  #ffffff;
+    --panel:  #f6f7f8;
+    --accent: #1b4fff;
+    --wisdom: #1d7a46;
+    --warn:   #9c3128;
+
+    --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: "SF Mono", "Fira Mono", ui-monospace, monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--sans); font-size: 15px; line-height: 1.6; color: var(--ink);
+         background: var(--paper); -webkit-font-smoothing: antialiased; }
+  a { color: var(--ink); }
+
+  .shell { max-width: 720px; margin: 0 auto; padding: 0 24px 120px; }
+
+  .nav-wrap { border-bottom: 1px solid var(--rule); margin-bottom: 52px; }
+  .nav { max-width: 720px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center;
+         gap: 20px; height: 62px; }
+  .brand { font-size: 15px; font-weight: 700; letter-spacing: -.2px; text-decoration: none; margin-right: auto; }
+  .brand .for { color: var(--ink-3); font-weight: 400; }
+  .who { color: var(--ink-3); font-size: 13px; }
+  .who button { font: inherit; font-size: 13px; color: var(--ink-3); background: none; border: none;
+                cursor: pointer; padding: 0 0 0 10px; }
+  .who button:hover { color: var(--ink); }
+
+  .eyebrow { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em;
+             color: var(--ink-3); display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .eyebrow::after { content: ""; height: 1px; width: 30px; background: var(--accent); opacity: .55; }
+  h1 { font-family: var(--display); font-size: 40px; font-weight: 600; line-height: 1.08;
+       letter-spacing: -.02em; margin-bottom: 14px; text-wrap: balance; }
+  h2 { font-family: var(--display); font-size: 27px; font-weight: 600; line-height: 1.18;
+       letter-spacing: -.015em; margin: 56px 0 14px; padding-top: 48px; border-top: 1px solid var(--rule); }
+  h2.tight { padding-top: 0; border-top: none; margin-top: 46px; }
+  h3 { font-size: 15px; font-weight: 700; }
+  .lede { color: var(--ink-2); font-size: 17px; line-height: 1.62; max-width: 58ch; }
+  p { color: var(--ink-2); line-height: 1.7; margin-bottom: 12px; }
+  p.sub { color: var(--ink-3); font-size: 13.5px; }
+
+  .step { border: 1px solid var(--rule); border-radius: 11px; padding: 21px 23px; margin-bottom: 12px;
+          transition: border-color .15s, background .15s; }
+  .step.done { border-color: #cfe4d5; background: #fcfefc; }
+  .step.off { opacity: .45; }
+  .step-head { display: flex; align-items: baseline; gap: 11px; margin-bottom: 8px; }
+  .num { width: 21px; height: 21px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 11px;
+         font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+         transform: translateY(2px); }
+  .step.done .num { background: var(--wisdom); }
+  .step.off .num { background: var(--ink-3); }
+  .step-title { font-weight: 700; font-size: 15px; }
+  .step p { color: var(--ink-2); font-size: 14px; margin-bottom: 14px; }
+
+  label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-2); margin-bottom: 5px; }
+  input, select { width: 100%; font: inherit; font-size: 14.5px; padding: 10px 12px; border: 1px solid var(--rule);
+          border-radius: 8px; background: var(--paper); color: var(--ink); }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+  .field { margin-bottom: 12px; }
+
+  /* The code is read off a Teams message and typed here. Wide tracking so a
+     character is hard to lose, and a monospace face so nothing is ambiguous. */
+  input.code { font-family: var(--mono); font-size: 26px; letter-spacing: .34em; text-align: center;
+               text-transform: uppercase; padding: 14px 12px 14px 20px; }
+  input.code::placeholder { letter-spacing: .34em; color: var(--rule); }
+
+  button.go { font: inherit; font-size: 14.5px; font-weight: 600; padding: 10px 20px; border: none;
+              border-radius: 8px; background: var(--ink); color: #fff; cursor: pointer; }
+  button.go:hover { background: #000; }
+  button.go:disabled { background: var(--ink-3); cursor: default; }
+  button.ghost { font: inherit; font-size: 13px; background: none; border: 1px solid var(--rule);
+                 border-radius: 7px; padding: 6px 12px; cursor: pointer; color: var(--ink-2); }
+  button.ghost:hover { border-color: var(--ink-3); color: var(--ink); }
+
+  .row { display: flex; gap: 10px; align-items: flex-end; }
+  .row > .field { flex: 1; margin-bottom: 0; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tabs button { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 13px; border: 1px solid var(--rule);
+                 border-radius: 7px; background: none; color: var(--ink-3); cursor: pointer; }
+  .tabs button.on { background: var(--panel); border-color: var(--ink-3); color: var(--ink); }
+
+  .msg { font-size: 13.5px; margin-top: 12px; }
+  .msg:empty { display: none; }
+  .msg.err { color: var(--warn); }
+  .msg.ok  { color: var(--wisdom); }
+
+  .social { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .social a { display: flex; align-items: center; justify-content: center; gap: 9px; text-decoration: none;
+              border: 1px solid var(--rule); border-radius: 8px; padding: 9px; font-size: 14px; font-weight: 600; }
+  .social a:hover { border-color: var(--ink-3); }
+  .social svg { width: 17px; height: 17px; }
+  .or { display: flex; align-items: center; gap: 12px; color: var(--ink-3); font-size: 12px; margin-bottom: 14px; }
+  .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
+  th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3);
+       font-weight: 700; padding: 0 10px 7px 0; border-bottom: 1px solid var(--rule); }
+  td { padding: 11px 10px 11px 0; border-bottom: 1px solid var(--rule-2); color: var(--ink-2); vertical-align: top; }
+  td.name { color: var(--ink); font-weight: 600; }
+  .chan { font-size: 12.5px; color: var(--ink-3); }
+  .muted-tag { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--warn); }
+
+  .note { background: var(--panel); border-left: 2px solid var(--accent); padding: 14px 18px; border-radius: 0 8px 8px 0;
+          font-size: 14px; color: var(--ink-2); margin: 20px 0; }
+  .note b { color: var(--ink); }
+
+  code { font-family: var(--mono); font-size: 13px; background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 31px; }
+    input.code { font-size: 20px; letter-spacing: .24em; }
+    .row { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+
+<div class="nav-wrap">
+  <nav class="nav">
+    <a class="brand" href="/">GroupWisdom <span class="for">for Teams</span></a>
+    <span class="who" id="who"></span>
+  </nav>
+</div>
+
+<div class="shell">
+
+  <div class="eyebrow">Microsoft Teams</div>
+  <h1>Connect your team</h1>
+  <p class="lede">
+    GroupWisdom posted a code in your Teams channel. Enter it here and choose which project
+    the team belongs to. Until you do, it is not reading anything.
+  </p>
+
+  <!-- 1 ─ the code ────────────────────────────────────────────────────── -->
+  <div class="step" id="s1">
+    <div class="step-head"><div class="num">1</div><div class="step-title">Enter the code</div></div>
+    <p>Six characters, from the message GroupWisdom posted when it was added to your team. It lasts 24 hours.</p>
+    <div class="field">
+      <input class="code" id="code" maxlength="7" placeholder="••••••" autocomplete="off"
+             spellcheck="false" aria-label="Pairing code">
+    </div>
+    <div class="msg" id="codeMsg"></div>
+  </div>
+
+  <!-- 2 ─ account ─────────────────────────────────────────────────────── -->
+  <div class="step off" id="s2">
+    <div class="step-head"><div class="num">2</div><div class="step-title" id="authTitle">Sign in</div></div>
+
+    <div id="authForm">
+      <p>Findings land in a project on your account, so your team's context stays yours.</p>
+
+      <div class="social" id="socialBtns"></div>
+      <div class="or" id="orLine" style="display:none">or</div>
+
+      <div class="tabs">
+        <button id="tabSignup" class="on" type="button">Create account</button>
+        <button id="tabLogin" type="button">Sign in</button>
+      </div>
+
+      <div class="field" id="aName"><label for="nameIn">Your name</label><input id="nameIn" autocomplete="name"></div>
+      <div class="field"><label for="emailIn">Email</label><input id="emailIn" type="email" autocomplete="email"></div>
+      <div class="field"><label for="passIn">Password</label><input id="passIn" type="password" autocomplete="new-password"></div>
+      <button class="go" id="authGo" type="button">Create account</button>
+      <div class="msg" id="authMsg"></div>
+      <p class="sub" id="legalNote" style="margin-top:12px">
+        By creating an account you agree to the <a href="/terms">terms</a> and <a href="/privacy">privacy policy</a>.
+      </p>
+    </div>
+
+    <div id="authDone" style="display:none"><p id="authDoneText"></p></div>
+  </div>
+
+  <!-- 3 ─ project ─────────────────────────────────────────────────────── -->
+  <div class="step off" id="s3">
+    <div class="step-head"><div class="num">3</div><div class="step-title">Choose a project</div></div>
+    <p>This is where the team's work is read into, and where its findings live.</p>
+
+    <div class="row" style="margin-bottom:12px">
+      <div class="field">
+        <label for="projSel">Project</label>
+        <select id="projSel"></select>
+      </div>
+      <button class="ghost" id="newProj" type="button">New project</button>
+    </div>
+
+    <div id="newProjRow" style="display:none">
+      <div class="field"><label for="projName">Name it</label><input id="projName" placeholder="Engineering"></div>
+    </div>
+
+    <button class="go" id="connect" type="button">Connect this team</button>
+    <div class="msg" id="connectMsg"></div>
+  </div>
+
+  <!-- connected ───────────────────────────────────────────────────────── -->
+  <div id="connectedBlock" style="display:none">
+    <h2 class="tight">Connected</h2>
+    <p>
+      GroupWisdom now reads the channels of this team and speaks when two separate pieces of work add up to
+      something neither said alone. Most of the time it says nothing — that is the intended result.
+    </p>
+    <div class="note">
+      <b>To quiet it:</b> say <code>@GroupWisdom mute</code> in a channel, or <code>mute today</code> for the rest
+      of the day. It keeps reading and still answers when asked. Removing the app from the team stops it entirely.
+    </div>
+    <table id="installTable">
+      <thead><tr><th>Team</th><th>Project</th><th>Channels</th><th></th></tr></thead>
+      <tbody id="installRows"></tbody>
+    </table>
+  </div>
+
+  <h2>What it reads</h2>
+  <p>
+    Message text, the name of the person who wrote it, and the channel it came from. Nothing from private channels,
+    and nothing from chats it has not been added to. What it says in one channel is built only from what that
+    channel can see.
+  </p>
+  <p>
+    Raw message text is deleted after 30 days. What is kept beyond that is a bounded summary of what the team has
+    established. Nothing read here trains any model. The full detail is in the
+    <a href="/privacy">privacy policy</a>.
+  </p>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+async function j(url, opts) {
+  const r = await fetch(url, { credentials: "same-origin", ...opts });
+  const text = await r.text();
+  let body = null; try { body = text ? JSON.parse(text) : null; } catch {}
+  return { ok: r.ok, status: r.status, body };
+}
+
+const post = (url, payload) => j(url, {
+  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+});
+
+function msg(id, kind, text) {
+  const m = $(id);
+  m.className = "msg" + (kind ? " " + kind : "");
+  m.textContent = text || "";
+}
+
+// ── The code ────────────────────────────────────────────────────────────
+// Held in sessionStorage because signing in can bounce through a provider and
+// back, and losing a typed code to a redirect would be a miserable first
+// impression of the product.
+const CODE_KEY = "gw_teams_code";
+const CODE_CHARS = /[^A-Z0-9]/g;
+
+function readCode() {
+  return $("code").value.toUpperCase().replace(CODE_CHARS, "").slice(0, 6);
+}
+
+$("code").addEventListener("input", () => {
+  const v = readCode();
+  $("code").value = v;
+  sessionStorage.setItem(CODE_KEY, v);
+  $("s1").classList.toggle("done", v.length === 6);
+  msg("codeMsg", "", "");
+  gate();
+});
+
+// ── Account ─────────────────────────────────────────────────────────────
+let authMode = "signup";
+let signedIn = false;
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const signup = mode === "signup";
+  $("tabSignup").classList.toggle("on", signup);
+  $("tabLogin").classList.toggle("on", !signup);
+  $("authTitle").textContent = signup ? "Create your account" : "Sign in";
+  $("aName").style.display = signup ? "" : "none";
+  $("passIn").autocomplete = signup ? "new-password" : "current-password";
+  $("authGo").textContent = signup ? "Create account" : "Sign in";
+  $("legalNote").style.display = signup ? "" : "none";
+  msg("authMsg", "", "");
+}
+$("tabSignup").onclick = () => setAuthMode("signup");
+$("tabLogin").onclick  = () => setAuthMode("login");
+
+const GOOGLE_MARK = '<svg viewBox="0 0 48 48" aria-hidden="true">' +
+  '<path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2 5-4.4 6.6v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.1z"/>' +
+  '<path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.1 15.4 46 24 46z"/>' +
+  '<path fill="#FBBC05" d="M11.8 28.2c-.4-1.3-.7-2.7-.7-4.2s.3-2.9.7-4.2v-5.7H4.5C3 17.1 2.2 20.4 2.2 24s.8 6.9 2.3 9.9l7.3-5.7z"/>' +
+  '<path fill="#EA4335" d="M24 10.8c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.2 29.9 2 24 2 15.4 2 8.1 6.9 4.5 14.1l7.3 5.7c1.7-5.2 6.5-9 12.2-9z"/></svg>';
+const LABEL = { google: "Google", github: "GitHub", azure: "Microsoft", apple: "Apple", gitlab: "GitLab", discord: "Discord" };
+
+async function renderProviders() {
+  const p = await j("/api/auth/providers");
+  if (!p.ok || !p.body) return;
+  const buttons = [];
+  for (const prov of (p.body.social || [])) {
+    buttons.push({ href: "/auth/supabase/" + encodeURIComponent(prov) + "?next=/teams",
+                   name: LABEL[prov] || prov, mark: prov === "google" ? GOOGLE_MARK : "" });
+  }
+  if (p.body.google_direct) buttons.push({ href: "/auth/google?next=/teams", name: "Google", mark: GOOGLE_MARK });
+  if (!buttons.length) return;
+  $("socialBtns").innerHTML = buttons.map(b =>
+    '<a href="' + b.href + '">' + b.mark + 'Continue with ' + esc(b.name) + '</a>').join("");
+  $("orLine").style.display = "";
+}
+
+$("authGo").onclick = async () => {
+  const email = $("emailIn").value.trim();
+  const password = $("passIn").value;
+  const name = $("nameIn").value.trim();
+  if (!email || !password) return msg("authMsg", "err", "Email and password, please.");
+
+  $("authGo").disabled = true;
+  const { ok, body } = await post("/api/auth/" + authMode, { email, password, name });
+  $("authGo").disabled = false;
+
+  if (!ok) return msg("authMsg", "err", body?.error || "That did not work.");
+  await boot();
+};
+
+async function logout() {
+  await j("/api/auth/logout", { method: "POST" });
+  location.reload();
+}
+
+// ── Projects ────────────────────────────────────────────────────────────
+let creatingProject = false;
+
+$("newProj").onclick = () => {
+  creatingProject = !creatingProject;
+  $("newProjRow").style.display = creatingProject ? "" : "none";
+  $("projSel").disabled = creatingProject;
+  $("newProj").textContent = creatingProject ? "Pick existing" : "New project";
+  if (creatingProject) $("projName").focus();
+};
+
+async function loadProjects() {
+  const { ok, body } = await j("/api/groups");
+  const groups = ok && Array.isArray(body) ? body : [];
+  $("projSel").innerHTML = groups.map(g =>
+    '<option value="' + esc(g.id) + '">' + esc(g.name) + '</option>').join("");
+
+  // With nothing to choose from, offering a chooser is a dead end.
+  if (!groups.length) {
+    creatingProject = true;
+    $("newProjRow").style.display = "";
+    $("projSel").disabled = true;
+    $("newProj").style.display = "none";
+    $("projName").placeholder = "Engineering";
+  }
+  return groups;
+}
+
+$("connect").onclick = async () => {
+  const code = readCode();
+  if (code.length !== 6) return msg("connectMsg", "err", "Enter the six-character code first.");
+
+  let projectId = $("projSel").value;
+  if (creatingProject) {
+    const name = $("projName").value.trim();
+    if (!name) return msg("connectMsg", "err", "Give the project a name.");
+    const made = await post("/api/groups", { name });
+    if (!made.ok) return msg("connectMsg", "err", made.body?.error || "Could not create that project.");
+    projectId = made.body?.id;
+  }
+  if (!projectId) return msg("connectMsg", "err", "Choose a project.");
+
+  $("connect").disabled = true;
+  msg("connectMsg", "", "Connecting…");
+  const { ok, body } = await post("/teams/claim", { code, project_id: projectId });
+  $("connect").disabled = false;
+
+  if (!ok) return msg("connectMsg", "err", body?.error || "That did not work.");
+
+  sessionStorage.removeItem(CODE_KEY);
+  msg("connectMsg", "ok", "Connected.");
+  $("s3").classList.add("done");
+  await loadInstalls();
+  $("connectedBlock").scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+// ── Connected teams ─────────────────────────────────────────────────────
+async function loadInstalls() {
+  const { ok, body } = await j("/teams/installs");
+  const rows = ok && Array.isArray(body?.data) ? body.data : [];
+  $("connectedBlock").style.display = rows.length ? "" : "none";
+  if (!rows.length) return;
+
+  $("installRows").innerHTML = rows.map(r => {
+    const channels = (r.channels || []).length
+      ? r.channels.map(c => esc(c.channel_name || c.channel_id.slice(0, 10) + "…")
+          + (c.muted ? ' <span class="muted-tag">muted</span>' : "")).join("<br>")
+      : '<span class="chan">none seen yet</span>';
+    return '<tr>'
+      + '<td class="name">' + esc(r.team_name || "Team") + '</td>'
+      + '<td>' + esc(r.project_name || "") + '</td>'
+      + '<td class="chan">' + channels + '</td>'
+      + '<td style="text-align:right"><button class="ghost" data-team="' + esc(r.team_id) + '">Disconnect</button></td>'
+      + '</tr>';
+  }).join("");
+
+  for (const b of $("installRows").querySelectorAll("button[data-team]")) {
+    b.onclick = async () => {
+      // Irreversible from here, and the team keeps the app installed either way,
+      // so say plainly what does and does not happen.
+      if (!confirm("Stop reading this team? The app stays installed in Teams — GroupWisdom simply stops reading and stops posting.")) return;
+      b.disabled = true;
+      await j("/teams/installs/" + encodeURIComponent(b.dataset.team), { method: "DELETE" });
+      await loadInstalls();
+    };
+  }
+}
+
+// ── Which step you are on ───────────────────────────────────────────────
+function gate() {
+  const haveCode = readCode().length === 6;
+  $("s2").classList.toggle("off", !haveCode);
+  $("s3").classList.toggle("off", !(haveCode && signedIn));
+  $("connect").disabled = !(haveCode && signedIn);
+}
+
+async function boot() {
+  const saved = sessionStorage.getItem(CODE_KEY);
+  if (saved && !$("code").value) $("code").value = saved;
+  $("s1").classList.toggle("done", readCode().length === 6);
+
+  const me = await j("/api/me");
+  signedIn = !!(me.ok && me.body?.email);
+
+  $("authForm").style.display = signedIn ? "none" : "";
+  $("authDone").style.display = signedIn ? "" : "none";
+  $("s2").classList.toggle("done", signedIn);
+
+  if (signedIn) {
+    $("authTitle").textContent = "Signed in";
+    $("authDoneText").textContent = "Signed in as " + me.body.email + ".";
+    $("who").innerHTML = '<a href="/account" style="color:var(--ink-3);text-decoration:none">API key</a> · '
+      + esc(me.body.email) + ' <button id="signout">Sign out</button>';
+    $("signout").onclick = logout;
+    await loadProjects();
+    await loadInstalls();
+  } else {
+    setAuthMode("signup");
+    await renderProviders();
+    if (new URLSearchParams(location.search).has("auth_error")) {
+      msg("authMsg", "err", "That sign-in did not complete. Try again, or use an email and password below.");
+      history.replaceState({}, "", location.pathname);
+    }
+  }
+
+  gate();
+}
+
+boot();
+</script>
+</body>
+</html>
