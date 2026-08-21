@@ -3,19 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GroupWisdom for Buzz</title>
-<meta name="description" content="GroupWisdom reads across everything your Buzz community posts and says what no single message contained, in the channel, while it still matters.">
+<title>GroupWisdom</title>
+<meta name="description" content="GroupWisdom reads what a group has already produced and returns the findings none of them reached alone. Available as an API, and as an agent inside Buzz and Microsoft Teams.">
 
 <!-- Link previews. Without these, anywhere the URL is shared picks its own text
      out of the page, which is how the headline tagline ended up as the label. -->
 <meta property="og:site_name" content="GroupWisdom">
-<meta property="og:title" content="GroupWisdom for Buzz">
-<meta property="og:description" content="Wisdom in your Buzz channels. It reads across everything your community posts and speaks only when two separate pieces of work add up to something neither said on its own.">
+<meta property="og:title" content="GroupWisdom">
+<meta property="og:description" content="It reads what your group has already produced and says the thing no single piece of work said on its own. Most of the time it says nothing, and that is the intended result.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://groupwisdom-v1-production.up.railway.app/">
+<meta property="og:url" content="https://testgroupwisdom.com/">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="GroupWisdom for Buzz">
-<meta name="twitter:description" content="Wisdom in your Buzz channels. It reads across everything your community posts and speaks only when two separate pieces of work add up to something neither said on its own.">
+<meta name="twitter:title" content="GroupWisdom">
+<meta name="twitter:description" content="It reads what your group has already produced and says the thing no single piece of work said on its own. Most of the time it says nothing, and that is the intended result.">
 <style>
   :root {
     --ink:    #101113;
@@ -47,10 +47,10 @@
   /* ── Nav ─────────────────────────────────────────────────────────── */
   .nav-wrap { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.92);
               backdrop-filter: saturate(180%) blur(12px); border-bottom: 1px solid var(--rule); }
-  .nav { display: flex; align-items: center; gap: 28px; height: 62px; }
+  .nav { display: flex; align-items: center; gap: 26px; height: 62px; }
   .brand { font-size: 15px; font-weight: 700; letter-spacing: -.2px; text-decoration: none; margin-right: auto; }
   .brand .for { color: var(--ink-3); font-weight: 400; }
-  .nav a.link { font-size: 13.5px; color: var(--ink-2); text-decoration: none; }
+  .nav a.link { font-size: 13.5px; color: var(--ink-2); text-decoration: none; white-space: nowrap; }
   .nav a.link:hover { color: var(--ink); }
   .btn {
     display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 14px; font-weight: 500;
@@ -77,13 +77,13 @@
   p { color: var(--ink-2); }
   .sub { font-size: 13.5px; color: var(--ink-3); line-height: 1.6; }
   em.q { font-family: var(--display); font-style: italic; color: var(--ink); }
+  code { font-family: var(--mono); font-size: .88em; background: var(--panel); padding: 1px 5px; border-radius: 4px; }
 
   section { border-top: 1px solid var(--rule); }
   section.plain { border-top: none; }
   .band { background: var(--panel); }
   .pad { padding: 76px 0; }
   .pad-lg { padding: 96px 0; }
-  .stack > * + * { margin-top: 14px; }
 
   /* ── Hero ────────────────────────────────────────────────────────── */
   .hero { display: grid; grid-template-columns: minmax(0,1fr) 420px; gap: 64px; align-items: center;
@@ -119,33 +119,6 @@
   .wcard .who { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; margin-bottom: 6px; }
   .wcard .txt { font-size: 13px; color: var(--ink); line-height: 1.62; }
 
-  /* ── Split comparison ────────────────────────────────────────────── */
-  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-top: 42px;
-           border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; background: var(--paper); }
-  .split > div { padding: 26px 28px; }
-  .split > div + div { border-left: 1px solid var(--rule); }
-  .split h3 { margin-bottom: 14px; }
-  .split ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-  .split li { font-size: 14px; color: var(--ink-2); line-height: 1.5; padding-left: 20px; position: relative; }
-  .split li::before { content: ""; position: absolute; left: 4px; top: 9px; width: 5px; height: 5px;
-                      border-radius: 50%; background: #cdd2d6; }
-  .split .add li::before { background: var(--wisdom); }
-
-  /* ── Steps ───────────────────────────────────────────────────────── */
-  .steps { counter-reset: s; display: flex; flex-direction: column; margin-top: 40px;
-           border-top: 1px solid var(--rule); }
-  .stp { display: grid; grid-template-columns: 44px minmax(0,1fr); gap: 20px; padding: 26px 0;
-         border-bottom: 1px solid var(--rule); }
-  .stp .n { counter-increment: s; font-family: var(--mono); font-size: 12px; color: var(--ink-3);
-            padding-top: 2px; }
-  .stp .n::before { content: "0" counter(s); }
-  .stp h3 { margin-bottom: 6px; }
-  .stp p { font-size: 14px; }
-  .uipath { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
-  .uipath .k { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px;
-               padding: 5px 9px; font-size: 12.5px; color: var(--ink-2); }
-  .uipath .sep { color: #c3c8cc; font-size: 11px; }
-
   /* ── Gates ───────────────────────────────────────────────────────── */
   .gates { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--rule);
            border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; margin: 36px 0 20px; }
@@ -161,6 +134,34 @@
   .ex-note { font-size: 13px; color: var(--ink-3); margin-top: 9px; padding-left: 2px; line-height: 1.55; }
   .ex-note b { color: var(--ink-2); font-weight: 600; }
 
+  /* ── API ─────────────────────────────────────────────────────────── */
+  .api-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 44px; margin-top: 40px;
+              align-items: start; }
+  pre { background: #14171a; color: #e8ebee; border-radius: 11px; padding: 20px 22px; overflow-x: auto;
+        font-family: var(--mono); font-size: 12.5px; line-height: 1.68; }
+  pre .c { color: #7f8c98; }
+  pre .s { color: #a8d5a2; }
+  pre .k { color: #9ec5fe; }
+  .api-points { display: flex; flex-direction: column; gap: 22px; }
+  .api-point h3 { margin-bottom: 5px; }
+  .api-point p { font-size: 14px; line-height: 1.6; }
+
+  /* ── Platforms ───────────────────────────────────────────────────── */
+  .plats { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 42px; }
+  .plat { border: 1px solid var(--rule); border-radius: 13px; padding: 30px 30px 28px; background: var(--paper);
+          display: flex; flex-direction: column; }
+  .plat-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .plat h3 { font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+  .badge { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
+           color: var(--accent); border: 1px solid #c9d6ff; background: #f2f6ff; border-radius: 20px;
+           padding: 3px 9px; white-space: nowrap; }
+  .plat > p { font-size: 14px; line-height: 1.62; margin: 8px 0 16px; }
+  .plat ul { list-style: none; display: flex; flex-direction: column; gap: 9px; margin-bottom: 22px; }
+  .plat li { font-size: 13.5px; color: var(--ink-2); line-height: 1.5; padding-left: 19px; position: relative; }
+  .plat li::before { content: ""; position: absolute; left: 3px; top: 8px; width: 5px; height: 5px;
+                     border-radius: 50%; background: var(--wisdom); }
+  .plat .foot-cta { margin-top: auto; }
+
   /* ── Control list ────────────────────────────────────────────────── */
   .facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px 48px; margin-top: 36px; }
   .fact h3 { margin-bottom: 6px; }
@@ -169,7 +170,7 @@
   /* ── Closing ─────────────────────────────────────────────────────── */
   .closer { text-align: center; padding: 96px 0 104px; }
   .closer h2 { margin-bottom: 16px; }
-  .closer p { margin: 0 auto; max-width: 50ch; }
+  .closer p { margin: 0 auto; max-width: 52ch; }
   .closer .cta-row { justify-content: center; }
 
   footer { border-top: 1px solid var(--rule); padding: 34px 0 56px; }
@@ -178,9 +179,6 @@
   .foot a:hover { color: var(--ink); }
   .foot .spacer { flex: 1; }
   .foot .fine { font-size: 12.5px; color: var(--ink-3); }
-  .api-line { margin-top: 20px; font-size: 13.5px; color: var(--ink-3); max-width: 62ch; line-height: 1.6; }
-  .api-line a { color: var(--accent); text-decoration: none; }
-  .api-line a:hover { text-decoration: underline; }
 
   /* ── Motion: one sequence, in the hero only ──────────────────────── */
   @keyframes rise { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
@@ -207,17 +205,17 @@
   @media (max-width: 900px) {
     .hero { grid-template-columns: minmax(0,1fr); gap: 44px; padding: 56px 0 68px; }
     .hero .lede { max-width: none; }
-    .split, .gates, .facts { grid-template-columns: minmax(0,1fr); }
-    .split > div + div { border-left: none; border-top: 1px solid var(--rule); }
+    .gates, .facts, .plats, .api-grid { grid-template-columns: minmax(0,1fr); }
     .facts { gap: 24px; }
+    .api-grid { gap: 32px; }
   }
   @media (max-width: 620px) {
     .shell { padding: 0 20px; }
     .pad, .pad-lg { padding: 56px 0; }
-    .nav { gap: 16px; }
+    .nav { gap: 14px; }
     .nav a.link { display: none; }
-    .stp { grid-template-columns: minmax(0,1fr); gap: 8px; }
     .closer { padding: 64px 0 72px; }
+    .plat { padding: 24px 22px; }
   }
 </style>
 </head>
@@ -225,11 +223,12 @@
 
 <div class="nav-wrap">
   <div class="shell nav">
-    <a class="brand" href="/">GroupWisdom <span class="for">for Buzz</span></a>
-    <a class="link" href="#how">How it works</a>
+    <a class="brand" href="/">GroupWisdom</a>
     <a class="link" href="#wisdom">What it posts</a>
-    <a class="link" href="/docs">API</a>
-    <a class="btn sm" href="/buzz">Connect Buzz</a>
+    <a class="link" href="#api">API</a>
+    <a class="link" href="#platforms">Buzz &amp; Teams</a>
+    <a class="link" href="/docs">Docs</a>
+    <a class="btn sm" href="/account">Get an API key</a>
   </div>
 </div>
 
@@ -237,24 +236,24 @@
 <section class="plain">
   <div class="shell hero">
     <div>
-      <div class="eyebrow">For Buzz communities</div>
-      <h1>The wisdom is already in your channel.</h1>
+      <div class="eyebrow">Wisdom for groups</div>
+      <h1>The wisdom is already in your group's work.</h1>
       <p class="lede">
-        Your community posts it a piece at a time, on different days, without anyone noticing it adds up.
-        GroupWisdom reads across all of it and says the thing no single piece of work said on its own, in the channel,
+        Your group produces it a piece at a time, on different days, without anyone noticing it adds up.
+        GroupWisdom reads across all of it and says the thing no single piece of work said on its own,
         while it still matters.
       </p>
       <div class="cta-row">
-        <a class="btn" href="/buzz">Connect your Buzz community <span class="arr">→</span></a>
+        <a class="btn" href="#api">Build on the API <span class="arr">→</span></a>
         <a class="btn ghost" href="#wisdom">See what it posts</a>
       </div>
-      <p class="cta-note">Paste one invite link. Nothing to install, nothing running on your machine.</p>
+      <p class="cta-note">A REST API, and an agent inside Buzz and Microsoft Teams.</p>
     </div>
 
-    <div class="mock" aria-label="A Buzz channel where three teammates post separately and GroupWisdom replies with the finding across all three.">
+    <div class="mock" aria-label="A channel where three teammates post separately and GroupWisdom replies with the finding across all three.">
       <div class="mock-bar">
         <span class="hash">#</span><span class="ch">product</span>
-        <span class="rel">your-team.communities.buzz.xyz</span>
+        <span class="rel">three people, three days</span>
       </div>
       <div class="mock-body">
         <div class="msg">
@@ -285,7 +284,7 @@
             <div class="bubble"><i></i><i></i><i></i></div>
           </div>
           <div class="wcard">
-            <div class="who">Wisdom Agent</div>
+            <div class="who">GroupWisdom</div>
             <div class="txt">
               Sarah's redesign tested 22% faster and James's interviews found a clear preference for one-tap.
               Priya's pilot halved support tickets, so three separate angles reached the same conclusion
@@ -298,102 +297,14 @@
   </div>
 </section>
 
-<!-- ── Buzz + GroupWisdom ───────────────────────────────────────────── -->
-<section class="band">
-  <div class="shell pad">
-    <div class="eyebrow">Why it belongs in Buzz</div>
-    <h2 style="margin:16px 0 16px">Buzz is where the work happens. Nothing reads across it.</h2>
-    <p class="prose">
-      Buzz gives a community its own space: channels per project, membership you control, a relay you can host
-      yourself, and agents working alongside people. All of it real work, all of it in the open.
-      And all of it scrolling past. Wednesday's finding and Friday's finding never meet,
-      because nobody was holding both at once.
-    </p>
-
-    <div class="split">
-      <div>
-        <h3>What Buzz already gives you</h3>
-        <ul>
-          <li>A community that's yours. Your relay, your members, your rules</li>
-          <li>Channels where each thread of work lives</li>
-          <li>People and agent runtimes contributing side by side</li>
-          <li>Everything said, kept, and open to the people in it</li>
-        </ul>
-      </div>
-      <div>
-        <h3>What GroupWisdom adds</h3>
-        <ul class="add">
-          <li>It reads across your channels, including what was said days ago</li>
-          <li>It says what neither piece of work said on its own</li>
-          <li>It hands you a colleague's actual finding, not a nudge to go and ask</li>
-          <li>It says nothing at all most of the time, by design</li>
-          <li>Ask it <code>@wisdom memory</code> and it shows what it has established</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ── How it works ─────────────────────────────────────────────────── -->
-<section id="how">
-  <div class="shell pad">
-    <div class="eyebrow">Setting it up</div>
-    <h2 style="margin:16px 0 14px">Two clicks in Buzz, one paste here.</h2>
-    <p class="prose">
-      GroupWisdom joins your community the way a person does, with an invite link. It runs hosted, so there is
-      no terminal, no server of your own, and nothing left running on your laptop.
-    </p>
-
-    <div class="steps">
-      <div class="stp">
-        <div class="n"></div>
-        <div>
-          <h3>Copy an invite link from Buzz</h3>
-          <p>Click your community's name at the top, choose Invite to community, then Copy link. The same invite you'd send a colleague.</p>
-          <div class="uipath">
-            <span class="k">Your community name</span><span class="sep">→</span>
-            <span class="k">Invite to community</span><span class="sep">→</span>
-            <span class="k">Copy link</span>
-          </div>
-        </div>
-      </div>
-      <div class="stp">
-        <div class="n"></div>
-        <div>
-          <h3>Paste it into GroupWisdom</h3>
-          <p>The link already says which community to join, so there is nothing else to fill in. GroupWisdom appears in your member list as Wisdom Agent, visible and removable like anyone else.</p>
-        </div>
-      </div>
-      <div class="stp">
-        <div class="n"></div>
-        <div>
-          <h3>Choose the channels it reads</h3>
-          <p>Every channel it can see appears with a tick box. Untick anything you'd rather it stayed out of. It never reads direct messages, and never a channel it hasn't been added to.</p>
-        </div>
-      </div>
-      <div class="stp">
-        <div class="n"></div>
-        <div>
-          <h3>Wisdom arrives in the chat</h3>
-          <p>Not in a dashboard nobody opens. When two separate pieces of work add up to something, it says so as an ordinary message in the channel where the work is happening.</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="cta-row">
-      <a class="btn" href="/buzz">Connect your Buzz community <span class="arr">→</span></a>
-    </div>
-  </div>
-</section>
-
 <!-- ── What wisdom is ───────────────────────────────────────────────── -->
 <section id="wisdom" class="band">
   <div class="shell pad-lg">
     <div class="eyebrow">What it posts</div>
-    <h2 style="margin:16px 0 16px">Most of what gets posted isn't wisdom.</h2>
+    <h2 style="margin:16px 0 16px">Most of what a group produces isn't wisdom.</h2>
     <p class="prose">
-      Conversation is mostly coordination, acknowledgement, questions and chatter. An agent that replies to all of
-      it is noise wearing a badge. GroupWisdom surfaces a finding only when every one of these holds:
+      Conversation is mostly coordination, acknowledgement, questions and chatter. Something that responds to all
+      of it is noise wearing a badge. GroupWisdom surfaces a finding only when every one of these holds:
     </p>
 
     <div class="gates">
@@ -411,17 +322,17 @@
       </div>
       <div class="gate">
         <div class="g-n">04</div>
-        <p><strong>It can point at what produced it.</strong> Specific messages, named people, real numbers.</p>
+        <p><strong>It can point at what produced it.</strong> Specific contributions, named people, real numbers.</p>
       </div>
     </div>
     <p class="sub prose">If all four aren't true it says nothing at all. That is the normal outcome, and the correct one.</p>
 
-    <h3 style="margin:52px 0 4px">What that looks like in a channel</h3>
-    <p class="sub">An ordinary message from Wisdom Agent. No card, no label, no preamble.</p>
+    <h3 style="margin:52px 0 4px">What that looks like</h3>
+    <p class="sub">An ordinary message. No card, no label, no preamble.</p>
 
     <div class="ex">
       <div class="wcard" style="animation:none;opacity:1">
-        <div class="who">Wisdom Agent</div>
+        <div class="who">GroupWisdom</div>
         <div class="txt">
           Prem's interview analysis found users never mentioned diet or weight loss, only that they don't notice
           finishing meals. Marketer's targeting centres on weight loss and intermittent fasting as core interests,
@@ -433,7 +344,7 @@
 
     <div class="ex">
       <div class="wcard" style="animation:none;opacity:1">
-        <div class="who">Wisdom Agent</div>
+        <div class="who">GroupWisdom</div>
         <div class="txt">
           Dana's archive scan dated the mill closure to March 1974 and Leo's oral history has three residents
           describing the same winter layoffs. The two sources already corroborate each other, so Dana's dates can
@@ -445,18 +356,134 @@
   </div>
 </section>
 
+<!-- ── The API ──────────────────────────────────────────────────────── -->
+<section id="api">
+  <div class="shell pad-lg">
+    <div class="eyebrow">The API</div>
+    <h2 style="margin:16px 0 16px">Send what your group produces. Get back what none of it said alone.</h2>
+    <p class="prose">
+      One endpoint takes contributions, tagged with who made them. Analysis runs on its own moments later, and
+      findings come back by signed webhook or whenever you ask for them. It is built around a group rather than
+      around a question someone typed, and that difference shows up in everything below.
+    </p>
+
+    <div class="api-grid">
+      <div>
+<pre><span class="c"># Send a contribution, tagged with who made it</span>
+curl -X POST <span class="s">https://testgroupwisdom.com/v1/projects/:id/ingest</span> \
+  -H <span class="s">"Authorization: Bearer gw_yourkey"</span> \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{
+    "title": "Users keep abandoning checkout on mobile",
+    "content": "Support tickets up 30% this month.",
+    "type": "note",
+    "contributed_by": "Sarah"
+  }'</span>
+
+<span class="c"># Read the findings back whenever you like</span>
+curl <span class="s">https://testgroupwisdom.com/v1/projects/:id/wisdom</span> \
+  -H <span class="s">"Authorization: Bearer gw_yourkey"</span></pre>
+        <p class="sub" style="margin-top:14px">
+          Official JavaScript and TypeScript SDK, with no runtime dependencies.
+          The full reference is in the <a href="/docs">docs</a>.
+        </p>
+      </div>
+
+      <div class="api-points">
+        <div class="api-point">
+          <h3>It waits for two pieces of work</h3>
+          <p>A finding has to join something new to something the group already holds. Summarising one person's contribution is never wisdom, however well written, so a busy project produces far less output than you would expect.</p>
+        </div>
+        <div class="api-point">
+          <h3>Everything is attributed</h3>
+          <p>Every item carries who contributed it, and every finding names them. Ask what the system believes each person has established, and it will tell you.</p>
+        </div>
+        <div class="api-point">
+          <h3>You can ask why it stayed quiet</h3>
+          <p><code>GET /gate-records</code> returns what was considered and rejected, and on which of the four tests. Silence is checkable rather than mysterious.</p>
+        </div>
+        <div class="api-point">
+          <h3>Agents count as members</h3>
+          <p>An agent that researches or drafts is a contributor exactly as a person is. One person working with one agent is a group, and their work can be joined the same way.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="cta-row">
+      <a class="btn" href="/docs">Read the API reference <span class="arr">→</span></a>
+      <a class="btn ghost" href="/account">Get your API key</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Platforms ────────────────────────────────────────────────────── -->
+<section id="platforms" class="band">
+  <div class="shell pad-lg">
+    <div class="eyebrow">Where it already lives</div>
+    <h2 style="margin:16px 0 16px">Or skip the code, and put it where the work happens.</h2>
+    <p class="prose">
+      The same engine, joining a group's chat as a member. Findings arrive as ordinary messages in the channel
+      where the work is happening, not in a dashboard nobody opens.
+    </p>
+
+    <div class="plats">
+
+      <!-- Buzz -->
+      <div class="plat">
+        <div class="plat-head"><h3>For Buzz</h3></div>
+        <p>
+          It joins your community with an invite link, appears in the member list, and is removed like anyone
+          else. Nothing to install, nothing running on your machine.
+        </p>
+        <ul>
+          <li>Paste one invite link — that is the whole setup</li>
+          <li>Tick the channels it reads. It never reads direct messages</li>
+          <li><code>@wisdom memory</code> shows what it has established in that channel</li>
+          <li><code>@wisdom demo</code> plays a scripted example on invented messages</li>
+          <li><code>@wisdom mute</code> silences it while it keeps reading</li>
+          <li>A thumbs up or down on a finding is recorded as feedback</li>
+        </ul>
+        <div class="foot-cta">
+          <a class="btn" href="/buzz">Connect your Buzz community <span class="arr">→</span></a>
+        </div>
+      </div>
+
+      <!-- Teams -->
+      <div class="plat">
+        <div class="plat-head"><h3>For Microsoft Teams</h3><span class="badge">In testing</span></div>
+        <p>
+          Installed into one team by its owner, it reads that team's channels — no @mention needed, and no
+          tenant-wide administrator involved.
+        </p>
+        <ul>
+          <li>It reads nothing until someone enters a pairing code here</li>
+          <li>One team, connected by its owner, not your whole tenant</li>
+          <li>Standard channels only — never private ones</li>
+          <li><code>@GroupWisdom mute</code> silences a channel while it keeps reading</li>
+          <li>Disconnect and it stops reading, even if the app stays installed</li>
+        </ul>
+        <div class="foot-cta">
+          <a class="btn ghost" href="/teams">Connect a Teams team <span class="arr">→</span></a>
+          <p class="sub" style="margin-top:12px">Not yet listed on AppSource — get in touch to try it.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
 <!-- ── Agents count ─────────────────────────────────────────────────── -->
 <section>
   <div class="shell pad">
     <div class="eyebrow">Agents are contributors too</div>
     <h2 style="margin:16px 0 16px">A teammate is a teammate, whether or not they're a person.</h2>
     <p class="prose">
-      Buzz communities run agents alongside people. An agent that researches, drafts or analyses is a contributor
-      exactly as a person is, and its work counts the same. A research agent's output meeting a colleague's
-      findings is wisdom on the same terms as two colleagues' work combining. What it needs is two pieces of work
-      produced separately, not two people: one person and the agent they are working with is a group, and an agent
-      that drafted a budget for one question and a schedule for another can disagree with itself across them.
-      It never discounts a contribution for coming from an agent.
+      An agent that researches, drafts or analyses is a contributor exactly as a person is, and its work counts
+      the same. A research agent's output meeting a colleague's findings is wisdom on the same terms as two
+      colleagues' work combining. What it needs is two pieces of work produced separately, not two people: one
+      person and the agent they are working with is a group, and an agent that drafted a budget for one question
+      and a schedule for another can disagree with itself across them. It never discounts a contribution for
+      coming from an agent.
     </p>
   </div>
 </section>
@@ -469,12 +496,12 @@
 
     <div class="facts">
       <div class="fact">
-        <h3>It reads only what you tick</h3>
-        <p>Every channel it can see is listed with a tick box, and unticking applies immediately. It never reads direct messages, and never a channel it hasn't been added to. What it says in a channel is drawn from what that channel can see, and anything it can trace back to another channel stays there.</p>
+        <h3>It reads only what you point it at</h3>
+        <p>In Buzz, every channel it can see is listed with a tick box. In Teams, one team, connected by its owner. In the API, the items you send and nothing else. What it says in one channel is drawn from what that channel can see.</p>
       </div>
       <div class="fact">
-        <h3>It's a member, not an integration</h3>
-        <p>GroupWisdom appears in your member list like anyone else. Remove it there and it's gone. No settings to hunt down, no access left behind.</p>
+        <h3>Your content stays yours</h3>
+        <p>Content is encrypted at rest. Raw messages are deleted after 30 days; what remains is the distilled memory it reasons from. Nothing read is used to train any model.</p>
       </div>
       <div class="fact">
         <h3>Analysis costs money</h3>
@@ -491,10 +518,12 @@
 <!-- ── Closing ──────────────────────────────────────────────────────── -->
 <section>
   <div class="shell closer">
-    <h2>Put it in your community today.</h2>
-    <p class="lede">One invite link is the whole setup. It stays quiet until your community's work adds up to something worth saying.</p>
+    <h2>Point it at a group today.</h2>
+    <p class="lede">An API key, an invite link, or a pairing code. It stays quiet until the work adds up to something worth saying.</p>
     <div class="cta-row">
-      <a class="btn" href="/buzz">Connect your Buzz community <span class="arr">→</span></a>
+      <a class="btn" href="/docs">Read the API reference <span class="arr">→</span></a>
+      <a class="btn ghost" href="/buzz">Connect Buzz</a>
+      <a class="btn ghost" href="/teams">Connect Teams</a>
     </div>
   </div>
 </section>
@@ -502,19 +531,17 @@
 <footer>
   <div class="shell">
     <div class="foot">
-      <a href="#how">How it works</a>
       <a href="#wisdom">What it posts</a>
+      <a href="#api">API</a>
       <a href="/docs">API reference</a>
+      <a href="/buzz">Buzz</a>
+      <a href="/teams">Teams</a>
       <a href="/account">Your API key</a>
       <a href="/privacy">Privacy</a>
       <a href="/terms">Terms</a>
       <span class="spacer"></span>
       <span class="fine">GroupWisdom</span>
     </div>
-    <p class="api-line">
-      Not on Buzz? GroupWisdom is a plain HTTP API as well. Send a group's contributions to one endpoint and
-      read the wisdom back. <a href="/docs">See the API reference →</a>
-    </p>
   </div>
 </footer>
 
