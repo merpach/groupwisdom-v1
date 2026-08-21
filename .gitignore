@@ -7,3 +7,6 @@ dist/
 .buzz-agent.env
 .buzz-cursor.json
 .buzz-production-key.txt
+
+# Teams app package — rebuilt from the manifest and icons, not source
+teams-app/*.zip
