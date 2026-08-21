@@ -476,7 +476,7 @@ export type GateRecord = {
   insight_id: string | null; created_at: string;
 };
 export function addGateRecord(groupId: string, rec: {
-  stage: "scan" | "review"; verdict: "silent" | "spoken" | "suppressed" | "error";
+  stage: "scan" | "review" | "memory"; verdict: "silent" | "spoken" | "suppressed" | "error" | "dropped";
   kind?: string; title?: string; reason?: string; insightId?: string;
 }) {
   db.prepare(

@@ -66,6 +66,42 @@ import { queueIncrementalAnalysis, updateProjectSummary, analyzeGroup, cancelPen
 
 export const apiv1 = Router();
 
+// ── Timestamps leave as ISO 8601, always ─────────────────────────────────────
+//
+// SQLite's datetime('now') gives "2026-08-21 22:16:03": correct UTC, but with
+// no zone marker and a space instead of a T. Passed to Date.parse() in any
+// browser that is read as *local* time, so a caller in New York saw findings
+// dated five hours in the future, sorted above the messages that produced them.
+// An independent review found exactly that and called it out as silently
+// breaking the timeline of every client written against us.
+//
+// Fixed here rather than at each call site so no endpoint — including ones not
+// written yet — can leak the raw shape. Only keys ending in _at are touched:
+// rewriting anything that merely looks like a timestamp would corrupt a message
+// whose text happens to be a date.
+const SQLITE_DATETIME = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+
+export function isoTimestamps<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(isoTimestamps) as unknown as T;
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = k.endsWith("_at") && typeof v === "string" && SQLITE_DATETIME.test(v)
+        ? `${v.replace(" ", "T")}Z`
+        : isoTimestamps(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
+apiv1.use((_req, res, next) => {
+  const json = res.json.bind(res);
+  res.json = (body: unknown) => json(isoTimestamps(body));
+  next();
+});
+
+
 // Valid values for the two documented enums. Rejecting an unknown value beats
 // accepting it and quietly doing nothing, which reads to the caller as success.
 const WISDOM_KINDS = ["convergence", "opportunity", "tension", "pattern", "direction", "decision"];

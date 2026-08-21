@@ -17,7 +17,7 @@ import {
 } from "./db.js";
 import { truncate } from "./text-util.js";
 import { channelScopeEnabled, visibleTo, scopeMemory } from "./channel-scope.js";
-import { nearestFinding, DEDUPE_THRESHOLD, DEDUPE_WATCH_FLOOR } from "./dedupe.js";
+import { nearestFinding, DEDUPE_THRESHOLD, DEDUPE_WATCH_FLOOR, similarity } from "./dedupe.js";
 
 const MODEL = process.env.GW_MODEL || "claude-haiku-4-5-20251001"; // set GW_MODEL=claude-fable-5 to upgrade
 const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
@@ -119,12 +119,56 @@ export function loadGroupMemory(groupId: string): GroupMemory | null {
   }
 }
 
+/**
+ * A fact still counts as held if the rewritten memory says something close
+ * enough to it. The model rephrases every fact it keeps, so comparing strings
+ * would report the whole memory as dropped on every single update.
+ *
+ * Deliberately below the dedupe threshold: this decides whether to *mention* a
+ * loss, and a false alarm costs a line in the gate records, while a missed one
+ * is exactly the invisible failure this exists to make visible.
+ */
+const MEMORY_RETAINED_AT = 0.4;
+
+export function factsDropped(
+  before: GroupMemory["facts"],
+  after: GroupMemory["facts"],
+): GroupMemory["facts"] {
+  if (!before.length) return [];
+  return before.filter(b =>
+    !after.some(a => similarity({ title: b.fact }, { title: a.fact }) >= MEMORY_RETAINED_AT));
+}
+
 function saveGroupMemory(groupId: string, mem: GroupMemory) {
+  // What the group had before this update, so a loss can be named rather than
+  // discovered. An independent review ran two topics side by side, watched the
+  // minority one disappear from memory entirely, and found nothing anywhere
+  // saying it had gone: "silent eviction in a mixed room is the failure that
+  // will lose trust fastest, because the user cannot detect it."
+  const previous = loadGroupMemory(groupId)?.facts ?? [];
+
   // Newest facts live at the end of the array, so trimming from the front
   // drops the oldest when the model has blown past its budget.
   mem.facts = mem.facts.slice(-MEMORY_MAX_FACTS);
   mem.active_wisdom = mem.active_wisdom.slice(-MEMORY_MAX_WISDOM);
   setGroupMemoryRaw(groupId, JSON.stringify(mem));
+
+  // Two different losses land here and both matter to the reader: the model
+  // rewrote the memory without carrying a fact across, or the 40-fact cap
+  // pushed the oldest out. Neither is an error, and neither should be silent.
+  const dropped = factsDropped(previous, mem.facts);
+  if (!dropped.length) return;
+
+  const named = dropped.slice(0, 3).map(f => truncate(f.fact, 90)).join(" | ");
+  const more = dropped.length > 3 ? ` (+${dropped.length - 3} more)` : "";
+  recordGate(groupId, {
+    stage: "memory",
+    verdict: "dropped",
+    title: `${dropped.length} fact${dropped.length === 1 ? "" : "s"} left working memory`,
+    reason: previous.length > MEMORY_MAX_FACTS
+      ? `Working memory holds ${MEMORY_MAX_FACTS} facts and the oldest were pushed out: ${named}${more}`
+      : `No longer carried forward after the last update — a topic may have lost ground to a busier one: ${named}${more}`,
+  });
 }
 
 /**
