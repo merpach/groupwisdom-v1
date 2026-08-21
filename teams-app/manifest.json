@@ -3,14 +3,16 @@
   "manifestVersion": "1.21",
   "version": "0.1.0",
   "id": "7f5c7a9a-be34-489a-89c1-d9b27cfb88da",
-  "packageName": "com.groupwisdom.teams",
   "developer": {
     "name": "Prem Acharya",
     "websiteUrl": "https://testgroupwisdom.com",
     "privacyUrl": "https://testgroupwisdom.com/privacy",
     "termsOfUseUrl": "https://testgroupwisdom.com/terms"
   },
-  "icons": { "color": "color.png", "outline": "outline.png" },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
   "name": {
     "short": "GroupWisdom",
     "full": "GroupWisdom"
@@ -23,7 +25,9 @@
   "bots": [
     {
       "botId": "7f5c7a9a-be34-489a-89c1-d9b27cfb88da",
-      "scopes": ["team"],
+      "scopes": [
+        "team"
+      ],
       "supportsFiles": false,
       "isNotificationOnly": false
     }
@@ -42,6 +46,11 @@
       ]
     }
   },
-  "permissions": ["identity", "messageTeamMembers"],
-  "validDomains": ["testgroupwisdom.com"]
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": [
+    "testgroupwisdom.com"
+  ]
 }
