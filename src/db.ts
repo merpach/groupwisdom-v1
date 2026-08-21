@@ -155,6 +155,57 @@ CREATE TABLE IF NOT EXISTS wisdom_feedback (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (insight_id, member)          -- one live verdict per person per card; newest wins
 );
+-- ── Microsoft Teams ────────────────────────────────────────────────────────
+-- Teams pushes each message over HTTP rather than holding a connection open, so
+-- everything the Buzz adapter keeps in memory has to live here instead: a
+-- redeploy between a message arriving and its finding being ready must not lose
+-- the address to reply to.
+-- A team that has installed the app but has not yet been bound to a project.
+-- Nothing is read from such a team: the code is posted into the channel, and
+-- someone with a GroupWisdom account claims it. That way the decision to let a
+-- team's messages leave Teams is made by a person, in our product, on purpose.
+CREATE TABLE IF NOT EXISTS teams_pending_installs (
+  team_id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT '',
+  team_name TEXT NOT NULL DEFAULT '',
+  service_url TEXT NOT NULL DEFAULT '',
+  conversation_id TEXT NOT NULL DEFAULT '',
+  code TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS teams_installs (
+  team_id TEXT PRIMARY KEY,            -- the Teams team the app was installed into
+  tenant_id TEXT NOT NULL DEFAULT '',
+  team_name TEXT NOT NULL DEFAULT '',
+  project_id TEXT NOT NULL REFERENCES groups(id),
+  service_url TEXT NOT NULL DEFAULT '',
+  installed_by TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_seen_at TEXT DEFAULT NULL
+);
+-- One row per channel we have heard from. The channel id doubles as the scope
+-- key the engine already understands, so a finding built here can only be built
+-- from what this channel can see.
+CREATE TABLE IF NOT EXISTS teams_conversations (
+  channel_id TEXT PRIMARY KEY,
+  team_id TEXT NOT NULL DEFAULT '',
+  conversation_id TEXT NOT NULL,
+  service_url TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT '',
+  channel_name TEXT NOT NULL DEFAULT '',
+  reply_to_id TEXT DEFAULT NULL,       -- newest inbound activity, so a card can thread under it
+  muted_until INTEGER NOT NULL DEFAULT -1,  -- -1 open, 0 muted indefinitely, else ms when it lifts
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- What we have already said where. Teams gives no way to ask "did I post this?",
+-- and a duplicate finding is the one failure this product cannot afford.
+CREATE TABLE IF NOT EXISTS teams_posted (
+  channel_id TEXT NOT NULL,
+  wisdom_id TEXT NOT NULL,
+  activity_id TEXT DEFAULT NULL,
+  posted_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (channel_id, wisdom_id)
+);
 CREATE TABLE IF NOT EXISTS usage_events (
   id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL,
@@ -277,6 +328,18 @@ export function deleteGroup(id: string) {
   db.prepare("DELETE FROM invites WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM project_api_keys WHERE project_id = ?").run(id);
   db.prepare("DELETE FROM buzz_workspaces WHERE project_id = ?").run(id);
+  // Teams rows key off team/channel rather than project, so the install is found
+  // first and its channels cleared through it. Missing these would fail the
+  // foreign key and make an analysed project undeletable, which is the exact bug
+  // this function already had once.
+  for (const t of db.prepare("SELECT team_id FROM teams_installs WHERE project_id = ?").all(id) as Array<{ team_id: string }>) {
+    for (const c of db.prepare("SELECT channel_id FROM teams_conversations WHERE team_id = ?").all(t.team_id) as Array<{ channel_id: string }>) {
+      db.prepare("DELETE FROM teams_posted WHERE channel_id = ?").run(c.channel_id);
+    }
+    db.prepare("DELETE FROM teams_conversations WHERE team_id = ?").run(t.team_id);
+  }
+  db.prepare("DELETE FROM teams_installs WHERE project_id = ?").run(id);
+  db.prepare("DELETE FROM teams_pending_installs WHERE team_id NOT IN (SELECT team_id FROM teams_installs)").run();
   db.prepare("DELETE FROM group_memory WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM gate_records WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM wisdom_feedback WHERE group_id = ?").run(id);
@@ -908,4 +971,243 @@ export function setBuzzConnectionChannels(id: string, channels: string[] | null)
 /** Record what the agent can see, so the setup page can offer real choices. */
 export function setBuzzConnectionDiscovered(id: string, channels: Array<{ id: string; name: string }>) {
   db.prepare("UPDATE buzz_connections SET discovered = ? WHERE id = ?").run(JSON.stringify(channels), id);
+}
+
+
+// ── Microsoft Teams ─────────────────────────────────────────────────────────
+
+export type TeamsInstall = {
+  team_id: string; tenant_id: string; team_name: string; project_id: string;
+  service_url: string; installed_by: string; created_at: string; last_seen_at: string | null;
+};
+
+export type TeamsConversation = {
+  channel_id: string; team_id: string; conversation_id: string; service_url: string;
+  tenant_id: string; channel_name: string; reply_to_id: string | null;
+  muted_until: number; updated_at: string;
+};
+
+export const getTeamsInstall = (teamId: string): TeamsInstall | undefined =>
+  db.prepare("SELECT * FROM teams_installs WHERE team_id = ?").get(teamId) as TeamsInstall | undefined;
+
+export const getTeamsInstallForProject = (projectId: string): TeamsInstall | undefined =>
+  db.prepare("SELECT * FROM teams_installs WHERE project_id = ?").get(projectId) as TeamsInstall | undefined;
+
+/**
+ * Bind a Teams team to a project. Idempotent on team_id: a reinstall updates
+ * what we know rather than creating a second row that would split the team's
+ * history across two projects.
+ */
+export function upsertTeamsInstall(a: {
+  teamId: string; projectId: string; tenantId?: string; teamName?: string;
+  serviceUrl?: string; installedBy?: string;
+}): TeamsInstall {
+  db.prepare(
+    `INSERT INTO teams_installs (team_id, tenant_id, team_name, project_id, service_url, installed_by)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(team_id) DO UPDATE SET
+       tenant_id   = excluded.tenant_id,
+       team_name   = excluded.team_name,
+       service_url = excluded.service_url,
+       last_seen_at = datetime('now')`
+  ).run(a.teamId, a.tenantId ?? "", a.teamName ?? "", a.projectId, a.serviceUrl ?? "", a.installedBy ?? "");
+  return getTeamsInstall(a.teamId)!;
+}
+
+export function deleteTeamsInstall(teamId: string) {
+  for (const c of db.prepare("SELECT channel_id FROM teams_conversations WHERE team_id = ?").all(teamId) as Array<{ channel_id: string }>) {
+    db.prepare("DELETE FROM teams_posted WHERE channel_id = ?").run(c.channel_id);
+  }
+  db.prepare("DELETE FROM teams_conversations WHERE team_id = ?").run(teamId);
+  db.prepare("DELETE FROM teams_installs WHERE team_id = ?").run(teamId);
+}
+
+export const getTeamsConversation = (channelId: string): TeamsConversation | undefined =>
+  db.prepare("SELECT * FROM teams_conversations WHERE channel_id = ?").get(channelId) as TeamsConversation | undefined;
+
+/**
+ * Remember where to reply. Called on every inbound message, so the reply address
+ * is always the freshest one Teams gave us — `serviceUrl` is regional and
+ * documented as a per-conversation value rather than a constant.
+ *
+ * `muted_until` is deliberately not written here: mute is set by a person and
+ * must survive the ordinary traffic that follows it.
+ */
+export function rememberTeamsConversation(a: {
+  channelId: string; teamId?: string; conversationId: string; serviceUrl: string;
+  tenantId?: string; channelName?: string; replyToId?: string | null;
+}): TeamsConversation {
+  db.prepare(
+    `INSERT INTO teams_conversations
+       (channel_id, team_id, conversation_id, service_url, tenant_id, channel_name, reply_to_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(channel_id) DO UPDATE SET
+       team_id         = excluded.team_id,
+       conversation_id = excluded.conversation_id,
+       service_url     = excluded.service_url,
+       tenant_id       = excluded.tenant_id,
+       channel_name    = CASE WHEN excluded.channel_name = '' THEN teams_conversations.channel_name
+                              ELSE excluded.channel_name END,
+       reply_to_id     = excluded.reply_to_id,
+       updated_at      = datetime('now')`
+  ).run(a.channelId, a.teamId ?? "", a.conversationId, a.serviceUrl,
+        a.tenantId ?? "", a.channelName ?? "", a.replyToId ?? null);
+  return getTeamsConversation(a.channelId)!;
+}
+
+export const listTeamsConversations = (teamId: string): TeamsConversation[] =>
+  db.prepare("SELECT * FROM teams_conversations WHERE team_id = ? ORDER BY updated_at DESC")
+    .all(teamId) as TeamsConversation[];
+
+export function setTeamsMute(channelId: string, until: number) {
+  db.prepare("UPDATE teams_conversations SET muted_until = ?, updated_at = datetime('now') WHERE channel_id = ?")
+    .run(until, channelId);
+}
+
+/** Has this finding already been said in this channel? */
+export const teamsAlreadyPosted = (channelId: string, wisdomId: string): boolean =>
+  !!db.prepare("SELECT 1 FROM teams_posted WHERE channel_id = ? AND wisdom_id = ?").get(channelId, wisdomId);
+
+/**
+ * Claim a finding for a channel, returning false if it was already claimed.
+ *
+ * Written before the post rather than after, because two overlapping polls both
+ * checking "have we posted this?" would both see no and both post. The insert is
+ * the lock; a failed post clears it again.
+ */
+export function claimTeamsPost(channelId: string, wisdomId: string): boolean {
+  try {
+    db.prepare("INSERT INTO teams_posted (channel_id, wisdom_id) VALUES (?, ?)").run(channelId, wisdomId);
+    return true;
+  } catch { return false; }        // primary-key collision: someone else has it
+}
+
+export function releaseTeamsPost(channelId: string, wisdomId: string) {
+  db.prepare("DELETE FROM teams_posted WHERE channel_id = ? AND wisdom_id = ?").run(channelId, wisdomId);
+}
+
+export function recordTeamsPost(channelId: string, wisdomId: string, activityId: string | null) {
+  db.prepare("UPDATE teams_posted SET activity_id = ? WHERE channel_id = ? AND wisdom_id = ?")
+    .run(activityId, channelId, wisdomId);
+}
+
+
+// ── Pairing a Teams team to a project ───────────────────────────────────────
+
+/**
+ * Unambiguous alphabet: no I, L, O, U, 0 or 1. The code is read off a screen and
+ * typed by hand, and the pairs that get confused are the ones that cost support
+ * time. U is dropped as well so no code can spell something unfortunate.
+ */
+const PAIRING_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
+const PAIRING_LENGTH = 6;                        // 30^6 ≈ 729 million
+const PAIRING_TTL_HOURS = 24;
+
+/** Rejection-sampled so every character is equally likely — modulo bias here would shrink the space. */
+function newPairingCode(): string {
+  let out = "";
+  while (out.length < PAIRING_LENGTH) {
+    for (const b of randomBytes(PAIRING_LENGTH * 2)) {
+      if (b >= 256 - (256 % PAIRING_ALPHABET.length)) continue;   // would bias the low letters
+      out += PAIRING_ALPHABET[b % PAIRING_ALPHABET.length];
+      if (out.length === PAIRING_LENGTH) break;
+    }
+  }
+  return out;
+}
+
+/** People type these back with spaces, dashes and lowercase. All of it is noise. */
+export const normalisePairingCode = (raw: string): string =>
+  String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+export type TeamsPendingInstall = {
+  team_id: string; tenant_id: string; team_name: string; service_url: string;
+  conversation_id: string; code: string; created_at: string;
+};
+
+export const getPendingTeamsInstall = (teamId: string): TeamsPendingInstall | undefined =>
+  db.prepare("SELECT * FROM teams_pending_installs WHERE team_id = ?").get(teamId) as TeamsPendingInstall | undefined;
+
+/**
+ * Start (or resume) pairing for a team.
+ *
+ * Idempotent while the code is still valid, so a reinstall — or Teams resending
+ * an install event, which it does — shows the same code rather than quietly
+ * invalidating the one already on screen. An expired code is replaced.
+ */
+export function startTeamsPairing(a: {
+  teamId: string; tenantId?: string; teamName?: string; serviceUrl?: string; conversationId?: string;
+}): TeamsPendingInstall {
+  const existing = getPendingTeamsInstall(a.teamId);
+  const fresh = existing && db.prepare(
+    `SELECT 1 FROM teams_pending_installs WHERE team_id = ? AND created_at > datetime('now', ?)`
+  ).get(a.teamId, `-${PAIRING_TTL_HOURS} hours`);
+
+  if (existing && fresh) {
+    db.prepare(
+      `UPDATE teams_pending_installs SET tenant_id = ?, team_name = ?, service_url = ?, conversation_id = ?
+       WHERE team_id = ?`
+    ).run(a.tenantId ?? "", a.teamName ?? "", a.serviceUrl ?? "", a.conversationId ?? "", a.teamId);
+    return getPendingTeamsInstall(a.teamId)!;
+  }
+
+  db.prepare("DELETE FROM teams_pending_installs WHERE team_id = ?").run(a.teamId);
+  // A collision is astronomically unlikely but the column is UNIQUE, so an
+  // unhandled one would surface as a 500 on somebody's install.
+  for (let i = 0; i < 5; i++) {
+    try {
+      db.prepare(
+        `INSERT INTO teams_pending_installs (team_id, tenant_id, team_name, service_url, conversation_id, code)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).run(a.teamId, a.tenantId ?? "", a.teamName ?? "", a.serviceUrl ?? "", a.conversationId ?? "", newPairingCode());
+      return getPendingTeamsInstall(a.teamId)!;
+    } catch { /* code already taken — draw another */ }
+  }
+  throw new Error("could not allocate a pairing code");
+}
+
+/** The pending install a code refers to, if the code is real and still fresh. */
+export const getPendingTeamsInstallByCode = (raw: string): TeamsPendingInstall | undefined => {
+  const code = normalisePairingCode(raw);
+  if (code.length !== PAIRING_LENGTH) return undefined;
+  return db.prepare(
+    `SELECT * FROM teams_pending_installs WHERE code = ? AND created_at > datetime('now', ?)`
+  ).get(code, `-${PAIRING_TTL_HOURS} hours`) as TeamsPendingInstall | undefined;
+};
+
+export function deletePendingTeamsInstall(teamId: string) {
+  db.prepare("DELETE FROM teams_pending_installs WHERE team_id = ?").run(teamId);
+}
+
+/** Expired codes are not evidence of anything and should not sit around being guessable. */
+export function pruneExpiredTeamsPairings(): number {
+  const before = db.prepare("SELECT COUNT(*) AS n FROM teams_pending_installs").get() as { n: number };
+  db.prepare(`DELETE FROM teams_pending_installs WHERE created_at <= datetime('now', ?)`)
+    .run(`-${PAIRING_TTL_HOURS} hours`);
+  const after = db.prepare("SELECT COUNT(*) AS n FROM teams_pending_installs").get() as { n: number };
+  return before.n - after.n;
+}
+
+/**
+ * Redeem a code: bind the team to a project and retire the code.
+ *
+ * The delete and the insert are one transaction because a half-done pairing is
+ * the worst of both — a team bound to a project with a live code still on screen
+ * for someone else to claim.
+ */
+export function claimTeamsPairing(rawCode: string, projectId: string): TeamsInstall | null {
+  const pending = getPendingTeamsInstallByCode(rawCode);
+  if (!pending) return null;
+  if (getTeamsInstall(pending.team_id)) { deletePendingTeamsInstall(pending.team_id); return null; }
+
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const install = upsertTeamsInstall({
+      teamId: pending.team_id, projectId,
+      tenantId: pending.tenant_id, teamName: pending.team_name, serviceUrl: pending.service_url,
+    });
+    deletePendingTeamsInstall(pending.team_id);
+    db.exec("COMMIT");
+    return install;
+  } catch (e) { db.exec("ROLLBACK"); throw e; }
 }

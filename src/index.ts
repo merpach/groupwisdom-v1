@@ -8,6 +8,7 @@ import bcrypt from "bcrypt";
 import { api, setNotifier } from "./api.js";
 import { apiv1, setV1Notifier } from "./api-v1.js";
 import { buzzHook } from "./buzz-hook.js";
+import { teamsHook } from "./teams-hook.js";
 import { startBuzzSupervisor } from "./buzz-supervisor.js";
 import { runningRouter, CLUB_GROUP_ID } from "./running.js";
 import { handleMcpRequest } from "./mcp-http.js";
@@ -132,6 +133,7 @@ app.use(googleAuth);   // /auth/google — 404s unless GOOGLE_CLIENT_ID/SECRET a
 app.use("/api", api);
 app.use("/v1", apiv1);
 app.use("/buzz", buzzHook);
+app.use("/teams", teamsHook);
 app.use("/running/api", runningRouter);
 
 // Remote MCP endpoint — used by Claude.ai connectors

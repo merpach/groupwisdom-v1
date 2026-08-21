@@ -1,0 +1,47 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.21/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.21",
+  "version": "0.1.0",
+  "id": "7f5c7a9a-be34-489a-89c1-d9b27cfb88da",
+  "packageName": "com.groupwisdom.teams",
+  "developer": {
+    "name": "Prem Acharya",
+    "websiteUrl": "https://testgroupwisdom.com",
+    "privacyUrl": "https://testgroupwisdom.com/privacy",
+    "termsOfUseUrl": "https://testgroupwisdom.com/terms"
+  },
+  "icons": { "color": "color.png", "outline": "outline.png" },
+  "name": {
+    "short": "GroupWisdom",
+    "full": "GroupWisdom"
+  },
+  "description": {
+    "short": "Says the thing no single piece of work said on its own.",
+    "full": "GroupWisdom reads the messages in the channels it is added to and speaks only when two separate pieces of work add up to something neither said alone. Most of the time it says nothing, which is the intended result.\n\nWhat it does with what it reads: message text, the name of the person who wrote it, and the channel it came from are sent to GroupWisdom for analysis, and from there to Anthropic's Claude API, which produces the findings. Raw message text is deleted after 30 days. What is kept beyond that is a bounded summary of what the team has established, capped at 40 facts, which is what the engine reasons from. Nothing read here is used to train any model.\n\nIt reads only the channels of the team it is installed in, never private channels, and never chats it has not been added to. Say '@GroupWisdom mute' to silence it in a channel, or remove the app from the team to stop it entirely.\n\nAsk '@GroupWisdom memory' in any channel to see exactly what it believes the team has established, and where each fact came from."
+  },
+  "accentColor": "#1D7A46",
+  "bots": [
+    {
+      "botId": "7f5c7a9a-be34-489a-89c1-d9b27cfb88da",
+      "scopes": ["team"],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "webApplicationInfo": {
+    "id": "7f5c7a9a-be34-489a-89c1-d9b27cfb88da",
+    "resource": "https://groupwisdom"
+  },
+  "authorization": {
+    "permissions": {
+      "resourceSpecific": [
+        {
+          "type": "Application",
+          "name": "ChannelMessage.Read.Group"
+        }
+      ]
+    }
+  },
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["testgroupwisdom.com"]
+}
