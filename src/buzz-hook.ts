@@ -130,6 +130,12 @@ buzzHook.post("/ingest", (req, res) => {
     title: content.slice(0, 60),
     content,
     source: "buzz",
+    // The workspace's own channel, not the body's: it is the channel this
+    // wisdom will be posted back into, so it is the only one the scan may be
+    // built from. Untagged items made every channel sharing a project batch
+    // together, and a scan that spans channels cannot produce a finding that
+    // is safe to post in either of them.
+    channel: ws.channel_id,
   });
   touchBuzzWorkspace(ws.id);
 
