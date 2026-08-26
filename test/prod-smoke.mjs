@@ -113,6 +113,11 @@ async function main() {
   const mem = await j("GET", `/v1/projects/${project}/memory`, { key });
   ok(mem.status === 200, "memory endpoint answers");
 
+  const an1 = await j("POST", `/v1/projects/${project}/analyze`, { key });
+  const an2 = await j("POST", `/v1/projects/${project}/analyze`, { key });
+  ok(an1.status === 202 && an2.status === 429,
+     "DEPLOY MARKER 2: analyze cooldown live (first 202, immediate second 429)", `got ${an1.status}/${an2.status}`);
+
   if (!viaDemo) {
     const usage = await j("GET", "/v1/usage", { key });
     ok(usage.status === 200 && typeof usage.json?.percent_used === "number", "usage answers with a number");

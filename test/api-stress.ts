@@ -371,8 +371,17 @@ async function main() {
   await settle(1200);
   eq(deliveries.length, 1, "full analysis fired the webhook");
   eq(deliveries[0].body.wisdom.length >= 1, true, "with the new finding");
+  const again = await call("POST", `/projects/${A}/analyze`, { key: alice.api_key });
+  eq(again.status, 429, "THE EXPENSIVE LOOP: a second full analysis inside the window is refused");
+  ok(!!again.headers.get("retry-after"), "with a Retry-After");
+  ok(/whole project/.test(again.json?.error ?? ""), "and an error that says why");
+  const burst429 = await Promise.all(Array.from({ length: 10 }, () => call("POST", `/projects/${A}/analyze`, { key: alice.api_key })));
+  ok(burst429.every(r => r.status === 429), "a parallel burst is entirely refused");
+  eq((await call("POST", `/projects/${B}/analyze`, { key: bob.api_key })).status, 202, "another project is unaffected");
+  process.env.GW_ANALYZE_COOLDOWN_MIN = "0";
   const burst = await Promise.all(Array.from({ length: 10 }, () => call("POST", `/projects/${A}/analyze`, { key: alice.api_key })));
-  ok(burst.every(r => r.status === 202), "ten parallel analyzes all 202");
+  ok(burst.every(r => r.status === 202), "with the cooldown disabled, ten parallel analyzes all 202 and nothing crashes");
+  delete process.env.GW_ANALYZE_COOLDOWN_MIN;
   await settle(1500);
 
   // ════ S13 · Summary debounce ════

@@ -233,6 +233,8 @@ try { db.exec("ALTER TABLE buzz_connections ADD COLUMN discovered TEXT DEFAULT N
 // the members table meant deleting a project erased its spend from the user's
 // cap — delete a project, get a fresh $50.
 try { db.exec("ALTER TABLE usage_events ADD COLUMN user_id TEXT DEFAULT NULL"); } catch { /* already exists */ }
+// The cap query filters by user and time on every batch; index after the ALTER above, since a fresh database only gains user_id there.
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_usage_user_time ON usage_events(user_id, created_at)"); } catch { /* fine */ }
 // Provenance: which chat channel a message arrived from. NULL means we do not
 // know — either it came straight through the API, or it predates this column.
 // Memory spans a whole community on purpose (combining work across channels is
@@ -757,13 +759,26 @@ export function recordUsage(
   ).run(randomUUID(), groupId, model, inputTokens, outputTokens, cost, purpose, userId);
 }
 
+/**
+ * Spend that counts against the cap: the last 30 days, rolling.
+ *
+ * This summed a lifetime. A cap that never resets is a fuse, not a budget —
+ * every account died permanently at $50 of cumulative use (a typical team in
+ * under three months), and the operator's own $250 kill switch would have shut
+ * the whole service off forever the first time it was reached. A rolling
+ * window keeps both properties that matter — spend survives project deletion,
+ * and a runaway is stopped — while letting a quiet month heal the account.
+ */
+const BUDGET_WINDOW = "-30 days";
+
 export function getUserTotalCostUsd(userId: string): number {
   // user_id is stamped at write time; the membership join remains only for rows
   // recorded before the column existed.
   const row = db.prepare(
     "SELECT COALESCE(SUM(u.cost_usd), 0) as total FROM usage_events u " +
-    "WHERE u.user_id = ? OR (u.user_id IS NULL AND u.group_id IN (SELECT group_id FROM members WHERE user_id = ?))"
-  ).get(userId, userId) as { total: number };
+    "WHERE (u.user_id = ? OR (u.user_id IS NULL AND u.group_id IN (SELECT group_id FROM members WHERE user_id = ?))) " +
+    "AND u.created_at >= datetime('now', ?)"
+  ).get(userId, userId, BUDGET_WINDOW) as { total: number };
   return row.total;
 }
 
@@ -852,7 +867,9 @@ export function pruneOldGateRecords(days = 90): number {
 
 export function isGlobalOverBudget(): boolean {
   const cap = Number(process.env.GW_GLOBAL_BUDGET_USD || 250);
-  const row = db.prepare("SELECT COALESCE(SUM(cost_usd), 0) as total FROM usage_events").get() as { total: number };
+  const row = db.prepare(
+    "SELECT COALESCE(SUM(cost_usd), 0) as total FROM usage_events WHERE created_at >= datetime('now', ?)"
+  ).get(BUDGET_WINDOW) as { total: number };
   return row.total >= cap;
 }
 

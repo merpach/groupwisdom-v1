@@ -274,11 +274,31 @@ apiv1.post("/demo", (req, res) => {
 // Triggers a full re-analysis of the project on demand, unlike the automatic
 // path which reasons from memory and a short tail.
 
+/**
+ * Full analysis re-reads every item, so its cost grows with the project while
+ * the general rate limit (240/min) does not — one stuck retry loop against a
+ * large project was the single most expensive request a caller could repeat.
+ * One full analysis per project per window; the automatic per-message path is
+ * untouched. In memory, so a deploy resets it: errs open, like the limiter.
+ */
+const lastFullAnalysis = new Map<string, number>();
+
 apiv1.post("/projects/:id/analyze", (req, res) => {
   const a = auth(req);
   if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
   const g = resolveProject(req, a);
   if (!g) return res.status(404).json({ error: "Project not found." });
+  const cooldownMin = Number(process.env.GW_ANALYZE_COOLDOWN_MIN ?? 5);
+  if (cooldownMin > 0) {
+    const waitMs = (lastFullAnalysis.get(g.id) ?? 0) + cooldownMin * 60_000 - Date.now();
+    if (waitMs > 0) {
+      res.setHeader("Retry-After", String(Math.ceil(waitMs / 1000)));
+      return res.status(429).json({
+        error: `Full analysis ran less than ${cooldownMin} minutes ago and re-reads the whole project. Automatic analysis of new items is unaffected. Retry in ${Math.ceil(waitMs / 1000)}s.`,
+      });
+    }
+    lastFullAnalysis.set(g.id, Date.now());
+  }
   cancelPendingAnalysis(g.id); // prevent incremental from racing and saving wisdom without review-pass data
   res.status(202).json({ message: "Analysis started." });
   // The webhook has to fire from here too. It only ever fired from the ingest
