@@ -16,6 +16,13 @@ if (!process.env.GW_DB) {
   console.error("Set GW_DB to a disposable path, e.g. GW_DB=/tmp/gw-test.db");
   process.exit(1);
 }
+// Without these the engine quietly falls back to its offline mock, the fake
+// below is never called, and the speaking flow fails as though the webhook
+// were broken. Refuse rather than report a fault that isn't there.
+if (!process.env.ANTHROPIC_API_KEY || !process.env.ANTHROPIC_BASE_URL) {
+  console.error("Run this through `npm run test:api` — it points the SDK at the local fake.");
+  process.exit(1);
+}
 
 import express from "express";
 import http from "node:http";
@@ -38,6 +45,7 @@ const isIso = (v: unknown) => typeof v === "string" && ISO.test(v);
 // ── Fake Anthropic: full pipeline, unique titles, call counting ─────────────
 const calls: Record<string, number> = {};
 let nonce = 0;
+
 const anthropic = http.createServer((req, res) => {
   let raw = ""; req.on("data", c => raw += c);
   req.on("end", () => {
@@ -356,6 +364,13 @@ async function main() {
   eq(speak.status, 202, "speaking flow ingests");
   await settle(5200);                               // 3s batch + pipeline
   eq(deliveries.length, 1, "THE PUSH: analysis produced a finding and the webhook fired once");
+  if (!deliveries.length) {
+    // Silence here is usually the engine deciding, not the webhook breaking.
+    // Print the reason it recorded so the next reader is not left guessing.
+    const g = await call("GET", `/projects/${A}/gate-records`, { key: alice.api_key });
+    for (const r of (g.json?.records ?? []).slice(0, 6))
+      console.log(`      why: [${r.stage}/${r.verdict}] ${r.reason ?? r.title ?? ""}`);
+  }
   const d = deliveries[0];
   eq(d.body.event, "insights.created", "event name preserved for old receivers");
   ok(Array.isArray(d.body.wisdom) && Array.isArray(d.body.insights), "wisdom and insights mirror");

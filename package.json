@@ -21,6 +21,8 @@
     "buzz:authorize": "tsx src/buzz-authorize.ts",
     "buzz:test": "tsx src/adapters/nip-oa.test.ts",
     "test:api": "GW_DB=/tmp/gw-test-api.db ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:4713 GW_WISDOM_COOLDOWN_MIN=0 tsx test/api-stress.ts",
+    "test:scout": "GW_DB=/tmp/gw-scout.db tsx test/scout-truncation-test.ts",
+    "test:json": "node test/json-repair-test.mjs",
     "smoke": "node test/prod-smoke.mjs"
   },
   "dependencies": {

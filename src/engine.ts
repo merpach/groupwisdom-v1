@@ -15,7 +15,7 @@ import {
   getGroupMemoryRaw, setGroupMemoryRaw, addGateRecord, isGlobalOverBudget, spokeRecently,
   type Item, type Insight,
 } from "./db.js";
-import { truncate } from "./text-util.js";
+import { truncate, parseModelJson } from "./text-util.js";
 import { channelScopeEnabled, visibleTo, scopeMemory } from "./channel-scope.js";
 import { nearestFinding, DEDUPE_THRESHOLD, DEDUPE_WATCH_FLOOR, similarity } from "./dedupe.js";
 
@@ -358,7 +358,7 @@ ${MEMORY_SHAPE}`,
   recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "memory_bootstrap");
 
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
-  const core = normalizeMemoryCore(JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)));
+  const core = normalizeMemoryCore(parseModelJson(raw, "memory bootstrap"));
   const mem = { ...core, active_wisdom: activeWisdom };
   saveGroupMemory(groupId, mem);
   return mem;
@@ -420,7 +420,7 @@ where facts, decisions and open_questions follow ${MEMORY_SHAPE}`,
   recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "memory_update");
 
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
-  const parsed = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+  const parsed = parseModelJson(raw, "memory update");
   return {
     core: normalizeMemoryCore(parsed),
     // Default to true: a missing field must not silence the engine outright.
@@ -509,7 +509,10 @@ async function scoutForCandidate(
   const client = new Anthropic();
   const msg = await client.messages.create({
     model: SUMMARY_MODEL,
-    max_tokens: 300,
+    // A "no" costs about forty tokens; only a "yes" — which has to name both
+    // pieces of work — ever ran into the old 300 ceiling. Output is billed on
+    // what is generated, so the headroom is free and buys the answers we want.
+    max_tokens: 700,
     messages: [{
       role: "user",
       content: `You are the scout for a shared project called "${groupName}". Your only job is to
@@ -541,9 +544,10 @@ Respond ONLY with valid JSON:
     }],
   });
   recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "scout");
+  if (msg.stop_reason === "max_tokens") console.warn(`[scout] reply hit the token ceiling for group ${groupId}`);
 
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
-  const parsed = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+  const parsed = parseModelJson(raw, "scout");
   return {
     // Default to NOT drafting: a malformed verdict must fail closed, toward silence.
     worth_drafting: parsed?.worth_drafting === true,
@@ -673,7 +677,7 @@ Respond ONLY with valid JSON:
   recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "editor");
 
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
-  return JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+  return parseModelJson(raw, "editor");
 }
 
 // ── Incremental Wisdom (Haiku, runs on every item add) ───────────────────────
@@ -1106,8 +1110,7 @@ Respond with ONLY valid JSON:
   });
   recordUsage(groupId, MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "full_analysis");
   const text = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
-  const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
-  return JSON.parse(json) as EngineResult;
+  return parseModelJson(text, "full analysis") as EngineResult;
 }
 
 type MetaInsight = {
@@ -1304,8 +1307,7 @@ Respond with ONLY valid JSON:
   if (!res.ok) throw new Error(`Muse Spark error ${res.status}: ${await res.text()}`);
   const data = await res.json() as any;
   const text = data.choices?.[0]?.message?.content ?? "";
-  const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
-  return JSON.parse(json) as EngineResult;
+  return parseModelJson(text, "muse spark analysis") as EngineResult;
 }
 
 /** Deterministic fallback: simple heuristics so the demo works with no API key. */
@@ -1543,9 +1545,8 @@ If no overlap, respond: {"overlaps":[]}`,
   recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "overlap_check");
 
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
-  const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
   try {
-    const result = JSON.parse(json) as { overlaps: Array<{ teammate: string; summary: string }> };
+    const result = parseModelJson(raw, "overlap check") as { overlaps: Array<{ teammate: string; summary: string }> };
     return { hasOverlap: result.overlaps.length > 0, overlaps: result.overlaps };
   } catch {
     return { hasOverlap: false, overlaps: [] };
@@ -1614,9 +1615,8 @@ Respond ONLY with valid JSON:
   recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "context_overlap");
 
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
-  const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
   try {
-    const result = JSON.parse(json) as { overlap: { title: string; body: string } | null };
+    const result = parseModelJson(raw, "context overlap") as { overlap: { title: string; body: string } | null };
     if (result.overlap) {
       if (!rejectRestatements(groupId, [result.overlap], existing).length) return;
       const saved = addInsight(groupId, "pattern", result.overlap.title, result.overlap.body);
