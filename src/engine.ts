@@ -1383,7 +1383,23 @@ function analyzeMock(groupName: string, items: Item[], existing: Insight[]): Eng
  * Called async after every item add — never blocks the user.
  * Used by get_project_index in the MCP to give Claude a semantic trigger map.
  */
+/**
+ * The search-hint summary refreshed on every /v1 ingest request — a model call
+ * per request, not per batch, so a chat adapter posting one message at a time
+ * paid for a summary alongside every message. The summary exists so the MCP
+ * side can notice "someone mentioned this project"; ten minutes of staleness
+ * changes nothing about that, and the debounce removes an entire per-request
+ * model call. Marked before the work rather than after, so a burst of requests
+ * inside one window produces one refresh, not one per request.
+ */
+const SUMMARY_MIN_INTERVAL_MS = Number(process.env.GW_SUMMARY_MIN_INTERVAL_MS ?? 10 * 60_000);
+const lastSummaryAt = new Map<string, number>();
+
 export async function updateProjectSummary(groupId: string): Promise<void> {
+  const last = lastSummaryAt.get(groupId) ?? 0;
+  if (Date.now() - last < SUMMARY_MIN_INTERVAL_MS) return;
+  lastSummaryAt.set(groupId, Date.now());
+
   const group = getGroup(groupId);
   if (!group) return;
   const items = listItems(groupId);

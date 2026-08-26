@@ -675,6 +675,19 @@ export const setGroupWebhook = (groupId: string, webhookUrl: string | null) => {
   return secret;
 };
 
+/**
+ * Counts for the project view. GET /v1/projects rendered its counts by loading
+ * and decrypting every item and insight of every project — a user with a few
+ * thousand items paid for full decryption of all of them just to see a number.
+ * The insight count keeps the same predicate as listInsights, so the number
+ * never disagrees with what a caller can actually fetch.
+ */
+export const countItems = (groupId: string): number =>
+  (db.prepare("SELECT COUNT(*) AS n FROM items WHERE group_id = ?").get(groupId) as { n: number }).n;
+
+export const countInsights = (groupId: string): number =>
+  (db.prepare("SELECT COUNT(*) AS n FROM insights WHERE group_id = ? AND status != 'dismissed'").get(groupId) as { n: number }).n;
+
 export const deleteItem = (itemId: string) =>
   db.prepare("DELETE FROM items WHERE id = ?").run(itemId);
 

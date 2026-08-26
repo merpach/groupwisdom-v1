@@ -19,7 +19,9 @@
     "seed": "node dist/seed.js",
     "giftswipe": "cd ../giftswipe && PORT=3001 node_modules/.bin/tsx --env-file=.env src/index.ts",
     "buzz:authorize": "tsx src/buzz-authorize.ts",
-    "buzz:test": "tsx src/adapters/nip-oa.test.ts"
+    "buzz:test": "tsx src/adapters/nip-oa.test.ts",
+    "test:api": "GW_DB=/tmp/gw-test-api.db ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:4713 GW_WISDOM_COOLDOWN_MIN=0 tsx test/api-stress.ts",
+    "smoke": "node test/prod-smoke.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

@@ -33,6 +33,8 @@ import {
   listMembers,
   addItem,
   listItems,
+  countItems,
+  countInsights,
   listItemsPaginated,
   listInsightsPaginated,
   listInsights,
@@ -118,7 +120,11 @@ type AuthResult =
 
 function auth(req: any): AuthResult | null {
   const header = req.headers.authorization ?? "";
-  const key = header.replace(/^Bearer\s+/i, "").trim() || (req.query.key as string);
+  // Header only, never ?key= — a key in a URL lands in access logs, proxy logs
+  // and browser history, which is three places a credential should not be. The
+  // MCP endpoint still takes ?key= because connector URLs have nowhere else to
+  // put it; that is its trade-off, not this API's.
+  const key = header.replace(/^Bearer\s+/i, "").trim();
   if (!key) return null;
 
   if (key.startsWith("gw_proj_")) {
@@ -155,6 +161,45 @@ function wisdomFull(w: any) { return { id: w.id, kind: w.kind, title: w.title, b
 
 // ── Webhook ───────────────────────────────────────────────────────────────────
 
+/**
+ * Why a webhook_url can be refused, or null when it is fine.
+ *
+ * Two failure modes, one check. A private address is an SSRF lever: the URL is
+ * fetched from our server, so "http://localhost:8080/admin" aims our requests
+ * at whatever shares our network, with our retries behind it. And the same
+ * address is the most common honest mistake: someone testing locally points us
+ * at their own localhost, which from here is OUR localhost, and their webhook
+ * "never fires" with no error anywhere. Refusing loudly at set time turns both
+ * into one clear message.
+ */
+function webhookUrlError(raw: unknown): string | null {
+  let u: URL;
+  try { u = new URL(String(raw)); } catch { return "webhook_url is not a valid URL."; }
+  if (u.protocol !== "https:" && u.protocol !== "http:") {
+    return "webhook_url must be http or https.";
+  }
+  const host = u.hostname.toLowerCase();
+  if (host.startsWith("[") || host.includes(":")) {
+    return "webhook_url must use a hostname, not an IPv6 literal.";
+  }
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  const privateIp = !!m && (
+    +m[1] === 0 || +m[1] === 10 || +m[1] === 127 ||
+    (+m[1] === 192 && +m[2] === 168) ||
+    (+m[1] === 172 && +m[2] >= 16 && +m[2] <= 31) ||
+    (+m[1] === 169 && +m[2] === 254)
+  );
+  const privateName = host === "localhost" || host.endsWith(".localhost")
+    || host.endsWith(".local") || host.endsWith(".internal");
+  // Self-hosted deployments may legitimately deliver to their own network;
+  // checked at call time so tests can exercise both behaviours in one process.
+  if ((privateIp || privateName) && process.env.GW_WEBHOOK_ALLOW_PRIVATE !== "1") {
+    return "webhook_url points at a private network this server cannot reach. Use a public URL (a tunnel such as ngrok works for local testing).";
+  }
+  return null;
+}
+
+
 async function fireWebhook(groupId: string, wisdom: any[]) {
   const url = getGroupWebhook(groupId);
   if (!url) return;
@@ -163,7 +208,10 @@ async function fireWebhook(groupId: string, wisdom: any[]) {
   // and `event` keeps its original value, because a receiver matching on
   // "insights.created" or reading payload.insights is code we would otherwise
   // break from the outside, with no warning and no way for them to prepare.
-  const payload = wisdom.map(wisdomFull);
+  // Through the same timestamp transform as every REST response. The REST fix
+  // alone would have left webhook consumers on the raw SQLite shape — the same
+  // five-hours-in-the-future bug, delivered by push instead of poll.
+  const payload = isoTimestamps(wisdom.map(wisdomFull));
   const body = JSON.stringify({ event: "insights.created", group_id: groupId, wisdom: payload, insights: payload });
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (secret) {
@@ -186,8 +234,8 @@ async function fireWebhook(groupId: string, wisdom: any[]) {
 
 function projectView(groupId: string) {
   const g = getGroup(groupId)!;
-  const items = listItems(groupId);
-  const wisdom = listInsights(groupId);
+  const items = countItems(groupId);
+  const wisdom = countInsights(groupId);
   return {
     id: g.id,
     name: g.name,
@@ -196,7 +244,7 @@ function projectView(groupId: string) {
     engine: getGroupEngine(groupId),
     // counts.insights is the old key, kept beside the new one for the same
     // reason as the webhook: someone is reading it today.
-    counts: { items: items.length, wisdom: wisdom.length, insights: wisdom.length },
+    counts: { items, wisdom, insights: wisdom },
   };
 }
 
@@ -263,6 +311,10 @@ apiv1.post("/projects", (req, res) => {
   if (a.kind === "project_key") return res.status(403).json({ error: "Project keys cannot create new projects. Use your personal API key." });
   const name = (req.body?.name ?? "").trim();
   if (!name) return res.status(400).json({ error: "name is required." });
+  if (req.body?.webhook_url) {
+    const bad = webhookUrlError(req.body.webhook_url);
+    if (bad) return res.status(400).json({ error: bad });   // before create, so no orphan project
+  }
   const g = createGroup(name);
   addMember(g.id, a.user!.name, "", a.user!.email, a.user!.id);
   // The signing secret is generated here and shown exactly once, same as PATCH.
@@ -296,7 +348,13 @@ apiv1.patch("/projects/:id", (req, res) => {
   const g = resolveProject(req, a);
   if (!g) return res.status(404).json({ error: "Project not found." });
   let webhookSecret: string | null | undefined;
-  if ("webhook_url" in req.body) webhookSecret = setGroupWebhook(g.id, req.body.webhook_url || null);
+  if ("webhook_url" in req.body) {
+    if (req.body.webhook_url) {
+      const bad = webhookUrlError(req.body.webhook_url);
+      if (bad) return res.status(400).json({ error: bad });
+    }
+    webhookSecret = setGroupWebhook(g.id, req.body.webhook_url || null);
+  }
   if (req.body?.engine !== undefined) {
     if (!ENGINES.includes(req.body.engine)) {
       return res.status(400).json({ error: `Unknown engine "${req.body.engine}". Valid engines: ${ENGINES.join(", ")}.` });
@@ -360,7 +418,7 @@ apiv1.post("/projects/:id/ingest", (req, res) => {
   const ownerMember = userId ? (existingMembers.find(m => m.user_id === userId) ?? null) : null;
 
   function resolveMember(contributedBy?: string) {
-    if (!contributedBy) return ownerMember;
+    if (!contributedBy || !contributedBy.trim()) return ownerMember;
     const key = contributedBy.trim().toLowerCase();
     if (memberCache.has(key)) return memberCache.get(key)!;
     const existing = existingMembers.find(m => m.name.toLowerCase() === key);
@@ -371,15 +429,28 @@ apiv1.post("/projects/:id/ingest", (req, res) => {
     return created;
   }
 
+  // Everything below is copied into database rows, model prompts and member
+  // lists, so it is coerced before use rather than trusted. `{"title": 42}` and
+  // `{"contributed_by": {}}` used to reach .trim() and turn one bad item into a
+  // 500 for the whole request; now a number is a string and anything else is
+  // absent. Caps are generous — they exist to bound a mistake, not a message.
+  const str = (v: unknown, cap: number): string =>
+    typeof v === "string" ? v.slice(0, cap) : typeof v === "number" ? String(v) : "";
+  const ITEM_TYPES = ["link", "note", "file", "thought"];
+
   const created: Item[] = [];
   for (const p of payloads) {
-    if (!p.title && !p.content && !p.url) continue;
-    const member = resolveMember(p.contributed_by);
+    if (!p || typeof p !== "object") continue;      // null / "hello" / 42 in an items array
+    const title = str(p.title, 300).trim();
+    const content = str(p.content, 400_000);
+    const url = str(p.url, 2_000).trim();
+    if (!title && !content.trim() && !url) continue;
+    const member = resolveMember(str(p.contributed_by, 80).trim() || undefined);
     const item = addItem(g.id, {
-      title: p.title || p.url || String(p.content ?? "").slice(0, 60),
-      content: p.content ?? "",
-      url: p.url ?? "",
-      type: p.type ?? (p.url ? "link" : "note"),
+      title: title || url || content.trim().slice(0, 60),
+      content,
+      url,
+      type: ITEM_TYPES.includes(p.type) ? p.type : (url ? "link" : "note"),
       source: "api",
       member_id: member?.id ?? null,
       // Where this came from, when the caller knows. Chat adapters send a channel

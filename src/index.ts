@@ -126,6 +126,10 @@ app.use((err: any, _req: any, res: any, next: any) => {
 // loose enough on the API that a busy legitimate adapter never notices.
 app.use("/api/auth", rateLimit({ name: "auth", windowMs: 60_000, max: 10 }));
 app.use("/v1", rateLimit({ name: "v1", windowMs: 60_000, max: 240, keyFn: apiKeyOrIp }));
+// /demo needs no key and creates a project + key per call, so the general
+// limit (240/min by IP) would let one address mint fourteen thousand projects
+// an hour. Five an hour is plenty for a person trying the API.
+app.use("/v1/demo", rateLimit({ name: "demo", windowMs: 60 * 60_000, max: 5 }));
 app.use("/buzz/connect", rateLimit({ name: "connect", windowMs: 60_000, max: 5 }));
 
 app.use(supabaseAuth); // /auth/supabase/* — 404s unless SUPABASE_URL/ANON_KEY are set
