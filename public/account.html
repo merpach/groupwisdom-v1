@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Your API key · GroupWisdom</title>
+<title>API console · GroupWisdom</title>
 <meta name="robots" content="noindex">
 <style>
   :root {
@@ -20,51 +20,112 @@
   a { color: var(--ink); }
 
   .nav-wrap { border-bottom: 1px solid var(--rule); margin-bottom: 52px; }
-  .nav { max-width: 720px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; gap: 20px; height: 62px; }
+  .nav { max-width: 760px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; gap: 20px; height: 62px; }
   .brand { font-size: 15px; font-weight: 700; letter-spacing: -.2px; text-decoration: none; margin-right: auto; }
-  .brand .for { color: var(--ink-3); font-weight: 400; }
   .who { color: var(--ink-3); font-size: 13px; }
+  .who a { color: var(--ink-3); text-decoration: none; }
   .who button { font: inherit; font-size: 13px; color: var(--ink-3); background: none; border: none; cursor: pointer; padding: 0 0 0 10px; }
   .who button:hover { color: var(--ink); }
 
-  .shell { max-width: 720px; margin: 0 auto; padding: 0 24px 120px; }
+  .shell { max-width: 760px; margin: 0 auto; padding: 0 24px 120px; }
   .eyebrow { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em;
              color: var(--ink-3); display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
   .eyebrow::after { content: ""; height: 1px; width: 30px; background: var(--accent); opacity: .55; }
   h1 { font-family: var(--display); font-size: 38px; font-weight: 600; line-height: 1.1;
-       letter-spacing: -.02em; margin-bottom: 14px; }
-  h2 { font-family: var(--display); font-size: 24px; font-weight: 600; margin: 52px 0 12px;
-       padding-top: 44px; border-top: 1px solid var(--rule); }
+       letter-spacing: -.02em; margin-bottom: 12px; text-wrap: balance; }
+  h2 { font-family: var(--display); font-size: 24px; font-weight: 600; margin: 48px 0 12px;
+       padding-top: 40px; border-top: 1px solid var(--rule); }
+  .lede { color: var(--ink-2); font-size: 16.5px; max-width: 56ch; margin-bottom: 30px; }
   p { color: var(--ink-2); margin-bottom: 12px; }
   p.sub { color: var(--ink-3); font-size: 13.5px; }
 
-  .keyrow { display: flex; gap: 8px; align-items: stretch; margin: 18px 0 10px; }
+  /* Step cards — the same language as the Teams pairing page */
+  .step { border: 1px solid var(--rule); border-radius: 11px; padding: 21px 23px; margin-bottom: 14px;
+          transition: border-color .15s, background .15s; }
+  .step.done { border-color: #cfe4d5; background: #fcfefc; }
+  .step-head { display: flex; align-items: baseline; gap: 11px; margin-bottom: 6px; }
+  .num { width: 21px; height: 21px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 11px;
+         font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+         transform: translateY(2px); }
+  .step.done .num { background: var(--wisdom); }
+  .step-title { font-weight: 700; font-size: 15px; }
+  .step p { font-size: 14px; margin-bottom: 12px; }
+
+  .keyrow { display: flex; gap: 8px; align-items: stretch; margin: 6px 0 10px; }
   code.key { flex: 1; font-family: var(--mono); font-size: 13px; background: var(--panel);
-             border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px;
+             border: 1px solid var(--rule); border-radius: 8px; padding: 11px 13px;
              overflow-wrap: anywhere; color: var(--ink); display: flex; align-items: center; }
-  button { font: inherit; font-size: 13.5px; padding: 10px 16px; border-radius: 8px;
+  button { font: inherit; font-size: 13.5px; padding: 9px 15px; border-radius: 8px;
            border: 1px solid var(--rule); background: #fff; cursor: pointer; color: var(--ink);
            white-space: nowrap; transition: background .12s; }
   button:hover:not(:disabled) { background: var(--panel); }
   button.primary { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 500; }
+  button.primary:hover:not(:disabled) { background: #000; }
   button:disabled { opacity: .45; cursor: default; }
   button.danger { color: var(--warn); border-color: #f0d6d2; }
   button.danger:hover:not(:disabled) { background: #fdf4f3; }
 
-  .usage { display: flex; align-items: center; gap: 10px; margin: 6px 0 4px; }
+  .usage { display: flex; align-items: center; gap: 10px; margin: 2px 0 0; }
   .usage-bar { flex: 0 0 160px; height: 5px; border-radius: 999px; background: var(--rule-2); overflow: hidden; }
   .usage-bar i { display: block; height: 100%; border-radius: 999px; }
   .usage span { font-size: 13px; color: var(--ink-3); }
 
+  .projrow { display: flex; gap: 8px; align-items: stretch; }
+  .projrow select, .projrow input { flex: 1; font: inherit; font-size: 14px; padding: 9px 12px;
+        border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); color: var(--ink); min-width: 0; }
+  .projrow select:focus, .projrow input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .pid { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12.5px; color: var(--ink-3); }
+  .pid code { font-family: var(--mono); font-size: 12px; background: var(--panel); padding: 2px 7px;
+              border-radius: 5px; color: var(--ink-2); overflow-wrap: anywhere; }
+  .pid button { font-size: 12px; padding: 3px 9px; border-radius: 6px; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+  .tabs button { font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 7px; color: var(--ink-3); }
+  .tabs button.on { background: var(--panel); border-color: var(--ink-3); color: var(--ink); }
+  .snipwrap { position: relative; }
   pre { background: var(--ink); color: #e8e8e8; border-radius: 9px; padding: 14px 16px; font-size: 12.5px;
-        line-height: 1.65; overflow-x: auto; margin: 10px 0 14px; font-family: var(--mono); }
+        line-height: 1.65; overflow-x: auto; margin: 0 0 8px; font-family: var(--mono); }
+  .copy-snip { position: absolute; top: 8px; right: 8px; font-size: 11.5px; padding: 4px 10px;
+               border-radius: 6px; background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.18); color: #cfd4d9; }
+  .copy-snip:hover:not(:disabled) { background: rgba(255,255,255,.16); }
+
+  /* The verdict panel — step 4's payoff */
+  .verdict { border: 1px solid var(--rule); border-radius: 9px; padding: 0; overflow: hidden; display: none; }
+  .verdict.show { display: block; }
+  .v-row { display: flex; gap: 10px; padding: 12px 15px; font-size: 13.5px; align-items: baseline; }
+  .v-row + .v-row { border-top: 1px solid var(--rule-2); }
+  .v-mark { flex-shrink: 0; font-size: 13px; }
+  .v-body { color: var(--ink-2); }
+  .v-body b { color: var(--ink); }
+  .v-kind { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+            color: var(--ink-3); margin-right: 6px; }
+  .v-empty { padding: 14px 16px; font-size: 13.5px; color: var(--ink-3); }
+
   .msg { margin-top: 12px; padding: 11px 13px; border-radius: 8px; font-size: 13.5px; display: none; }
   .msg.ok { display: block; background: #f3faf5; border: 1px solid #cfe4d5; color: var(--wisdom); }
   .msg.err { display: block; background: #fdf4f3; border: 1px solid #f0d6d2; color: var(--warn); }
   .warn-box { border: 1px solid #f0d6d2; background: #fdf4f3; border-radius: 9px; padding: 14px 16px; margin-top: 14px; }
   .warn-box p { color: var(--warn); margin: 0; font-size: 13.5px; }
-  .links { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 13.5px; }
-  @media (max-width: 620px) { h1 { font-size: 30px; } .keyrow { flex-direction: column; } }
+  .links { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 22px; font-size: 13.5px; }
+
+  /* Signed-out auth (same block as the Teams page) */
+  .authtabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .authtabs button { font-size: 13px; font-weight: 600; padding: 6px 13px; border-radius: 7px; color: var(--ink-3); }
+  .authtabs button.on { background: var(--panel); border-color: var(--ink-3); color: var(--ink); }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-2); margin-bottom: 5px; }
+  .field input { width: 100%; font: inherit; font-size: 14.5px; padding: 10px 12px; border: 1px solid var(--rule);
+                 border-radius: 8px; background: var(--paper); color: var(--ink); }
+  .field input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .social { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .social a { display: flex; align-items: center; justify-content: center; gap: 9px; text-decoration: none;
+              border: 1px solid var(--rule); border-radius: 8px; padding: 9px; font-size: 14px; font-weight: 600; }
+  .social a:hover { border-color: var(--ink-3); }
+  .social svg { width: 17px; height: 17px; }
+  .or { display: flex; align-items: center; gap: 12px; color: var(--ink-3); font-size: 12px; margin-bottom: 14px; }
+  .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+
+  @media (max-width: 620px) { h1 { font-size: 30px; } .keyrow, .projrow { flex-direction: column; } }
 </style>
 </head>
 <body>
@@ -77,44 +138,114 @@
 </div>
 
 <div class="shell" id="shell">
-  <div class="eyebrow">Your account</div>
-  <h1>Your API key</h1>
-  <p class="lede" id="lede">Use this to send a group's contributions to GroupWisdom and read the wisdom back from your own app.</p>
 
-  <div class="keyrow">
-    <code class="key" id="key">loading…</code>
-    <button id="reveal">Reveal</button>
-    <button class="primary" id="copy">Copy</button>
-  </div>
-  <p class="sub">Treat it like a password. It can create projects and read everything in them, so keep it on a server and never in a browser or a public repository.</p>
+  <!-- ── Signed out ─────────────────────────────────────────────────────── -->
+  <div id="authView" style="display:none">
+    <div class="eyebrow">API console</div>
+    <h1>Your key is one sign-in away</h1>
+    <p class="lede">An account holds your API key, your projects, and everything the engine has established in them.</p>
 
-  <div class="usage">
-    <div class="usage-bar"><i id="usebar" style="width:0%;background:var(--ink)"></i></div>
-    <span id="usetext">—</span>
+    <div class="step" style="max-width:460px">
+      <div class="social" id="socialBtns"></div>
+      <div class="or" id="orLine" style="display:none">or</div>
+      <div class="authtabs">
+        <button id="tabSignup" class="on" type="button">Create account</button>
+        <button id="tabLogin" type="button">Sign in</button>
+      </div>
+      <div class="field" id="aName"><label for="nameIn">Your name</label><input id="nameIn" autocomplete="name"></div>
+      <div class="field"><label for="emailIn">Email</label><input id="emailIn" type="email" autocomplete="email"></div>
+      <div class="field"><label for="passIn">Password</label><input id="passIn" type="password" autocomplete="new-password"></div>
+      <button class="primary" id="authGo" type="button">Create account</button>
+      <div class="msg" id="authMsg"></div>
+      <p class="sub" id="legalNote" style="margin-top:12px">
+        By creating an account you agree to the <a href="/terms">terms</a> and <a href="/privacy">privacy policy</a>.
+      </p>
+    </div>
   </div>
 
-  <h2>Using it</h2>
-  <p>Every request carries the key as a bearer token. This creates a project and sends it something:</p>
-  <pre id="snippet">loading…</pre>
-  <div class="links">
-    <a href="/docs">Full API reference →</a>
-    <a href="/docs#sdk-quickstart">JavaScript SDK →</a>
-    <a href="/buzz">Connect a Buzz community →</a>
-  </div>
+  <!-- ── Signed in ──────────────────────────────────────────────────────── -->
+  <div id="consoleView" style="display:none">
+    <div class="eyebrow">API console</div>
+    <h1>From key to first finding</h1>
+    <p class="lede">Four steps, one terminal. The last one shows you the engine's actual decision — including why it stayed quiet, which no other API will tell you.</p>
 
-  <h2>If it leaks</h2>
-  <p>Replace it. The old key stops working immediately, and any Buzz community you have connected is reconnected with the new one automatically, so wisdom keeps flowing without you doing anything.</p>
-  <div class="warn-box">
-    <p>Anything else using the old key — your own scripts, another server — stops working until you paste the new key there.</p>
+    <!-- 1 · key -->
+    <div class="step done" id="s1">
+      <div class="step-head"><div class="num">1</div><div class="step-title">Your API key</div></div>
+      <div class="keyrow">
+        <code class="key" id="key">loading…</code>
+        <button id="reveal">Reveal</button>
+        <button class="primary" id="copy">Copy</button>
+      </div>
+      <p class="sub">Treat it like a password: it can create projects and read everything in them. Keep it on a server, never in a browser or a public repo. For a server that should only reach one project, mint a <code>gw_proj_</code> key with <a href="/docs#project-keys">project keys</a>.</p>
+      <div class="usage">
+        <div class="usage-bar"><i id="usebar" style="width:0%;background:var(--ink)"></i></div>
+        <span id="usetext">—</span>
+      </div>
+    </div>
+
+    <!-- 2 · project -->
+    <div class="step" id="s2">
+      <div class="step-head"><div class="num">2</div><div class="step-title">Pick a project</div></div>
+      <p>A project is one group's shared context — its items, members and memory. Everything below is personalised to the one you pick.</p>
+      <div class="projrow">
+        <select id="projSel"></select>
+        <input id="projName" placeholder="Name a new project" style="display:none">
+        <button id="projNew" type="button">New project</button>
+        <button class="primary" id="projCreate" type="button" style="display:none">Create</button>
+      </div>
+      <div class="pid" id="pidRow" style="display:none">
+        <span>project id</span><code id="pid"></code><button id="pidCopy" type="button">Copy</button>
+      </div>
+      <div class="msg" id="projMsg"></div>
+    </div>
+
+    <!-- 3 · send -->
+    <div class="step" id="s3">
+      <div class="step-head"><div class="num">3</div><div class="step-title">Send it two pieces of work</div></div>
+      <p>Two contributions from two people — the minimum the engine will ever connect. Paste into a terminal; the ids are already yours.</p>
+      <div class="tabs">
+        <button class="on" data-lang="curl" type="button">curl</button>
+        <button data-lang="node" type="button">Node</button>
+      </div>
+      <div class="snipwrap">
+        <pre id="snippet">loading…</pre>
+        <button class="copy-snip" id="snipCopy" type="button">Copy</button>
+      </div>
+      <p class="sub">Analysis starts on its own about three seconds after the last item lands. Nothing else to call.</p>
+    </div>
+
+    <!-- 4 · verdict -->
+    <div class="step" id="s4">
+      <div class="step-head"><div class="num">4</div><div class="step-title">See what it decided</div></div>
+      <p>A finding if two pieces of work added up to something; otherwise the recorded reason it stayed silent. Silence with a reason is the system working.</p>
+      <button class="primary" id="check" type="button">Check the verdict</button>
+      <div class="verdict" id="verdict"></div>
+      <p class="sub" style="margin-top:10px">The same answer, from the terminal: <code id="verdictCurl" style="font-family:var(--mono);font-size:12px"></code></p>
+    </div>
+
+    <div class="links">
+      <a href="/docs">Full API reference →</a>
+      <a href="/docs#webhook-setup">Receive findings by webhook →</a>
+      <a href="/docs#sdk-quickstart">JavaScript SDK →</a>
+      <a href="/buzz">Connect Buzz →</a>
+      <a href="/teams">Connect Teams →</a>
+    </div>
+
+    <h2>If the key leaks</h2>
+    <p>Replace it. The old key stops working immediately, and any Buzz community you have connected reconnects with the new one automatically.</p>
+    <div class="warn-box">
+      <p>Anything else using the old key — your own scripts, another server — stops working until you paste the new key there.</p>
+    </div>
+    <div style="margin-top:14px"><button class="danger" id="rotate">Replace my key</button></div>
+    <div class="msg" id="msg"></div>
   </div>
-  <div style="margin-top:14px"><button class="danger" id="rotate">Replace my key</button></div>
-  <div class="msg" id="msg"></div>
 </div>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
-let apiKey = "", revealed = false;
+let apiKey = "", revealed = false, projects = [], projectId = null, lang = "curl";
 
 async function j(url, opts) {
   const r = await fetch(url, { credentials: "same-origin", ...opts });
@@ -122,34 +253,138 @@ async function j(url, opts) {
   let b = null; try { b = t ? JSON.parse(t) : null; } catch {}
   return { ok: r.ok, status: r.status, body: b };
 }
+const post = (url, payload) => j(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
 
+// ── Key display ──────────────────────────────────────────────────────────
+// The visible key is masked until revealed, and so is the one inside every
+// snippet: this page is the thing someone screenshares when asking for help.
 const masked = (k) => k.slice(0, 7) + "•".repeat(Math.max(0, k.length - 11)) + k.slice(-4);
-function paintKey() { $("key").textContent = revealed ? apiKey : masked(apiKey); $("reveal").textContent = revealed ? "Hide" : "Reveal"; }
-
-function paintSnippet() {
-  // The visible key is masked until revealed, and so is the one in the sample:
-  // this page is the thing someone screenshares when asking for help.
-  const shown = revealed ? apiKey : masked(apiKey);
-  $("snippet").textContent =
-`curl -X POST ${location.origin}/v1/projects \\
-  -H "Authorization: Bearer ${shown}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"name":"My project"}'
-
-curl -X POST ${location.origin}/v1/projects/PROJECT_ID/ingest \\
-  -H "Authorization: Bearer ${shown}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"items":[{"content":"What someone shared","contributed_by":"Sarah"}]}'`;
-}
+const shownKey = () => revealed ? apiKey : masked(apiKey);
+function paintKey() { $("key").textContent = shownKey(); $("reveal").textContent = revealed ? "Hide" : "Reveal"; }
 
 $("reveal").onclick = () => { revealed = !revealed; paintKey(); paintSnippet(); };
-
 $("copy").onclick = async () => {
   try { await navigator.clipboard.writeText(apiKey); $("copy").textContent = "Copied"; }
   catch { revealed = true; paintKey(); paintSnippet(); $("copy").textContent = "Select it"; }
   setTimeout(() => $("copy").textContent = "Copy", 1600);
 };
 
+// ── Projects ─────────────────────────────────────────────────────────────
+function paintProjects() {
+  const sel = $("projSel");
+  sel.innerHTML = projects.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+  if (projectId) sel.value = projectId;
+  const has = projects.length > 0;
+  $("s2").classList.toggle("done", has);
+  $("pidRow").style.display = has ? "" : "none";
+  if (has) $("pid").textContent = projectId;
+  // With nothing to pick from, a chooser is a dead end — open straight into naming.
+  if (!has && $("projName").style.display === "none") $("projNew").click();
+  paintSnippet(); paintVerdictCurl();
+}
+
+$("projSel").onchange = () => { projectId = $("projSel").value; $("pid").textContent = projectId; $("verdict").className = "verdict"; paintSnippet(); paintVerdictCurl(); };
+
+$("projNew").onclick = () => {
+  const creating = $("projName").style.display === "none";
+  $("projName").style.display = creating ? "" : "none";
+  $("projCreate").style.display = creating ? "" : "none";
+  $("projSel").style.display = creating ? "none" : "";
+  $("projNew").textContent = creating ? "Pick existing" : "New project";
+  if (creating) $("projName").focus();
+};
+
+$("projCreate").onclick = async () => {
+  const name = $("projName").value.trim();
+  const m = $("projMsg");
+  if (!name) { m.className = "msg err"; m.textContent = "Give it a name."; return; }
+  $("projCreate").disabled = true;
+  const { ok, body } = await post("/api/groups", { name });
+  $("projCreate").disabled = false;
+  if (!ok) { m.className = "msg err"; m.textContent = body?.error || "Could not create it."; return; }
+  m.className = "msg ok"; m.textContent = "Project created.";
+  projects.push(body); projectId = body.id;
+  $("projName").value = ""; $("projNew").click(); paintProjects();
+  setTimeout(() => { m.className = "msg"; }, 2200);
+};
+
+$("pidCopy").onclick = async () => {
+  try { await navigator.clipboard.writeText(projectId); $("pidCopy").textContent = "Copied"; }
+  catch { /* the id is visible to select */ }
+  setTimeout(() => $("pidCopy").textContent = "Copy", 1600);
+};
+
+// ── Snippets, personalised with the real ids ─────────────────────────────
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+  lang = b.dataset.lang; paintSnippet();
+});
+
+function paintSnippet() {
+  const pid = projectId ?? "PROJECT_ID";
+  const k = apiKey ? shownKey() : "YOUR_API_KEY";
+  $("snippet").textContent = lang === "curl"
+    ? `curl -X POST ${location.origin}/v1/projects/${pid}/ingest \\
+  -H "Authorization: Bearer ${k}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"items":[
+    {"content":"Checkout redesign shipped. Tested 22% faster.","contributed_by":"Sarah"},
+    {"content":"Support tickets from the pilot are down by half.","contributed_by":"Priya"}
+  ]}'`
+    : `// npm install @groupwisdom/sdk
+import { GroupWisdom } from "@groupwisdom/sdk";
+
+const gw = new GroupWisdom({ apiKey: "${k}" });
+
+await gw.ingest("${pid}", [
+  { content: "Checkout redesign shipped. Tested 22% faster.", contributed_by: "Sarah" },
+  { content: "Support tickets from the pilot are down by half.", contributed_by: "Priya" },
+]);`;
+}
+
+$("snipCopy").onclick = async () => {
+  // Copies the real key even while the display is masked — the clipboard is
+  // the user's own, unlike their shared screen.
+  const real = $("snippet").textContent.replaceAll(shownKey(), apiKey);
+  try { await navigator.clipboard.writeText(real); $("snipCopy").textContent = "Copied"; }
+  catch { $("snipCopy").textContent = "Select it"; }
+  setTimeout(() => $("snipCopy").textContent = "Copy", 1600);
+};
+
+function paintVerdictCurl() {
+  $("verdictCurl").textContent = `curl ${location.origin}/v1/projects/${projectId ?? "PROJECT_ID"}/gate-records -H "Authorization: Bearer ..."`;
+}
+
+// ── The verdict ──────────────────────────────────────────────────────────
+$("check").onclick = async () => {
+  if (!projectId) return;
+  $("check").disabled = true; $("check").textContent = "Checking…";
+  const H = { headers: { Authorization: "Bearer " + apiKey } };
+  const [wis, gates] = await Promise.all([
+    j(`/v1/projects/${projectId}/wisdom?format=full&limit=3`, H),
+    j(`/v1/projects/${projectId}/gate-records?limit=3`, H),
+  ]);
+  $("check").disabled = false; $("check").textContent = "Check the verdict";
+
+  const v = $("verdict"); v.className = "verdict show"; v.innerHTML = "";
+  const findings = wis.ok ? (wis.body?.data ?? []) : [];
+  const records = gates.ok ? (gates.body?.records ?? []) : [];
+
+  for (const w of findings) {
+    v.innerHTML += `<div class="v-row"><span class="v-mark">${w.kind === "tension" ? "⚠" : "💡"}</span>
+      <span class="v-body"><span class="v-kind">${esc(w.kind ?? "")}</span><b>${esc(w.title)}</b> — ${esc(w.body ?? "")}</span></div>`;
+  }
+  if (!findings.length) {
+    const silent = records.find(r => r.verdict === "silent" || r.verdict === "suppressed");
+    v.innerHTML += silent
+      ? `<div class="v-row"><span class="v-mark">—</span><span class="v-body"><b>Silent, on the record:</b> ${esc(silent.reason ?? silent.title ?? "no reason recorded")}</span></div>`
+      : `<div class="v-empty">Nothing yet. Send the two items from step 3, give it ~10 seconds, and check again.</div>`;
+  }
+  $("s3").classList.toggle("done", findings.length > 0 || records.length > 0);
+  $("s4").classList.toggle("done", findings.length > 0 || records.length > 0);
+};
+
+// ── Rotate ───────────────────────────────────────────────────────────────
 $("rotate").onclick = async () => {
   if (!confirm("Replace your API key?\n\nThe current key stops working straight away. Connected Buzz communities reconnect on their own, but anything else using the old key will need the new one.")) return;
   $("rotate").disabled = true;
@@ -163,26 +398,88 @@ $("rotate").onclick = async () => {
     (body.reconnected ? ` ${body.reconnected} Buzz community${body.reconnected === 1 ? "" : "s"} reconnected automatically.` : "");
 };
 
+// ── Signed-out auth (same behaviour as the Teams page) ───────────────────
+let authMode = "signup";
+function setAuthMode(mode) {
+  authMode = mode;
+  const signup = mode === "signup";
+  $("tabSignup").classList.toggle("on", signup);
+  $("tabLogin").classList.toggle("on", !signup);
+  $("aName").style.display = signup ? "" : "none";
+  $("passIn").autocomplete = signup ? "new-password" : "current-password";
+  $("authGo").textContent = signup ? "Create account" : "Sign in";
+  $("legalNote").style.display = signup ? "" : "none";
+  $("authMsg").className = "msg";
+}
+$("tabSignup").onclick = () => setAuthMode("signup");
+$("tabLogin").onclick = () => setAuthMode("login");
+
+const GOOGLE_MARK = '<svg viewBox="0 0 48 48" aria-hidden="true">' +
+  '<path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2 5-4.4 6.6v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.1z"/>' +
+  '<path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.1 15.4 46 24 46z"/>' +
+  '<path fill="#FBBC05" d="M11.8 28.2c-.4-1.3-.7-2.7-.7-4.2s.3-2.9.7-4.2v-5.7H4.5C3 17.1 2.2 20.4 2.2 24s.8 6.9 2.3 9.9l7.3-5.7z"/>' +
+  '<path fill="#EA4335" d="M24 10.8c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.2 29.9 2 24 2 15.4 2 8.1 6.9 4.5 14.1l7.3 5.7c1.7-5.2 6.5-9 12.2-9z"/></svg>';
+const LABEL = { google: "Google", github: "GitHub", azure: "Microsoft", apple: "Apple", gitlab: "GitLab", discord: "Discord" };
+
+async function renderProviders() {
+  const p = await j("/api/auth/providers");
+  if (!p.ok || !p.body) return;
+  const buttons = [];
+  for (const prov of (p.body.social || [])) {
+    buttons.push({ href: "/auth/supabase/" + encodeURIComponent(prov) + "?next=/account",
+                   name: LABEL[prov] || prov, mark: prov === "google" ? GOOGLE_MARK : "" });
+  }
+  if (p.body.google_direct) buttons.push({ href: "/auth/google?next=/account", name: "Google", mark: GOOGLE_MARK });
+  if (!buttons.length) return;
+  $("socialBtns").innerHTML = buttons.map(b => '<a href="' + b.href + '">' + b.mark + 'Continue with ' + esc(b.name) + '</a>').join("");
+  $("orLine").style.display = "";
+}
+
+$("authGo").onclick = async () => {
+  const email = $("emailIn").value.trim(), password = $("passIn").value, name = $("nameIn").value.trim();
+  if (!email || !password) { $("authMsg").className = "msg err"; $("authMsg").textContent = "Email and password, please."; return; }
+  $("authGo").disabled = true;
+  const { ok, body } = await post("/api/auth/" + authMode, { email, password, name });
+  $("authGo").disabled = false;
+  if (!ok) { $("authMsg").className = "msg err"; $("authMsg").textContent = body?.error || "That did not work."; return; }
+  location.reload();
+};
+
+// ── Boot ─────────────────────────────────────────────────────────────────
 (async () => {
   const me = await j("/api/me");
-  if (!me.ok || !me.body?.email) {
-    $("shell").innerHTML =
-      '<div class="eyebrow">Your account</div><h1>Sign in to see your API key</h1>' +
-      '<p>Your key lives on your GroupWisdom account. <a href="/buzz">Sign in</a> and it will be here.</p>';
+  const signedIn = me.ok && me.body?.email;
+  $("authView").style.display = signedIn ? "none" : "";
+  $("consoleView").style.display = signedIn ? "" : "none";
+
+  if (!signedIn) {
+    setAuthMode("signup");
+    await renderProviders();
+    if (new URLSearchParams(location.search).has("auth_error")) {
+      $("authMsg").className = "msg err";
+      $("authMsg").textContent = "That sign-in did not complete. Try again, or use an email and password.";
+      history.replaceState({}, "", location.pathname);
+    }
     return;
   }
+
   $("who").innerHTML = esc(me.body.email) + ' <button id="signout">Sign out</button>';
   $("signout").onclick = async () => { await j("/api/auth/logout", { method: "POST" }); location.reload(); };
 
   apiKey = me.body.api_key || "";
-  paintKey(); paintSnippet();
+  paintKey();
+
+  const groups = await j("/api/groups");
+  projects = groups.ok && Array.isArray(groups.body) ? groups.body : [];
+  projectId = projects[0]?.id ?? null;
+  paintProjects();
 
   const u = await j("/v1/usage", { headers: { Authorization: "Bearer " + apiKey } });
   if (u.ok && u.body) {
     const pct = Math.min(Number(u.body.percent_used) || 0, 100);
     $("usebar").style.width = pct + "%";
     $("usebar").style.background = pct >= 100 ? "#c9403a" : "var(--ink)";
-    $("usetext").textContent = pct + "% of included analysis used" + (u.body.limit_reached ? " — analysis is paused" : "");
+    $("usetext").textContent = pct + "% of this month's included analysis used" + (u.body.limit_reached ? " — analysis is paused" : "");
   }
 })();
 </script>
