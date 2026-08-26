@@ -185,16 +185,18 @@ export function isMutedAt(until: number | undefined, now: number): boolean {
 
 /**
  * Two marks are the whole alphabet in chat: 💡 for something worth knowing,
- * ⚠ for something that needs attention. The six kinds stay intact in the API
+ * 🧠 for something worth thinking about. The six kinds stay intact in the API
  * and the dashboard; this is only how they look in a channel.
  *
- * Only `tension` earns the warning, because it is the one kind that names a
- * conflict, whether that is two readings of the same evidence or two bookings
- * that cannot both stand. `opportunity` is deliberately a lamp rather than a
- * warning: it is an opening the group's own work created, not a gap it failed
- * to close.
+ * `tension` gets the second mark because it is the one kind that names a
+ * conflict — two readings of the same evidence, or two bookings that cannot
+ * both stand. It used to be a warning triangle, which in a chat client reads
+ * as something being broken. Nothing is: a tension is a decision the group has
+ * arrived at and has not made yet. The mark says think, not panic, which is
+ * also what the six kinds are for — naming what the group is building rather
+ * than what it is missing.
  */
-export const markFor = (kind: string) => (kind === "tension" ? "⚠" : "💡");
+export const markFor = (kind: string) => (kind === "tension" ? "🧠" : "💡");
 
 /**
  * A mark, a headline, a body, and nothing else. No labels, no confidence, no

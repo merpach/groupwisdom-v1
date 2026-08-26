@@ -393,7 +393,7 @@ $("check").onclick = async () => {
   const records = gates.ok ? (gates.body?.records ?? []) : [];
 
   for (const w of findings) {
-    v.innerHTML += `<div class="v-row"><span class="v-mark">${w.kind === "tension" ? "⚠" : "💡"}</span>
+    v.innerHTML += `<div class="v-row"><span class="v-mark">${w.kind === "tension" ? "🧠" : "💡"}</span>
       <span class="v-body"><span class="v-kind">${esc(w.kind ?? "")}</span><b>${esc(w.title)}</b> — ${esc(w.body ?? "")}</span></div>`;
   }
   if (!findings.length) {
