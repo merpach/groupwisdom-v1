@@ -146,21 +146,45 @@
   .api-point h3 { margin-bottom: 5px; }
   .api-point p { font-size: 14px; line-height: 1.6; }
 
-  /* ── Platforms ───────────────────────────────────────────────────── */
-  .plats { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 42px; }
-  .plat { border: 1px solid var(--rule); border-radius: 13px; padding: 30px 30px 28px; background: var(--paper);
-          display: flex; flex-direction: column; }
-  .plat-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-  .plat h3 { font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+  /* ── Buzz, the launch integration ────────────────────────────────── */
   .badge { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
            color: var(--accent); border: 1px solid #c9d6ff; background: #f2f6ff; border-radius: 20px;
            padding: 3px 9px; white-space: nowrap; }
-  .plat > p { font-size: 14px; line-height: 1.62; margin: 8px 0 16px; }
-  .plat ul { list-style: none; display: flex; flex-direction: column; gap: 9px; margin-bottom: 22px; }
-  .plat li { font-size: 13.5px; color: var(--ink-2); line-height: 1.5; padding-left: 19px; position: relative; }
-  .plat li::before { content: ""; position: absolute; left: 3px; top: 8px; width: 5px; height: 5px;
-                     border-radius: 50%; background: var(--wisdom); }
-  .plat .foot-cta { margin-top: auto; }
+  .buzz-split { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 56px;
+                align-items: start; margin-top: 38px; }
+
+  .steps { counter-reset: s; display: flex; flex-direction: column; border-top: 1px solid var(--rule); }
+  .stp { display: grid; grid-template-columns: 38px minmax(0,1fr); gap: 18px; padding: 21px 0;
+         border-bottom: 1px solid var(--rule); }
+  .stp .n { counter-increment: s; font-family: var(--mono); font-size: 12px; color: var(--ink-3); padding-top: 2px; }
+  .stp .n::before { content: "0" counter(s); }
+  .stp h3 { margin-bottom: 5px; }
+  .stp p { font-size: 14px; line-height: 1.55; }
+
+  /* The member list is the argument: it is a member, not an integration. */
+  .members { border: 1px solid var(--rule); border-radius: 13px; overflow: hidden; background: var(--paper);
+             box-shadow: 0 1px 2px rgba(16,17,19,.04), 0 12px 32px -20px rgba(16,17,19,.2); }
+  .members-hdr { display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+                 border-bottom: 1px solid var(--rule-2); background: #fcfcfd; }
+  .members-hdr .ch { font-size: 13px; font-weight: 600; }
+  .members-hdr .ct { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: #b9bfc4; }
+  .member { display: flex; align-items: center; gap: 11px; padding: 11px 16px; }
+  .member + .member { border-top: 1px solid var(--rule-2); }
+  .member .nm { font-size: 13.5px; color: var(--ink-2); }
+  .member.agent { background: #f6fbf8; }
+  .member.agent .nm { color: var(--ink); font-weight: 700; }
+  .member .tag { margin-left: auto; font-size: 9.5px; font-weight: 700; letter-spacing: .09em;
+                 text-transform: uppercase; color: var(--wisdom); }
+  .members-foot { padding: 12px 16px; border-top: 1px solid var(--rule-2); background: #fcfcfd;
+                  font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
+
+  .cmds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--rule);
+          border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; margin: 44px 0 34px; }
+  .cmd { background: var(--paper); padding: 20px 22px; }
+  .cmd code { font-family: var(--mono); font-size: 12.5px; background: var(--panel);
+              padding: 2px 7px; border-radius: 5px; color: var(--ink); }
+  .cmd .lbl { font-size: 13px; font-weight: 700; }
+  .cmd p { font-size: 13.5px; line-height: 1.55; margin-top: 9px; }
 
   /* ── Control list ────────────────────────────────────────────────── */
   .facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px 48px; margin-top: 36px; }
@@ -205,12 +229,15 @@
   @media (max-width: 900px) {
     .hero { grid-template-columns: minmax(0,1fr); gap: 44px; padding: 56px 0 68px; }
     .hero .lede { max-width: none; }
-    .gates, .facts, .plats, .api-grid { grid-template-columns: minmax(0,1fr); }
+    .gates, .facts, .api-grid, .buzz-split { grid-template-columns: minmax(0,1fr); }
+    .cmds { grid-template-columns: 1fr 1fr; }
     .facts { gap: 24px; }
     .api-grid { gap: 32px; }
   }
   @media (max-width: 620px) {
     .shell { padding: 0 20px; }
+    .cmds { grid-template-columns: minmax(0,1fr); }
+    .buzz-split { gap: 34px; }
     .pad, .pad-lg { padding: 56px 0; }
     .nav { gap: 14px; }
     .nav a.link { display: none; }
@@ -226,9 +253,9 @@
     <a class="brand" href="/">GroupWisdom</a>
     <a class="link" href="#wisdom">What it posts</a>
     <a class="link" href="#api">API</a>
-    <a class="link" href="#platforms">Buzz &amp; Teams</a>
+    <a class="link" href="#buzz">For Buzz</a>
     <a class="link" href="/docs">Docs</a>
-    <a class="btn sm" href="/account">Get an API key</a>
+    <a class="btn sm" href="/buzz">Connect Buzz</a>
   </div>
 </div>
 
@@ -244,10 +271,10 @@
         while it still matters.
       </p>
       <div class="cta-row">
-        <a class="btn" href="#api">Build on the API <span class="arr">→</span></a>
-        <a class="btn ghost" href="#wisdom">See what it posts</a>
+        <a class="btn" href="/buzz">Connect your Buzz community <span class="arr">→</span></a>
+        <a class="btn ghost" href="#api">Build on the API</a>
       </div>
-      <p class="cta-note">A REST API, and an agent inside Buzz and Microsoft Teams.</p>
+      <p class="cta-note">Live in Buzz communities today, and a REST API for everything else.</p>
     </div>
 
     <div class="mock" aria-label="A channel where three teammates post separately and GroupWisdom replies with the finding across all three.">
@@ -416,58 +443,112 @@ curl <span class="s">https://testgroupwisdom.com/v1/projects/:id/wisdom</span> \
   </div>
 </section>
 
-<!-- ── Platforms ────────────────────────────────────────────────────── -->
-<section id="platforms" class="band">
+<!-- ── Buzz: the launch integration ─────────────────────────────────── -->
+<section id="buzz" class="band">
   <div class="shell pad-lg">
-    <div class="eyebrow">Where it already lives</div>
-    <h2 style="margin:16px 0 16px">Or skip the code, and put it where the work happens.</h2>
+    <div class="eyebrow">Our launch integration</div>
+    <h2 style="margin:16px 0 16px">In Buzz it isn't an integration. It's a member.</h2>
     <p class="prose">
-      The same engine, joining a group's chat as a member. Findings arrive as ordinary messages in the channel
-      where the work is happening, not in a dashboard nobody opens.
+      GroupWisdom joins your community with an invite link — the same one you would send a colleague. It
+      appears in the member list, reads only the channels you tick, and is removed the way anyone else is.
+      Nothing to install, nothing running on your machine, and no settings left behind when it goes.
     </p>
 
-    <div class="plats">
-
-      <!-- Buzz -->
-      <div class="plat">
-        <div class="plat-head"><h3>For Buzz</h3></div>
-        <p>
-          It joins your community with an invite link, appears in the member list, and is removed like anyone
-          else. Nothing to install, nothing running on your machine.
-        </p>
-        <ul>
-          <li>Paste one invite link — that is the whole setup</li>
-          <li>Tick the channels it reads. It never reads direct messages</li>
-          <li><code>@wisdom memory</code> shows what it has established in that channel</li>
-          <li><code>@wisdom demo</code> plays a scripted example on invented messages</li>
-          <li><code>@wisdom mute</code> silences it while it keeps reading</li>
-          <li>A thumbs up or down on a finding is recorded as feedback</li>
-        </ul>
-        <div class="foot-cta">
-          <a class="btn" href="/buzz">Connect your Buzz community <span class="arr">→</span></a>
+    <div class="buzz-split">
+      <div class="steps">
+        <div class="stp">
+          <div class="n"></div>
+          <div>
+            <h3>Copy an invite link from Buzz</h3>
+            <p>Your community name, then Invite to community, then Copy link.</p>
+          </div>
+        </div>
+        <div class="stp">
+          <div class="n"></div>
+          <div>
+            <h3>Paste it into GroupWisdom</h3>
+            <p>The link already says which community to join, so there is nothing else to fill in.</p>
+          </div>
+        </div>
+        <div class="stp">
+          <div class="n"></div>
+          <div>
+            <h3>Tick the channels it reads</h3>
+            <p>Every channel it can see, with a tick box. Untick anything you would rather it stayed out of. It never reads direct messages.</p>
+          </div>
+        </div>
+        <div class="stp">
+          <div class="n"></div>
+          <div>
+            <h3>Wisdom arrives in the chat</h3>
+            <p>As an ordinary message in the channel where the work is happening — not in a dashboard nobody opens.</p>
+          </div>
         </div>
       </div>
 
-      <!-- Teams -->
-      <div class="plat">
-        <div class="plat-head"><h3>For Microsoft Teams</h3><span class="badge">In testing</span></div>
-        <p>
-          Installed into one team by its owner, it reads that team's channels — no @mention needed, and no
-          tenant-wide administrator involved.
-        </p>
-        <ul>
-          <li>It reads nothing until someone enters a pairing code here</li>
-          <li>One team, connected by its owner, not your whole tenant</li>
-          <li>Standard channels only — never private ones</li>
-          <li><code>@GroupWisdom mute</code> silences a channel while it keeps reading</li>
-          <li>Disconnect and it stops reading, even if the app stays installed</li>
-        </ul>
-        <div class="foot-cta">
-          <a class="btn ghost" href="/teams">Connect a Teams team <span class="arr">→</span></a>
-          <p class="sub" style="margin-top:12px">Not yet listed on AppSource — get in touch to try it.</p>
-        </div>
+      <div class="members" aria-label="A Buzz community member list with GroupWisdom listed among the people.">
+        <div class="members-hdr"><span class="ch">Members</span><span class="ct">4</span></div>
+        <div class="member"><span class="av" style="background:#8b5cf6">SR</span><span class="nm">Sarah</span></div>
+        <div class="member"><span class="av" style="background:#0ea5e9">JM</span><span class="nm">James</span></div>
+        <div class="member"><span class="av" style="background:#f97316">PK</span><span class="nm">Priya</span></div>
+        <div class="member agent"><span class="av" style="background:var(--wisdom)">W</span><span class="nm">Wisdom Agent</span><span class="tag">that's us</span></div>
+        <div class="members-foot">Remove it here, like anyone else. There is no integration to disconnect and no access left behind.</div>
       </div>
+    </div>
 
+    <div class="cmds">
+      <div class="cmd">
+        <div class="lbl"><code>@wisdom memory</code></div>
+        <p>Everything it believes this channel has established, and whose work each piece came from.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl"><code>@wisdom demo</code></div>
+        <p>A one minute scripted example on invented messages, so a community can see it work before it has enough of its own.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl"><code>@wisdom mute</code></div>
+        <p>Silence for now, or <code>mute today</code> for the rest of the day. It keeps reading and still answers when asked.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl">A thumbs up or down</div>
+        <p>Reacting to a finding records a verdict on it. Removing the reaction withdraws it.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl">One channel at a time</div>
+        <p>What it says in a channel is built only from what that channel can see. Another channel's work stays there.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl">People and agents alike</div>
+        <p>Buzz communities run agents beside people. An agent's output is a contribution on exactly the same terms.</p>
+      </div>
+    </div>
+
+    <div class="cta-row">
+      <a class="btn" href="/buzz">Connect your Buzz community <span class="arr">→</span></a>
+      <a class="btn ghost" href="#wisdom">See what it posts</a>
+    </div>
+    <p class="cta-note">One invite link is the whole setup.</p>
+  </div>
+</section>
+
+<!-- ── Teams: separate, and honest about where it is ─────────────────── -->
+<section id="teams">
+  <div class="shell pad">
+    <div class="eyebrow">Also</div>
+    <div style="display:flex;align-items:center;gap:12px;margin:16px 0 14px;flex-wrap:wrap">
+      <h2 style="margin:0">Microsoft Teams</h2><span class="badge">In testing</span>
+    </div>
+    <p class="prose">
+      Installed into one team by its owner, it reads that team's standard channels — no @mention needed, and
+      no tenant-wide administrator involved. It reads nothing at all until someone enters a pairing code, and
+      disconnecting stops it even if the app stays installed.
+    </p>
+    <p class="sub prose" style="margin-top:14px">
+      Not listed on AppSource yet, so it is not something a stranger can install today. Get in touch if you
+      would like to try it in your tenant.
+    </p>
+    <div class="cta-row">
+      <a class="btn ghost" href="/teams">Connect a Teams team <span class="arr">→</span></a>
     </div>
   </div>
 </section>
@@ -521,9 +602,8 @@ curl <span class="s">https://testgroupwisdom.com/v1/projects/:id/wisdom</span> \
     <h2>Point it at a group today.</h2>
     <p class="lede">An API key, an invite link, or a pairing code. It stays quiet until the work adds up to something worth saying.</p>
     <div class="cta-row">
-      <a class="btn" href="/docs">Read the API reference <span class="arr">→</span></a>
-      <a class="btn ghost" href="/buzz">Connect Buzz</a>
-      <a class="btn ghost" href="/teams">Connect Teams</a>
+      <a class="btn" href="/buzz">Connect your Buzz community <span class="arr">→</span></a>
+      <a class="btn ghost" href="/docs">Read the API reference</a>
     </div>
   </div>
 </section>
@@ -534,7 +614,7 @@ curl <span class="s">https://testgroupwisdom.com/v1/projects/:id/wisdom</span> \
       <a href="#wisdom">What it posts</a>
       <a href="#api">API</a>
       <a href="/docs">API reference</a>
-      <a href="/buzz">Buzz</a>
+      <a href="/buzz">Connect Buzz</a>
       <a href="/teams">Teams</a>
       <a href="/account">Your API key</a>
       <a href="/privacy">Privacy</a>
