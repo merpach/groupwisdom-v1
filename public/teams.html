@@ -42,9 +42,11 @@
          gap: 20px; height: 62px; }
   .brand { font-size: 15px; font-weight: 700; letter-spacing: -.2px; text-decoration: none; margin-right: auto; }
   .brand .for { color: var(--ink-3); font-weight: 400; }
-  .who { color: var(--ink-3); font-size: 13px; }
+  .who { color: var(--ink-3); font-size: 13px; display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .who-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .who > a { flex-shrink: 0; }
   .who button { font: inherit; font-size: 13px; color: var(--ink-3); background: none; border: none;
-                cursor: pointer; padding: 0 0 0 10px; }
+                cursor: pointer; padding: 0 0 0 10px; flex-shrink: 0; }
   .who button:hover { color: var(--ink); }
 
   .eyebrow { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em;
@@ -132,6 +134,9 @@
     h1 { font-size: 31px; }
     input.code { font-size: 20px; letter-spacing: .24em; }
     .row { flex-direction: column; align-items: stretch; }
+    /* A long address has nowhere to go on a small phone; the controls are what matter. */
+    .who-email, .who-sep { display: none; }
+    .who button { padding: 10px 0 10px 12px; }
   }
 </style>
 </head>
@@ -456,8 +461,8 @@ async function boot() {
   if (signedIn) {
     $("authTitle").textContent = "Signed in";
     $("authDoneText").textContent = "Signed in as " + me.body.email + ".";
-    $("who").innerHTML = '<a href="/account" style="color:var(--ink-3);text-decoration:none">API key</a> · '
-      + esc(me.body.email) + ' <button id="signout">Sign out</button>';
+    $("who").innerHTML = '<a href="/account" style="color:var(--ink-3);text-decoration:none">API key</a><span class="who-sep">·</span>'
+      + '<span class="who-email">' + esc(me.body.email) + '</span><button id="signout">Sign out</button>';
     $("signout").onclick = logout;
     await loadProjects();
     await loadInstalls();

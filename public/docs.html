@@ -23,6 +23,7 @@
   .nav-link.active { color: #111; font-weight: 500; border-left-color: #111; }
   .nav-back { font-size: 13px; color: #888; padding: 0 24px 20px; display: block; text-decoration: none; }
   .nav-back:hover { color: #111; }
+  .nav-toggle { display: none; }
 
   /* Content */
   h1 { font-size: 26px; font-weight: 700; margin-bottom: 10px; }
@@ -163,12 +164,62 @@
   .te-pulse { display: inline-block; animation: pulse-dot 1.2s ease-in-out infinite; }
   .te-pulse:nth-child(2) { animation-delay: .2s; }
   .te-pulse:nth-child(3) { animation-delay: .4s; }
+
+  /* Phone: the 220px rail becomes a menu that pulls down over the page. */
+  @media (max-width: 860px) {
+    .layout { display: block; }
+    nav {
+      width: auto; height: auto; position: sticky; top: 0; z-index: 60;
+      padding: 0; border-right: none; border-bottom: 1px solid #eee;
+      background: #fff; overflow: visible;
+    }
+    .nav-toggle {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      width: 100%; padding: 13px 18px; background: #fff; border: none; cursor: pointer;
+      font-family: inherit; font-size: 15px; font-weight: 700; color: #111; text-align: left;
+    }
+    .nav-toggle-word {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+      color: #666; border: 1px solid #e0e0e0; border-radius: 999px; padding: 6px 13px;
+    }
+    nav.open .nav-toggle-word { background: #111; border-color: #111; color: #fff; }
+    .nav-body {
+      display: none; max-height: 66vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 4px 0 18px; border-top: 1px solid #eee; background: #fff;
+    }
+    nav.open .nav-body { display: block; }
+    .nav-logo { display: none; }
+    .nav-back { padding: 12px 18px; font-size: 14px; }
+    .nav-link { padding: 11px 18px; font-size: 14px; border-left-width: 3px; }
+    .nav-section { padding: 14px 18px 4px; font-size: 10.5px; }
+
+    main { max-width: none; padding: 26px 18px 72px; }
+    h1 { font-size: 23px; }
+    h2 { font-size: 17px; margin: 36px 0 12px; padding-top: 34px; }
+    [id] { scroll-margin-top: 62px; }
+    .intro-card { padding: 16px 18px; }
+    .endpoint { flex-wrap: wrap; padding: 11px 13px; gap: 8px; }
+    .path { font-size: 12px; word-break: break-all; }
+    /* Narrow enough that line one runs under the Copy pill — start below it. */
+    pre { padding: 34px 16px 15px; font-size: 12px; }
+    /* Wide reference tables scroll inside themselves, never the page. */
+    table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .demo-panel-body.dark { min-height: 160px; }
+    .engine-toggle { flex-wrap: wrap; gap: 6px; }
+    .engine-toggle-btns { flex-basis: 100%; }
+    .scenario-btn { padding: 8px 14px; }
+  }
 </style>
 </head>
 <body>
 <div class="layout">
 
-<nav>
+<nav id="docnav">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="navBody">
+    <span>API Reference</span>
+    <span class="nav-toggle-word">Menu</span>
+  </button>
+  <div class="nav-body" id="navBody">
   <a href="/" class="nav-back">← GroupWisdom</a>
   <div class="nav-logo">GroupWisdom<span>API Reference</span></div>
   <a class="nav-link" href="/account">Your API key</a>
@@ -214,6 +265,7 @@
   <div class="nav-section">Examples</div>
   <a class="nav-link" href="#example-js">JavaScript</a>
   <a class="nav-link" href="#example-python">Python</a>
+  </div>
 </nav>
 
 <main>
@@ -1164,6 +1216,21 @@ document.addEventListener('DOMContentLoaded', () => {
   renderItemsPreview(SCENARIOS[activeScenario].items);
   document.querySelectorAll('#demo-items-panel .demo-item').forEach(el => el.classList.add('show'));
 });
+
+// Phone menu
+const docnav = document.getElementById('docnav');
+const navToggle = document.getElementById('navToggle');
+if (docnav && navToggle) {
+  const word = navToggle.querySelector('.nav-toggle-word');
+  const setOpen = (open) => {
+    docnav.classList.toggle('open', open);
+    navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    word.textContent = open ? 'Close' : 'Menu';
+  };
+  navToggle.addEventListener('click', () => setOpen(!docnav.classList.contains('open')));
+  docnav.querySelectorAll('.nav-link, .nav-back').forEach(a =>
+    a.addEventListener('click', () => setOpen(false)));
+}
 
 // Highlight active nav link on scroll
 const links = document.querySelectorAll('.nav-link');

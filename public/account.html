@@ -22,9 +22,10 @@
   .nav-wrap { border-bottom: 1px solid var(--rule); margin-bottom: 52px; }
   .nav { max-width: 760px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; gap: 20px; height: 62px; }
   .brand { font-size: 15px; font-weight: 700; letter-spacing: -.2px; text-decoration: none; margin-right: auto; }
-  .who { color: var(--ink-3); font-size: 13px; }
+  .who { color: var(--ink-3); font-size: 13px; display: flex; align-items: center; min-width: 0; }
   .who a { color: var(--ink-3); text-decoration: none; }
-  .who button { font: inherit; font-size: 13px; color: var(--ink-3); background: none; border: none; cursor: pointer; padding: 0 0 0 10px; }
+  .who-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .who button { font: inherit; font-size: 13px; color: var(--ink-3); background: none; border: none; cursor: pointer; padding: 0 0 0 10px; flex-shrink: 0; }
   .who button:hover { color: var(--ink); }
 
   .shell { max-width: 760px; margin: 0 auto; padding: 0 24px 120px; }
@@ -125,7 +126,28 @@
   .or { display: flex; align-items: center; gap: 12px; color: var(--ink-3); font-size: 12px; margin-bottom: 14px; }
   .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
 
-  @media (max-width: 620px) { h1 { font-size: 30px; } .keyrow, .projrow { flex-direction: column; } }
+  @media (max-width: 620px) {
+    .nav, .shell { padding-left: 18px; padding-right: 18px; }
+    .nav { gap: 12px; }
+    .nav-wrap { margin-bottom: 38px; }
+    h1 { font-size: 30px; }
+    h2 { font-size: 21px; margin: 38px 0 12px; padding-top: 32px; }
+    .lede { font-size: 15.5px; margin-bottom: 24px; }
+    .step { padding: 18px 17px; }
+    /* Stacked, the field and its button each get the full width. */
+    .keyrow, .projrow { flex-direction: column; }
+    .keyrow button, .projrow button { width: 100%; padding: 11px 15px; }
+    .usage-bar { flex: 1 1 auto; }
+    .tabs button { padding: 8px 14px; }
+    .pid button { padding: 6px 11px; }
+    .pid code { overflow-wrap: anywhere; }
+    /* Narrow enough that line one runs under the Copy pill — start below it. */
+    pre { font-size: 12px; padding: 34px 14px 14px; }
+    .copy-snip { top: 6px; right: 6px; }
+    .links { gap: 14px 18px; }
+  }
+  /* A long address has nowhere to go on a small phone; the button is what matters. */
+  @media (max-width: 520px) { .who-email { display: none; } .who button { padding: 10px 0 10px 0; } }
 </style>
 </head>
 <body>
@@ -463,7 +485,7 @@ $("authGo").onclick = async () => {
     return;
   }
 
-  $("who").innerHTML = esc(me.body.email) + ' <button id="signout">Sign out</button>';
+  $("who").innerHTML = '<span class="who-email">' + esc(me.body.email) + '</span><button id="signout">Sign out</button>';
   $("signout").onclick = async () => { await j("/api/auth/logout", { method: "POST" }); location.reload(); };
 
   apiKey = me.body.api_key || "";
