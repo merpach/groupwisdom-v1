@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS group_memory (
 CREATE TABLE IF NOT EXISTS gate_records (
   id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL REFERENCES groups(id),
-  stage TEXT NOT NULL,        -- scan | review
+  stage TEXT NOT NULL,        -- scan | review | memory | handoff
   verdict TEXT NOT NULL,      -- silent | spoken | suppressed | error
   kind TEXT DEFAULT NULL,
   title TEXT DEFAULT NULL,
@@ -393,6 +393,17 @@ export function addItem(groupId: string, data: Partial<Item>): Item {
 export const listItems = (groupId: string) =>
   (db.prepare("SELECT * FROM items WHERE group_id = ? ORDER BY created_at DESC").all(groupId) as Item[]).map(decryptItem);
 
+/**
+ * Insights of one kind from the last `hours`, newest first. The hand-off
+ * repeat guard reads this: the same finished work should not be handed to the
+ * same task twice in a day, however many times the task is announced.
+ */
+export function listRecentInsightsOfKind(groupId: string, kind: string, hours: number): Insight[] {
+  return db.prepare(
+    "SELECT * FROM insights WHERE group_id = ? AND kind = ? AND created_at > datetime('now', ?) ORDER BY created_at DESC"
+  ).all(groupId, kind, `-${hours} hours`) as Insight[];
+}
+
 export type ItemWithMember = Item & { member_name: string | null };
 export const listItemsWithMembers = (groupId: string): ItemWithMember[] =>
   (db.prepare(
@@ -478,7 +489,7 @@ export type GateRecord = {
   insight_id: string | null; created_at: string;
 };
 export function addGateRecord(groupId: string, rec: {
-  stage: "scan" | "review" | "memory"; verdict: "silent" | "spoken" | "suppressed" | "error" | "dropped";
+  stage: "scan" | "review" | "memory" | "handoff"; verdict: "silent" | "spoken" | "suppressed" | "error" | "dropped";
   kind?: string; title?: string; reason?: string; insightId?: string;
 }) {
   db.prepare(

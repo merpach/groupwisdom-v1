@@ -184,19 +184,25 @@ export function isMutedAt(until: number | undefined, now: number): boolean {
 }
 
 /**
- * Two marks are the whole alphabet in chat: 💡 for something worth knowing,
- * 🧠 for something worth thinking about. The six kinds stay intact in the API
+ * Three marks are the whole alphabet in chat: 💡 for something worth knowing,
+ * 🧠 for something worth thinking about, 🤝 for someone's finished work handed
+ * to the person who just said they need it. The kinds stay intact in the API
  * and the dashboard; this is only how they look in a channel.
  *
- * `tension` gets the second mark because it is the one kind that names a
- * conflict — two readings of the same evidence, or two bookings that cannot
- * both stand. It used to be a warning triangle, which in a chat client reads
- * as something being broken. Nothing is: a tension is a decision the group has
- * arrived at and has not made yet. The mark says think, not panic, which is
- * also what the six kinds are for — naming what the group is building rather
- * than what it is missing.
+ * `tension` gets the brain because it is the one kind that names a conflict —
+ * two readings of the same evidence, or two bookings that cannot both stand.
+ * It used to be a warning triangle, which in a chat client reads as something
+ * being broken. Nothing is: a tension is a decision the group has arrived at
+ * and has not made yet. The mark says think, not panic, which is also what the
+ * kinds are for — naming what the group is building rather than what it is
+ * missing.
+ *
+ * `handoff` gets its own mark because it is a different act from a finding: it
+ * is addressed to one person, at the moment they announced work, and it
+ * carries another member's result rather than the engine's conclusion.
  */
-export const markFor = (kind: string) => (kind === "tension" ? "🧠" : "💡");
+export const markFor = (kind: string) =>
+  kind === "tension" ? "🧠" : kind === "handoff" ? "🤝" : "💡";
 
 /**
  * A mark, a headline, a body, and nothing else. No labels, no confidence, no

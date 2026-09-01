@@ -106,7 +106,7 @@ apiv1.use((_req, res, next) => {
 
 // Valid values for the two documented enums. Rejecting an unknown value beats
 // accepting it and quietly doing nothing, which reads to the caller as success.
-const WISDOM_KINDS = ["convergence", "opportunity", "tension", "pattern", "direction", "decision"];
+const WISDOM_KINDS = ["convergence", "opportunity", "tension", "pattern", "direction", "decision", "handoff"];
 const ENGINES = ["claude", "muse-spark"];
 
 let notify: (groupId: string, event: string) => void = () => {};

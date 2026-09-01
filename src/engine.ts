@@ -13,6 +13,7 @@ import {
   setKnowledgeDoc, getGroup, setProjectSummary, setUserContext, listUserContexts,
   getMemberByUserId, listItemsByMember, recordUsage, isGroupOverBudget, getGroupEngine,
   getGroupMemoryRaw, setGroupMemoryRaw, addGateRecord, isGlobalOverBudget, spokeRecently,
+  listRecentInsightsOfKind,
   type Item, type Insight,
 } from "./db.js";
 import { truncate, parseModelJson } from "./text-util.js";
@@ -380,6 +381,8 @@ type MemoryUpdate = {
   core: Omit<GroupMemory, "active_wisdom">;
   contributed: boolean;
   why: string;
+  /** Work announced, and what the group already holds for it. Null nearly always. */
+  handoff: HandoffProposal | null;
 };
 
 async function updateMemoryCore(
@@ -391,7 +394,9 @@ async function updateMemoryCore(
   const client = new Anthropic();
   const msg = await client.messages.create({
     model: SUMMARY_MODEL,
-    max_tokens: 1500,
+    // A full memory plus a hand-off can brush 1500. Output is billed on what
+    // is generated, so the headroom is free on the usual round.
+    max_tokens: 2000,
     messages: [{
       role: "user",
       content: `You maintain the working memory of a shared project called "${groupName}": the compact record of what the group currently knows. It is the only long-term context the wisdom engine sees, so a fact dropped here is forgotten and a fact kept here is remembered.
@@ -412,8 +417,15 @@ Also judge one thing about the new contributions, in "contributed":
 - A request that carries details is still a request. "Build the plan for Chicago, San Francisco and New York" names three cities and remains an instruction: saying what you want does not make it done. Judge by whether work was delivered, never by whether the message contained new words. Record the detail as a fact if it is durable, and still answer false.
 Put the reason in "why", in a few words.
 
+Then, only when "contributed" is false, look for a hand-off. Someone may be ANNOUNCING work they are about to do: "I'll write the pricing plan", "starting on the connector doc", "going to price the annual tier". If the memory you are returning already holds finished work by a DIFFERENT contributor that bears directly on that task, put it in "handoff". Otherwise "handoff" is null, and null is the usual answer.
+A hand-off is {"for":"<who announced the work>","task":"<the work as a short noun phrase, e.g. 'the pricing plan'>","facts":[{"fact":"...","by":"...","sources":["..."]}],"headline":"<what they should know first: one line, at most eight words>"}
+- Copy each fact from the memory you are returning, with its original "by" and "sources". Never write a new one here. A decision may be copied with "by" set to "the group".
+- Every fact must be by someone other than "for". Nobody needs their own work handed back to them.
+- Specific only: a number, a result, a decision, a finding. "The group has discussed pricing" is not a hand-off.
+- A question is not an announcement: "Should we price annually?" gets null. So does work already delivered.
+
 Respond ONLY with valid JSON:
-{"purpose":"...","facts":[...],"decisions":[...],"open_questions":[...],"contributed":true,"why":"..."}
+{"purpose":"...","facts":[...],"decisions":[...],"open_questions":[...],"contributed":true,"why":"...","handoff":null}
 where facts, decisions and open_questions follow ${MEMORY_SHAPE}`,
     }],
   });
@@ -426,7 +438,109 @@ where facts, decisions and open_questions follow ${MEMORY_SHAPE}`,
     // Default to true: a missing field must not silence the engine outright.
     contributed: parsed?.contributed !== false,
     why: str(parsed?.why) || "no reason given",
+    // Only honoured on a non-contribution: a hand-off answers work announced,
+    // and delivered work takes the join path instead.
+    handoff: parsed?.contributed === false ? parseHandoff(parsed?.handoff) : null,
   };
+}
+
+// ── The hand-off ─────────────────────────────────────────────────────────────
+// Every card the join path writes waits for two finished pieces of work to
+// meet, which is after the fact by construction. The most valuable moment to
+// speak is the one those gates deliberately ignore: someone announcing work
+// they are about to do, when the group already holds finished work by someone
+// else that bears on it. Handing that over then, the number, the decision,
+// the finding, with the name of whoever produced it, is another member's work
+// arriving where it is needed. It transfers; it never directs.
+//
+// The question rides on the memory update, which already reads every message
+// against the whole memory, so it costs no extra round trip. The bar below is
+// mechanical and strict, because a hand-off that fires on every "I'll do X"
+// is a worse flagging system, not a better one.
+
+type HandoffFact = { fact: string; by: string; sources: string[] };
+type HandoffProposal = { for: string; task: string; facts: HandoffFact[]; headline: string };
+
+/** How closely a cited fact must match one memory holds. A copy scores ~1; a paraphrase well under. */
+const HANDOFF_FACT_MATCH = 0.5;
+/** No second hand-off for the same task inside this window, however often it is announced. */
+const HANDOFF_REPEAT_HOURS = Number(process.env.GW_HANDOFF_REPEAT_HOURS || 24);
+const HANDOFF_MAX_FACTS = 4;
+
+function parseHandoff(raw: unknown): HandoffProposal | null {
+  if (!raw || typeof raw !== "object") return null;
+  const h = raw as Record<string, unknown>;
+  const facts = (Array.isArray(h.facts) ? h.facts : [])
+    .filter((f): f is Record<string, unknown> => !!f && typeof f === "object")
+    .map(f => ({ fact: str(f.fact).trim(), by: str(f.by).trim(), sources: strArr(f.sources) }))
+    .filter(f => f.fact);
+  const out = { for: str(h.for).trim(), task: str(h.task).trim(), facts, headline: str(h.headline).trim() };
+  return out.for && out.task && out.headline ? out : null;
+}
+
+/**
+ * Hold a proposed hand-off to the bar and, if it stands, write the card.
+ * Returns the insight, or null with the reason in the gate records.
+ */
+function tryHandoff(
+  groupId: string, proposal: HandoffProposal, core: Omit<GroupMemory, "active_wisdom">,
+  batchAuthors: string[], scanChannel: string | null,
+): Insight | null {
+  const decline = (reason: string) => {
+    recordGate(groupId, { stage: "handoff", verdict: "silent", reason: `Hand-off for ${proposal.for} held back: ${reason}` });
+    return null;
+  };
+  const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+  // The announcement has to have come from this batch. A recipient who wrote
+  // nothing here is a recipient the model invented.
+  if (batchAuthors.length && !batchAuthors.some(a => same(a, proposal.for))) {
+    return decline(`${proposal.for} did not write in this batch`);
+  }
+
+  // Each fact must be someone else's, sourced, and actually held in memory.
+  const held = [...core.facts.map(f => f.fact), ...core.decisions.map(d => d.decision)];
+  const kept: HandoffFact[] = [];
+  const dropped: string[] = [];
+  for (const f of proposal.facts) {
+    if (!f.by || same(f.by, proposal.for)) { dropped.push("their own work"); continue; }
+    if (!f.sources.length) { dropped.push("unsourced"); continue; }
+    if (!held.some(m => similarity({ title: f.fact }, { title: m }) >= HANDOFF_FACT_MATCH)) { dropped.push("not in memory"); continue; }
+    kept.push(f);
+    if (kept.length === HANDOFF_MAX_FACTS) break;
+  }
+  if (!kept.length) {
+    return decline(dropped.length ? `every cited fact was ${[...new Set(dropped)].join(" or ")}` : "no facts cited");
+  }
+
+  const title = stripEmDashes(proposal.headline);
+  // Composed mechanically rather than written by the model. The join path has
+  // an editor and a review to catch fluent drift; this path has neither, and a
+  // verified fact with its author's name is the whole message.
+  const body = stripEmDashes(kept.map(f => `${f.fact.replace(/[.!?]+$/, "")} (${f.by}).`).join(" "));
+
+  // Same task, same day: the work was already handed over. Compared only with
+  // other hand-offs. A join card that once mentioned the same number is no
+  // reason to withhold it from the person about to need it.
+  const repeat = listRecentInsightsOfKind(groupId, "handoff", HANDOFF_REPEAT_HOURS)
+    .find(r => similarity({ title, body }, r) >= DEDUPE_THRESHOLD);
+  if (repeat) return decline(`already handed off ("${repeat.title}")`);
+
+  const saved = addInsight(groupId, "handoff", title, body, {
+    // A relay of what the group itself recorded, verified against memory
+    // above. Not an inference.
+    confidence: "high",
+    channel: scanChannel,
+  });
+  setInsightStatus(saved.id, "acknowledged");
+  const headlineWords = title.split(/\s+/).length;
+  if (headlineWords > 8) console.warn(`[handoff] headline ran to ${headlineWords} words: "${title}"`);
+  recordGate(groupId, {
+    stage: "handoff", verdict: "spoken", kind: "handoff", title, insightId: saved.id,
+    reason: `for ${proposal.for}, before ${proposal.task}: ${kept.length} fact(s) by ${[...new Set(kept.map(f => f.by))].join(", ")}`,
+  });
+  console.log(`[handoff] handed ${kept.length} fact(s) to a member of group ${groupId}`);
+  return { ...saved, status: "acknowledged" };
 }
 
 /**
@@ -837,6 +951,16 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
   // adds nothing to combine, and scanning on it is where the restatements came
   // from. Memory still learns from the message either way.
   if (update && !update.contributed) {
+    // The moment the join gates ignore: work announced, not delivered. If the
+    // group already holds what this person is about to need, hand it over.
+    if (update.handoff) {
+      const batchAuthors = newWithNames.map(i => i.member_name).filter((n): n is string => !!n);
+      const handed = tryHandoff(groupId, update.handoff, update.core, batchAuthors, scanChannel);
+      if (handed) {
+        await finalizeMemory([handed], []);
+        return [handed];
+      }
+    }
     recordGate(groupId, { stage: "scan", verdict: "silent", reason: `No new contribution: ${update.why}` });
     await finalizeMemory([], []);
     return [];

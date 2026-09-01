@@ -497,6 +497,7 @@ function ago(ts) {
 
 // One plain-language line per engine verdict.
 function actLine(r) {
+  if (r.stage === "handoff" && r.verdict === "spoken") return "Handed off: " + (r.title || "another member's work");
   if (r.verdict === "spoken") return "Spoke: " + (r.title || "a finding");
   if (r.verdict === "suppressed") return "Held back a weak finding" + (r.reason ? ": " + r.reason : ".");
   if (r.verdict === "error") return "Engine hiccup" + (r.reason ? ": " + r.reason : ".");

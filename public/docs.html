@@ -137,7 +137,7 @@
   .kind.opportunity { background: #fff5e0; color: #996600; }
   .kind.tension { background: #ffe8e8; color: #cc3333; }
   .kind.direction { background: #e8f5ee; color: #1d7a46; }
-  .kind.decision { background: #f0f0f0; color: #555; }
+  .kind.decision { background: #f0f0f0; color: #555; } .kind.handoff { background: #eef7f1; color: #1d6b45; }
 
   /* Pipeline trace */
   .trace-entry { opacity: 0; transform: translateY(4px); transition: opacity .3s, transform .3s; padding: 3px 0; font-size: 12px; font-family: "SF Mono","Fira Mono",monospace; display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; line-height: 1.7; }
@@ -668,7 +668,7 @@ curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb676
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "message": "Analysis started." }</pre>
 
   <h2 id="wisdom-kinds">Wisdom kinds</h2>
-  <p>The engine surfaces wisdom in six kinds. All six describe what a group is building, never what it is failing to do:</p>
+  <p>The engine surfaces wisdom in seven kinds. Six describe what a group is building, never what it is failing to do. The seventh is different in kind: it is addressed to one person, at the moment they announce work, and carries another member's finished result rather than the engine's own conclusion.</p>
   <table>
     <tr><th>Kind</th><th>Description</th></tr>
     <tr><td><span class="kind convergence">convergence</span></td><td>Two people reached the same finding from different directions. It names both, and what each of them proved.</td></tr>
@@ -677,6 +677,7 @@ curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb676
     <tr><td><span class="kind pattern">pattern</span></td><td>A theme running across several contributions that none of them called a theme.</td></tr>
     <tr><td><span class="kind direction">direction</span></td><td>The natural next question the group's collective work is building toward.</td></tr>
     <tr><td><span class="kind decision">decision</span></td><td>Something the group has arrived at together, and what led there.</td></tr>
+    <tr><td><span class="kind handoff">handoff</span></td><td>Someone announced work they are about to do, and the group already held finished work by someone else that bears on it: a number, a result, a decision, with the name of who produced it. Composed only from facts already in memory, never inferred. Silent unless the fact is specific, sourced, and not the announcer's own.</td></tr>
   </table>
 
   <!-- Project API Keys -->
