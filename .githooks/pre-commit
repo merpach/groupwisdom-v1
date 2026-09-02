@@ -1,0 +1,53 @@
+#!/bin/sh
+# Refuse to commit a live credential.
+#
+# This exists because six real keys reached this repo through
+# .claude/settings.local.json, which records approved commands verbatim —
+# Authorization headers and all. One of them was an account-level personal key,
+# and it stayed live for months. Nobody pasted a secret on purpose; a tool wrote
+# it down. So the check is mechanical and runs on every commit.
+#
+# Patterns match REAL key shapes only. The fakes already in the tests and docs
+# (gw_x, gw_nonsense, gw_your_personal_key, sk-ant-fake-for-test) are shorter
+# than any issued key and pass cleanly.
+#
+# To bypass in a genuine false positive:  git commit --no-verify
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+fail=0
+
+# A .env is never a tracked file. .env.example is the one exception.
+for f in $staged; do
+  case "$f" in
+    .env|.env.*|*/.env|*/.env.*)
+      [ "$f" = ".env.example" ] && continue
+      echo "BLOCKED  $f — env files hold secrets and must stay untracked."
+      fail=1 ;;
+    .claude/settings.local.json)
+      echo "BLOCKED  $f — records approved commands verbatim, including API keys."
+      fail=1 ;;
+  esac
+done
+
+# Real key shapes, in the staged content only.
+#   gw_ + 36 hex        personal API key   (randomBytes(18))
+#   gw_proj_ + 40 hex   project key        (randomBytes(20))
+#   bzw_ + 48 hex       Buzz ingest token  (randomBytes(24))
+#   sk-ant-api...       Anthropic key
+#   nsec1 + 58          Nostr PRIVATE key — the agent's identity
+#   AIza + 35           Google API key
+patterns='gw_[a-f0-9]{32,}|gw_proj_[a-f0-9]{32,}|bzw_[a-f0-9]{32,}|sk-ant-api[A-Za-z0-9_-]{20,}|nsec1[a-z0-9]{58}|AIza[A-Za-z0-9_-]{35}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+
+hits=$(git diff --cached -U0 | grep '^+' | grep -oE "$patterns" | sort -u)
+if [ -n "$hits" ]; then
+  echo "BLOCKED  a live credential is in this commit:"
+  echo "$hits" | while read -r k; do
+    echo "           ${k%"${k#??????????}"}…  ($(printf %s "$k" | wc -c | tr -d ' ') chars)"
+  done
+  echo "         Remove it, then rotate the key — anything committed is compromised."
+  fail=1
+fi
+
+[ "$fail" = 1 ] && { echo; echo "Nothing was committed. Bypass with --no-verify only if you are certain."; exit 1; }
+exit 0

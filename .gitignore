@@ -10,3 +10,6 @@ dist/
 
 # Teams app package — rebuilt from the manifest and icons, not source
 teams-app/*.zip
+
+# Claude Code records approved commands verbatim, Authorization headers included.
+.claude/settings.local.json
