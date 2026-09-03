@@ -21,6 +21,7 @@
  *   DELETE /v1/projects/:id/keys/:keyId       — revoke a project API key
  */
 import { createHmac } from "node:crypto";
+import { lookup } from "node:dns/promises";
 import { Router } from "express";
 import {
   getUserByApiKey,
@@ -172,6 +173,58 @@ function wisdomFull(w: any) { return { id: w.id, kind: w.kind, title: w.title, b
  * "never fires" with no error anywhere. Refusing loudly at set time turns both
  * into one clear message.
  */
+/**
+ * Is this address one the public internet should never reach through us?
+ * Loopback, the private ranges, link-local (which carries the cloud metadata
+ * service at 169.254.169.254), and the IPv6 equivalents including v4-mapped.
+ */
+function isPrivateAddress(ip: string): boolean {
+  const v4 = ip.startsWith("::ffff:") ? ip.slice(7) : ip;   // v4-mapped v6
+  const m = v4.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const [a, b] = [+m[1], +m[2]];
+    return a === 0 || a === 10 || a === 127
+      || (a === 192 && b === 168)
+      || (a === 172 && b >= 16 && b <= 31)
+      || (a === 169 && b === 254);
+  }
+  const v6 = ip.toLowerCase().split("%")[0];
+  return v6 === "::1" || v6 === "::"
+    || /^f[cd]/.test(v6)          // fc00::/7 unique-local
+    || /^fe[89ab]/.test(v6);      // fe80::/10 link-local
+}
+
+/**
+ * Does this hostname resolve into private space?
+ *
+ * The literal-string check below cannot see this. `169.254.169.254.nip.io` is
+ * a perfectly ordinary public hostname that resolves to the cloud metadata
+ * address, and `localtest.me` resolves to loopback — both sail past a check
+ * that only reads the text of the host. So we ask the resolver.
+ *
+ * A name that will not resolve is left alone: fetch is about to fail on it
+ * anyway, and failing closed here would reject good webhooks over a DNS blip.
+ */
+async function resolvesToPrivate(host: string): Promise<boolean> {
+  try {
+    const addrs = await lookup(host, { all: true });
+    return addrs.some(a => isPrivateAddress(a.address));
+  } catch {
+    return false;
+  }
+}
+
+/** Delivery-time check. DNS can change between validation and the request. */
+async function webhookTargetBlocked(rawUrl: string): Promise<boolean> {
+  if (process.env.GW_WEBHOOK_ALLOW_PRIVATE === "1") return false;
+  try {
+    const host = new URL(rawUrl).hostname.toLowerCase();
+    return await resolvesToPrivate(host);
+  } catch {
+    return true;
+  }
+}
+
 function webhookUrlError(raw: unknown): string | null {
   let u: URL;
   try { u = new URL(String(raw)); } catch { return "webhook_url is not a valid URL."; }
@@ -217,6 +270,12 @@ async function fireWebhook(groupId: string, wisdom: any[]) {
   if (secret) {
     headers["X-GroupWisdom-Signature"] = "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
   }
+  // Re-checked here, not just when it was saved: a name that resolved to a
+  // public address at PATCH time can point at loopback by the time we deliver.
+  if (await webhookTargetBlocked(url)) {
+    console.warn(`[webhook] refusing delivery for group ${groupId}: target resolves into private space`);
+    return;
+  }
   const delays = [0, 5000, 30000];
   for (let attempt = 0; attempt < delays.length; attempt++) {
     if (delays[attempt] > 0) await new Promise(r => setTimeout(r, delays[attempt]));
@@ -228,6 +287,21 @@ async function fireWebhook(groupId: string, wisdom: any[]) {
       console.warn(`[webhook] attempt ${attempt + 1} failed: ${err.message} — ${attempt < delays.length - 1 ? "retrying" : "giving up"}`);
     }
   }
+}
+
+/**
+ * The full check for a webhook someone is trying to save: the cheap literal
+ * one, then the resolver. Set-time only — delivery re-checks, because the
+ * answer is allowed to change underneath us.
+ */
+async function webhookUrlErrorAsync(raw: unknown): Promise<string | null> {
+  const literal = webhookUrlError(raw);
+  if (literal) return literal;
+  if (process.env.GW_WEBHOOK_ALLOW_PRIVATE === "1") return null;
+  const host = new URL(String(raw)).hostname.toLowerCase();
+  return await resolvesToPrivate(host)
+    ? "webhook_url resolves to a private network this server cannot reach. Use a public URL (a tunnel such as ngrok works for local testing)."
+    : null;
 }
 
 // ── View helpers ──────────────────────────────────────────────────────────────
@@ -325,14 +399,14 @@ apiv1.get("/usage", (req, res) => {
 
 // ── Projects ──────────────────────────────────────────────────────────────────
 
-apiv1.post("/projects", (req, res) => {
+apiv1.post("/projects", async (req, res) => {
   const a = auth(req);
   if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
   if (a.kind === "project_key") return res.status(403).json({ error: "Project keys cannot create new projects. Use your personal API key." });
   const name = (req.body?.name ?? "").trim();
   if (!name) return res.status(400).json({ error: "name is required." });
   if (req.body?.webhook_url) {
-    const bad = webhookUrlError(req.body.webhook_url);
+    const bad = await webhookUrlErrorAsync(req.body.webhook_url);
     if (bad) return res.status(400).json({ error: bad });   // before create, so no orphan project
   }
   const g = createGroup(name);
@@ -362,7 +436,7 @@ apiv1.get("/projects/:id", (req, res) => {
   res.json(projectView(g.id));
 });
 
-apiv1.patch("/projects/:id", (req, res) => {
+apiv1.patch("/projects/:id", async (req, res) => {
   const a = auth(req);
   if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
   const g = resolveProject(req, a);
@@ -370,7 +444,7 @@ apiv1.patch("/projects/:id", (req, res) => {
   let webhookSecret: string | null | undefined;
   if ("webhook_url" in req.body) {
     if (req.body.webhook_url) {
-      const bad = webhookUrlError(req.body.webhook_url);
+      const bad = await webhookUrlErrorAsync(req.body.webhook_url);
       if (bad) return res.status(400).json({ error: bad });
     }
     webhookSecret = setGroupWebhook(g.id, req.body.webhook_url || null);
@@ -402,6 +476,12 @@ apiv1.post("/projects/:id/test-webhook", async (req, res) => {
   if (!g) return res.status(404).json({ error: "Project not found." });
   const url = getGroupWebhook(g.id);
   if (!url) return res.status(400).json({ error: "No webhook URL set for this project." });
+  // This endpoint reports the downstream status back to the caller, which
+  // makes it a probe: point it at an internal host and read the result. Same
+  // resolver check as delivery, before anything is sent.
+  if (await webhookTargetBlocked(url)) {
+    return res.status(400).json({ sent: false, error: "webhook_url resolves to a private network this server cannot reach." });
+  }
   const secret = getGroupWebhookSecret(g.id);
   const sample = [{ id: "test-wisdom", title: "Webhook is working", body: "This is a test event from GroupWisdom." }];
   const body = JSON.stringify({ event: "test", group_id: g.id, wisdom: sample, insights: sample });
