@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID, randomBytes } from "node:crypto";
-import { encryptField, decryptField, encryptionEnabled, isEncrypted } from "./crypto.js";
+import { encryptField, decryptField, encryptionEnabled, isEncrypted, keyHash } from "./crypto.js";
 
 const DB_PATH = process.env.GW_DB || "groupwisdom.db";
 
@@ -219,6 +219,12 @@ CREATE TABLE IF NOT EXISTS usage_events (
 `);
 
 // Migrate: add columns if they don't exist yet
+// API keys are encrypted at rest like message content. Encryption is not
+// deterministic, so a separate hash column carries the lookup.
+try { db.exec("ALTER TABLE users ADD COLUMN api_key_hash TEXT DEFAULT NULL"); } catch { /* already exists */ }
+try { db.exec("ALTER TABLE project_api_keys ADD COLUMN key_hash TEXT DEFAULT NULL"); } catch { /* already exists */ }
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_users_api_key_hash ON users(api_key_hash)"); } catch { /* already exists */ }
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_pak_key_hash ON project_api_keys(key_hash)"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE group_settings ADD COLUMN webhook_secret TEXT DEFAULT NULL"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE group_settings ADD COLUMN engine TEXT NOT NULL DEFAULT 'claude'"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE insights ADD COLUMN confidence TEXT DEFAULT NULL"); } catch { /* already exists */ }
@@ -274,11 +280,18 @@ const DEFAULT_CONNECTORS: Array<[string, string]> = [
   ["Perplexity", "read"],
 ];
 
+/** Hand back a user row with its key readable, whatever form it is stored in. */
+function decryptUser<T extends { api_key?: string | null }>(row: T | undefined): T | undefined {
+  if (row && row.api_key) (row as any).api_key = decryptField(row.api_key);
+  return row;
+}
+
 export function createUser(email: string, passwordHash: string, name: string): User {
   const id = randomUUID();
   const api_key = "gw_" + randomBytes(18).toString("hex");
-  db.prepare("INSERT INTO users (id, email, password_hash, name, api_key) VALUES (?, ?, ?, ?, ?)").run(id, email.toLowerCase().trim(), passwordHash, name, api_key);
-  return db.prepare("SELECT * FROM users WHERE id = ?").get(id) as User;
+  db.prepare("INSERT INTO users (id, email, password_hash, name, api_key, api_key_hash) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(id, email.toLowerCase().trim(), passwordHash, name, encryptField(api_key), keyHash(api_key));
+  return decryptUser(db.prepare("SELECT * FROM users WHERE id = ?").get(id) as User)!;
 }
 /**
  * Issue a fresh personal API key, invalidating the old one immediately.
@@ -288,16 +301,23 @@ export function createUser(email: string, passwordHash: string, name: string): U
  */
 export function rotateUserApiKey(userId: string): string {
   const api_key = "gw_" + randomBytes(18).toString("hex");
-  db.prepare("UPDATE users SET api_key = ? WHERE id = ?").run(api_key, userId);
+  db.prepare("UPDATE users SET api_key = ?, api_key_hash = ? WHERE id = ?")
+    .run(encryptField(api_key), keyHash(api_key), userId);
   return api_key;
 }
 
 export const getUserByEmail = (email: string) =>
-  db.prepare("SELECT * FROM users WHERE email = ?").get(email.toLowerCase().trim()) as User | undefined;
+  decryptUser(db.prepare("SELECT * FROM users WHERE email = ?").get(email.toLowerCase().trim()) as User | undefined);
 export const getUserById = (id: string) =>
-  db.prepare("SELECT * FROM users WHERE id = ?").get(id) as User | undefined;
+  decryptUser(db.prepare("SELECT * FROM users WHERE id = ?").get(id) as User | undefined);
+/**
+ * Match on the hash. The plaintext fallback is for rows written before this
+ * existed and not yet swept; it disappears on its own as the sweep runs.
+ */
 export const getUserByApiKey = (key: string) =>
-  db.prepare("SELECT * FROM users WHERE api_key = ?").get(key) as User | undefined;
+  decryptUser(
+    (db.prepare("SELECT * FROM users WHERE api_key_hash = ?").get(keyHash(key))
+      ?? db.prepare("SELECT * FROM users WHERE api_key = ?").get(key)) as User | undefined);
 export const getGroupsForUser = (userId: string) =>
   db.prepare("SELECT g.* FROM groups g INNER JOIN members m ON m.group_id = g.id WHERE m.user_id = ? ORDER BY g.created_at").all(userId) as Group[];
 
@@ -724,20 +744,29 @@ export function listInsightsPaginated(groupId: string, kind?: string, limit = 50
 
 export type ProjectApiKey = { id: string; project_id: string; name: string; key: string; created_at: string; last_used_at: string | null };
 
+/** Hand back a project-key row with its key readable, for the console preview. */
+function decryptProjectKey(row: ProjectApiKey | undefined): ProjectApiKey | undefined {
+  if (row && row.key) row.key = decryptField(row.key);
+  return row;
+}
+
 export function createProjectApiKey(projectId: string, name: string): ProjectApiKey {
   const id = randomUUID();
   const key = "gw_proj_" + randomBytes(20).toString("hex");
-  db.prepare("INSERT INTO project_api_keys (id, project_id, name, key) VALUES (?, ?, ?, ?)").run(id, projectId, name, key);
-  return db.prepare("SELECT * FROM project_api_keys WHERE id = ?").get(id) as ProjectApiKey;
+  db.prepare("INSERT INTO project_api_keys (id, project_id, name, key, key_hash) VALUES (?, ?, ?, ?, ?)")
+    .run(id, projectId, name, encryptField(key), keyHash(key));
+  return decryptProjectKey(db.prepare("SELECT * FROM project_api_keys WHERE id = ?").get(id) as ProjectApiKey)!;
 }
 
 export const listProjectApiKeys = (projectId: string): ProjectApiKey[] =>
-  db.prepare("SELECT * FROM project_api_keys WHERE project_id = ? ORDER BY created_at DESC").all(projectId) as ProjectApiKey[];
+  (db.prepare("SELECT * FROM project_api_keys WHERE project_id = ? ORDER BY created_at DESC").all(projectId) as ProjectApiKey[])
+    .map(r => decryptProjectKey(r)!);
 
 export const getByProjectApiKey = (key: string): ProjectApiKey | undefined => {
-  const row = db.prepare("SELECT * FROM project_api_keys WHERE key = ?").get(key) as ProjectApiKey | undefined;
+  const row = (db.prepare("SELECT * FROM project_api_keys WHERE key_hash = ?").get(keyHash(key))
+    ?? db.prepare("SELECT * FROM project_api_keys WHERE key = ?").get(key)) as ProjectApiKey | undefined;
   if (row) db.prepare("UPDATE project_api_keys SET last_used_at = datetime('now') WHERE id = ?").run(row.id);
-  return row;
+  return decryptProjectKey(row);
 };
 
 export const revokeProjectApiKey = (keyId: string) =>
@@ -851,6 +880,33 @@ export function encryptExistingData(): { items: number; blobs: number } {
     blobs++;
   }
   return { items, blobs };
+}
+
+/**
+ * Fill in the hash and encrypt the stored value for keys issued before this
+ * existed. Runs on every boot and is idempotent: a row whose hash is already
+ * set is skipped, so it converts the backlog once and then costs nothing.
+ *
+ * The hash has to be taken from the plaintext, which is why it happens here
+ * rather than in a migration — after this pass the plaintext is gone.
+ */
+export function migrateKeyHashes(): { users: number; projectKeys: number } {
+  let users = 0, projectKeys = 0;
+  for (const row of db.prepare("SELECT id, api_key FROM users WHERE api_key IS NOT NULL AND api_key_hash IS NULL")
+    .all() as Array<{ id: string; api_key: string }>) {
+    if (!row.api_key || isEncrypted(row.api_key)) continue;   // encrypted with no hash: cannot recover the plaintext here
+    db.prepare("UPDATE users SET api_key = ?, api_key_hash = ? WHERE id = ?")
+      .run(encryptField(row.api_key), keyHash(row.api_key), row.id);
+    users++;
+  }
+  for (const row of db.prepare("SELECT id, key FROM project_api_keys WHERE key IS NOT NULL AND key_hash IS NULL")
+    .all() as Array<{ id: string; key: string }>) {
+    if (!row.key || isEncrypted(row.key)) continue;
+    db.prepare("UPDATE project_api_keys SET key = ?, key_hash = ? WHERE id = ?")
+      .run(encryptField(row.key), keyHash(row.key), row.id);
+    projectKeys++;
+  }
+  return { users, projectKeys };
 }
 
 /**

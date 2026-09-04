@@ -63,5 +63,20 @@ export function decryptField(stored: string): string {
   return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
 }
 
+/**
+ * Lookup hash for a credential.
+ *
+ * Encryption uses a random IV, so the same key encrypts to a different string
+ * every time and `WHERE api_key = ?` cannot match it. The stored value is
+ * therefore encrypted for safekeeping, and this hash — deterministic, indexed —
+ * is what a request is actually matched against.
+ *
+ * Plain SHA-256 with no salt is right here, unlike for a password: these keys
+ * are 144 bits of randomness from the CSPRNG, so there is nothing to guess and
+ * no dictionary to build. The salt would only prevent recognising that two
+ * databases hold the same key, which is not a threat we have.
+ */
+export const keyHash = (key: string) => createHash("sha256").update(key).digest("hex");
+
 /** Test hook: forget the cached key so a test can flip GW_DATA_KEY. */
 export function _resetKeyCache() { cachedKey = undefined; }

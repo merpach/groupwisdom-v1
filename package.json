@@ -24,6 +24,7 @@
     "test:scout": "GW_DB=/tmp/gw-scout.db tsx test/scout-truncation-test.ts",
     "test:handoff": "GW_DB=/tmp/gw-handoff.db tsx test/handoff-test.ts",
     "test:ssrf": "node test/ssrf-test.mjs",
+    "test:keys": "GW_DB=/tmp/gw-keys.db tsx test/key-storage-test.ts",
     "test:json": "node test/json-repair-test.mjs",
     "smoke": "node test/prod-smoke.mjs"
   },

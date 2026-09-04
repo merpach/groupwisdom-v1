@@ -12,7 +12,7 @@ import { teamsHook } from "./teams-hook.js";
 import { startBuzzSupervisor } from "./buzz-supervisor.js";
 import { runningRouter, CLUB_GROUP_ID } from "./running.js";
 import { handleMcpRequest } from "./mcp-http.js";
-import { getUserByEmail, createUser, encryptExistingData, pruneOldBuzzItems, pruneOldGateRecords } from "./db.js";
+import { getUserByEmail, createUser, encryptExistingData, pruneOldBuzzItems, pruneOldGateRecords, migrateKeyHashes } from "./db.js";
 import { encryptionEnabled } from "./crypto.js";
 import { rateLimit, apiKeyOrIp } from "./ratelimit.js";
 import { googleAuth } from "./google-auth.js";
@@ -306,6 +306,13 @@ if (encryptionEnabled()) {
 } else {
   console.warn("[security] GW_DATA_KEY not set — content is stored unencrypted. Set it before taking real traffic.");
 }
+
+// Keys need their lookup hash whether or not encryption is on, so this runs
+// outside the block above. Idempotent, and a no-op once the backlog is done.
+try {
+  const k = migrateKeyHashes();
+  if (k.users || k.projectKeys) console.log(`[security] key storage: ${k.users} account key(s) and ${k.projectKeys} project key(s) hashed and encrypted`);
+} catch (err: any) { console.error("[security] key migration failed:", err.message); }
 
 const RETENTION_DAYS = Number(process.env.GW_BUZZ_RETENTION_DAYS ?? 30);
 function runRetention() {

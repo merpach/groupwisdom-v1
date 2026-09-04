@@ -62,7 +62,7 @@
 <div class="shell">
   <div class="eyebrow">Legal</div>
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated 17 August 2026</p>
+  <p class="updated">Last updated 4 September 2026</p>
   <p class="lede">This describes what GroupWisdom collects, how long it is kept, who else processes it, and how to have it removed. It is written to match what the software actually does.</p>
 
   <div class="box">
@@ -101,6 +101,7 @@
     <li>To operate your account, authenticate you, and enforce usage limits.</li>
     <li>To keep the service secure, diagnose faults, and prevent abuse.</li>
     <li>To meet legal obligations.</li>
+    <li>To make a project's wisdom available back to the people in that project, including through tools they connect on purpose, such as an AI assistant. This is why wisdom is stored in readable form; see section 4.</li>
   </ul>
   <p><strong>We do not sell your data, share it for advertising, or use your content to train our own models.</strong></p>
 
@@ -119,13 +120,25 @@
 
   <h2>4. How it is protected</h2>
   <ul>
-    <li><strong>Encrypted at rest.</strong> Message content, derived memory, knowledge documents and summaries are encrypted with AES-256-GCM before being written to storage.</li>
+    <li><strong>Encrypted at rest.</strong> Message content, item titles, derived memory, knowledge documents and summaries are encrypted with AES-256-GCM before being written to storage.</li>
+    <li><strong>API keys are encrypted at rest.</strong> Your account key and every project key are encrypted before storage and matched by a one-way hash, so the stored database does not contain a usable key.</li>
     <li><strong>Encrypted in transit.</strong> All connections use TLS.</li>
     <li><strong>Kept out of logs.</strong> Our logs record identifiers and sizes, never message text.</li>
     <li><strong>Access control.</strong> Every API request requires a key scoped to your account or a single project.</li>
+    <li><strong>Passwords.</strong> Stored only as a one-way hash, or held by our authentication provider. Never readable by us, and never recoverable, only replaceable.</li>
   </ul>
+
+  <h3>What is not encrypted, and why</h3>
+  <p>Being exact about this matters more than sounding thorough. The following are stored in readable form:</p>
+  <ul>
+    <li><strong>The wisdom itself</strong> — the findings the engine writes, including their titles and bodies. These are generated from your content and often restate parts of it, so a copy of our database would reveal them.</li>
+    <li><strong>The records of why the engine spoke or stayed silent</strong>, which can paraphrase what was said.</li>
+    <li><strong>Names and email addresses of project members</strong>, and the names you give your projects.</li>
+  </ul>
+  <p>This is a deliberate choice, not an oversight. We intend to let you read, search and export everything the engine has ever concluded about your project, and to connect that history to AI assistants you choose, so your own tools can draw on what your group already knows. Keeping wisdom retrievable is what makes that possible. If that trade is not one you want, do not connect a channel whose findings would be sensitive in readable form.</p>
+
   <div class="box warn">
-    <p>No system is perfectly secure. Encryption at rest protects against exposure of the stored database and its backups. It cannot protect against someone who compromises the running service, and it cannot protect content after it leaves us for a provider listed above.</p>
+    <p>No system is perfectly secure. Encryption at rest protects against exposure of the stored database and its backups, for the fields listed as encrypted above. It cannot protect against someone who compromises the running service, it does not cover the fields listed as unencrypted, and it cannot protect content after it leaves us for a provider listed above.</p>
   </div>
 
   <h2>5. How long it is kept</h2>
