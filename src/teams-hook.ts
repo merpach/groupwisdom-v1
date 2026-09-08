@@ -66,7 +66,15 @@ import {
   type Insight,
   type TeamsConversation,
 } from "./db.js";
-import { queueIncrementalAnalysis } from "./engine.js";
+import { queueIncrementalAnalysis, loadGroupMemory } from "./engine.js";
+import { listItems } from "./db.js";
+import { scopeMemory, channelScopeEnabled } from "./channel-scope.js";
+import { DEMO_INTRO, DEMO_MESSAGES, DEMO_CARD, formatCard } from "./adapters/buzz.js";
+import { formatMemoryReply } from "./adapters/teams.js";
+
+/** A beat between demo lines. Short in tests, conversational in a real channel. */
+const DEMO_BEAT_MS = Number(process.env.GW_DEMO_BEAT_MS || 8000);
+const demoRunning = new Set<string>();
 
 export const teamsHook = Router();
 
@@ -260,7 +268,7 @@ async function handleCommand(
   cmd: { name: string; args: string },
   channel: string,
   ref: NonNullable<ReturnType<typeof conversationRefOf>>,
-  _projectId: string,
+  projectId: string,
 ) {
   const now = Date.now();
 
@@ -279,10 +287,40 @@ async function handleCommand(
     return;
   }
 
-  // `memory` and `demo` are answered by the Buzz adapter and not yet wired here.
-  // Saying so is better than silence, which reads as the bot being broken.
-  if (cmd.name === "memory" || cmd.name === "demo") {
-    await say(ref, `\`${cmd.name}\` is not available in Teams yet.`);
+  if (cmd.name === "memory") {
+    const full = loadGroupMemory(projectId);
+    if (!full || !(full.facts.length || full.decisions.length || full.open_questions.length)) {
+      await say(ref, "I have not built up anything yet. Once people share work here I will have something to show.");
+      return;
+    }
+    // Answer about this channel, not the whole team: a card lands in one
+    // channel, so what it is built from must be visible there too.
+    const items = listItems(projectId);
+    const multi = new Set(items.map(i => i.channel).filter(Boolean)).size > 1;
+    const { memory: mem, hidden } = (multi && channelScopeEnabled())
+      ? scopeMemory(full, channel, items, { strict: false })
+      : { memory: full, hidden: 0 };
+    const scoped = multi && channelScopeEnabled();
+    if (!(mem.facts?.length || mem.decisions?.length)) {
+      await say(ref, "Nothing yet from this channel. I keep what I learn to the channel it came from, so share some work here and I will have something to show.");
+      return;
+    }
+    await say(ref, formatMemoryReply(mem, items, { scoped, hidden, muted: mutedNow(getTeamsConversation(channel), now) }));
+    log(`answered memory in ${channel.slice(0, 16)}…${scoped ? ` (scoped, ${hidden} withheld)` : ""}`);
+    return;
+  }
+
+  if (cmd.name === "demo") {
+    if (demoRunning.has(channel)) { await say(ref, "A demo is already running here. Give it a moment."); return; }
+    demoRunning.add(channel);
+    const pause = (ms: number) => new Promise(r => setTimeout(r, ms));
+    try {
+      await say(ref, DEMO_INTRO);
+      for (const line of DEMO_MESSAGES) { await pause(DEMO_BEAT_MS); await say(ref, `“${line}”`); }
+      await pause(DEMO_BEAT_MS * 1.5);          // the pause before the finding is the point
+      await say(ref, formatCard(DEMO_CARD.kind, DEMO_CARD.title, DEMO_CARD.body));
+      log(`ran demo in ${channel.slice(0, 16)}…`);
+    } finally { demoRunning.delete(channel); }
     return;
   }
 }

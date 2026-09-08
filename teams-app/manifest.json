@@ -29,7 +29,32 @@
         "team"
       ],
       "supportsFiles": false,
-      "isNotificationOnly": false
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": [
+            "team"
+          ],
+          "commands": [
+            {
+              "title": "memory",
+              "description": "What I believe this team has established, and where each fact came from"
+            },
+            {
+              "title": "demo",
+              "description": "A one-minute demo on made-up messages, so you can see what I do"
+            },
+            {
+              "title": "mute",
+              "description": "Stay quiet here (add 'today' to lift it at midnight)"
+            },
+            {
+              "title": "unmute",
+              "description": "Speak again"
+            }
+          ]
+        }
+      ]
     }
   ],
   "webApplicationInfo": {

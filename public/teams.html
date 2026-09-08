@@ -73,6 +73,14 @@
   .step.done .num { background: var(--wisdom); }
   .step.off .num { background: var(--ink-3); }
   .step-title { font-weight: 700; font-size: 15px; }
+  .btn-link { display: inline-block; font-size: 13.5px; font-weight: 500; padding: 9px 15px; border-radius: 8px;
+              background: var(--ink); color: #fff; text-decoration: none; }
+  .btn-link:hover { background: #2b2e33; }
+  .uipath { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 10px; }
+  .uipath .k { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 5px 9px;
+               font-size: 12.5px; color: var(--ink-2); }
+  .uipath .sep { color: #c3c8cc; font-size: 12px; }
+  .hint { font-size: 12.5px; color: var(--ink-3); line-height: 1.55; }
   .step p { color: var(--ink-2); font-size: 14px; margin-bottom: 14px; }
 
   label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-2); margin-bottom: 5px; }
@@ -154,13 +162,26 @@
   <div class="eyebrow">Microsoft Teams</div>
   <h1>Connect your team</h1>
   <p class="lede">
-    GroupWisdom posted a code in your Teams channel. Enter it here and choose which project
-    the team belongs to. Until you do, it is not reading anything.
+    Add GroupWisdom to a team, enter the code it posts, and choose which project the team
+    belongs to. Until you do, it is not reading anything.
   </p>
+
+  <!-- 0 ─ install ─────────────────────────────────────────────────────── -->
+  <div class="step" id="s0">
+    <div class="step-head"><div class="num">1</div><div class="step-title">Add it to your team</div></div>
+    <p>Download the app package and upload it to Teams. You need to be able to upload custom apps; most small organisations can, and an admin can allow it for the rest.</p>
+    <p><a class="btn-link" href="/groupwisdom-teams.zip" download>Download groupwisdom-teams.zip</a></p>
+    <div class="uipath">
+      <span class="k">Teams</span><span class="sep">›</span><span class="k">Apps</span><span class="sep">›</span>
+      <span class="k">Manage your apps</span><span class="sep">›</span><span class="k">Upload an app</span><span class="sep">›</span>
+      <span class="k">Upload a custom app</span>
+    </div>
+    <p class="hint">Pick the zip, then <strong>Add to a team</strong> and choose the team. GroupWisdom joins, reads only that team's standard channels, and posts a six-character code in the channel where it was added. If "Upload a custom app" is missing, a Teams admin needs to turn on custom app uploads: Teams admin center › Teams apps › Setup policies › <em>Upload custom apps</em>.</p>
+  </div>
 
   <!-- 1 ─ the code ────────────────────────────────────────────────────── -->
   <div class="step" id="s1">
-    <div class="step-head"><div class="num">1</div><div class="step-title">Enter the code</div></div>
+    <div class="step-head"><div class="num">2</div><div class="step-title">Enter the code</div></div>
     <p>Six characters, from the message GroupWisdom posted when it was added to your team. It lasts 24 hours.</p>
     <div class="field">
       <input class="code" id="code" maxlength="7" placeholder="••••••" autocomplete="off"
@@ -171,7 +192,7 @@
 
   <!-- 2 ─ account ─────────────────────────────────────────────────────── -->
   <div class="step off" id="s2">
-    <div class="step-head"><div class="num">2</div><div class="step-title" id="authTitle">Sign in</div></div>
+    <div class="step-head"><div class="num">3</div><div class="step-title" id="authTitle">Sign in</div></div>
 
     <div id="authForm">
       <p>Findings land in a project on your account, so your team's context stays yours.</p>
@@ -199,7 +220,7 @@
 
   <!-- 3 ─ project ─────────────────────────────────────────────────────── -->
   <div class="step off" id="s3">
-    <div class="step-head"><div class="num">3</div><div class="step-title">Choose a project</div></div>
+    <div class="step-head"><div class="num">4</div><div class="step-title">Choose a project</div></div>
     <p>This is where the team's work is read into, and where its findings live.</p>
 
     <div class="row" style="margin-bottom:12px">

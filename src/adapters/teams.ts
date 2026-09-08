@@ -244,3 +244,77 @@ export function teamsTextActivity(text: string, replyToId?: string | null) {
 export function replyUrl(ref: ConversationRef): string {
   return `${ref.serviceUrl}/v3/conversations/${encodeURIComponent(ref.conversationId)}/activities`;
 }
+
+
+// ── "@GroupWisdom memory" ────────────────────────────────────────────────────
+
+// Index signatures so the scoped memory from channel-scope, which is typed
+// loosely, passes straight in. Only the named fields are ever read.
+export type MemoryForReply = {
+  facts?: Array<{ fact?: string; by?: string; sources?: string[]; [k: string]: unknown }>;
+  decisions?: Array<{ decision?: string; [k: string]: unknown }>;
+  open_questions?: string[];
+  active_wisdom?: unknown[];
+};
+
+/**
+ * What the engine believes this team has established, as a chat message.
+ *
+ * Ported line for line from the Buzz adapter so the two surfaces give the
+ * same answer to the same question. A chat message, not a report: long enough
+ * to be checkable, short enough that someone reads it. Facts quote the message
+ * they came from, once per source, so a claim can be traced without an id.
+ *
+ * Pure, so it is testable without Bot Framework in the loop.
+ */
+export function formatMemoryReply(
+  mem: MemoryForReply,
+  items: Array<{ id: string; content?: string | null; title?: string | null }>,
+  opts: { scoped: boolean; hidden: number; muted: boolean },
+): string {
+  const byShortId = new Map<string, { content?: string | null; title?: string | null }>();
+  for (const it of items) byShortId.set(String(it.id).slice(0, 8), it);
+  const quoteFor = (sources: string[] = [], len = 45) => {
+    for (const sid of sources) {
+      const it = byShortId.get(sid);
+      const text = String(it?.content ?? it?.title ?? "").replace(/\s+/g, " ").trim();
+      if (text) return truncate(text, len) + (text.length > len ? "…" : "");
+    }
+    return "";
+  };
+  const FACT_LINE = 110, QUOTE_LEN = 45, MAX_FACTS = 8, MAX_QUESTIONS = 5;
+  /** A contributor we never learned a name for is an id. Leave it off rather than print it. */
+  const namePart = (by?: string) => (by && !/^[0-9a-f]{8,}$/i.test(by.trim())) ? ` (${by})` : "";
+
+  const lines: string[] = [opts.scoped ? "Here is what I know from this channel." : "Here is what I know so far."];
+  let lastQuote = "";
+  const facts = mem.facts ?? [];
+  if (facts.length) {
+    lines.push("", "What I have established:");
+    for (const f of facts.slice(-MAX_FACTS).reverse()) {
+      const raw = String(f.fact ?? "").trim();
+      const fact = truncate(raw, FACT_LINE) + (raw.length > FACT_LINE ? "…" : "");
+      const q = quoteFor(f.sources, QUOTE_LEN);
+      const quote = q && q !== lastQuote ? ` — from “${q}”` : "";
+      if (q) lastQuote = q;
+      lines.push(`• ${fact}${namePart(f.by)}${quote}`);
+    }
+  }
+  const decisions = mem.decisions ?? [];
+  if (decisions.length) {
+    lines.push("", "What you have decided:");
+    for (const d of decisions.slice(-4).reverse()) lines.push(`• ${truncate(String(d.decision ?? "").trim(), FACT_LINE)}`);
+  }
+  const questions = mem.open_questions ?? [];
+  if (questions.length) {
+    lines.push("", "Still open:");
+    for (const q of questions.slice(0, MAX_QUESTIONS)) lines.push(`• ${truncate(String(q).trim(), FACT_LINE)}`);
+    if (questions.length > MAX_QUESTIONS) lines.push(`…and ${questions.length - MAX_QUESTIONS} more.`);
+  }
+  // Spoken-finding count is team-wide; it would overstate a scoped answer.
+  const spoken = opts.scoped ? 0 : (mem.active_wisdom?.length ?? 0);
+  if (spoken) lines.push("", `I have shared ${spoken} finding${spoken === 1 ? "" : "s"} from this, and will not repeat ${spoken === 1 ? "it" : "them"}.`);
+  if (opts.scoped && opts.hidden) lines.push("", "I also hold notes from other channels here. Those stay in the channel they came from.");
+  if (opts.muted) lines.push("", "I am muted in this channel. Say @GroupWisdom unmute to hear from me again.");
+  return lines.join("\n");
+}
