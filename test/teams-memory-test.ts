@@ -88,6 +88,25 @@ ok(/id="copyNote"/.test(page) && /groupwisdom-teams\.zip/.test(page),
 ok(!/teams\.microsoft\.com\/l\/app\//.test(page),
    "THE TRAP: no app-install deep link, which cannot work before the app is in the tenant");
 
+console.log("── what the admin centre demands ──");
+// The upload was rejected with: "Applications with manifest version 1.25 or
+// higher that support the 'team' scope must include the 'supportsChannelFeatures'
+// property." Only "tier1" is allowed, and it is the whole gate on the route we
+// recommend most, so it is pinned here rather than left to be dropped again.
+ok(manifest.supportsChannelFeatures === "tier1",
+   "THE BLOCKER: v1.25 + team scope declares supportsChannelFeatures tier1",
+   String(manifest.supportsChannelFeatures));
+// The separate opt-in for non-standard channels. Absent on purpose: standard
+// channels come with team scope, and the store description promises we never
+// read a private one. Adding this would make that a lie.
+ok(manifest.supportedChannelTypes === undefined,
+   "and NOT supportedChannelTypes, so 'never private channels' stays true",
+   JSON.stringify(manifest.supportedChannelTypes));
+ok(/never private channels/i.test(manifest.description.full),
+   "which is what the store description says");
+ok(manifest.version !== "0.1.0",
+   "the version moved, so an existing install can take the update", manifest.version);
+
 console.log("── the package a company downloads ──");
 const zipManifest = execSync("unzip -p public/groupwisdom-teams.zip manifest.json", { encoding: "utf8" });
 ok(zipManifest === readFileSync("teams-app/manifest.json", "utf8"), "public zip carries the exact manifest in the repo");
