@@ -12,7 +12,7 @@
  */
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { formatMemoryReply } from "../src/adapters/teams.js";
+import { formatMemoryReply, pairingCard, teamsAdaptiveCardActivity } from "../src/adapters/teams.js";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, n: string, extra = "") => {
@@ -61,6 +61,19 @@ ok(handled.length === promised.length, "THE DRIFT GUARD: every promised command 
 ok(/@GroupWisdom memory/.test(manifest.description.full) && handled.includes("memory"),
    "the store description's 'memory' promise is now true");
 ok(!/not available in Teams yet/.test(hook), "the old stub is gone");
+
+console.log("── the pairing card ──");
+const card = pairingCard("AB3K7Q", "https://groupwisdom.ai/teams?code=AB3K7Q");
+ok(card.type === "AdaptiveCard" && card.version === "1.4", "a valid Adaptive Card envelope");
+ok(JSON.stringify(card.body).includes("AB3K7Q"), "the code is still shown, for anyone who would rather type it");
+const open = card.actions.find((a: any) => a.type === "Action.OpenUrl") as any;
+ok(!!open && open.url === "https://groupwisdom.ai/teams?code=AB3K7Q", "THE POINT: the button carries the code in the link");
+const act = teamsAdaptiveCardActivity("fallback", card, "msg1") as any;
+ok(act.attachments?.[0]?.contentType === "application/vnd.microsoft.card.adaptive" && act.replyToId === "msg1",
+   "wrapped as a card attachment, threaded under the install message");
+ok(!/await say\(ref, pairingMessage\(/.test(hook) && /sayCard\(ref, pairingMessage\(pending\.code\), pairingCard\(/.test(hook),
+   "THE DRIFT GUARD: both offer sites send the card, not the bare text");
+ok(readFileSync("public/teams.html", "utf8").includes('URLSearchParams(location.search).get("code")'), "and the connect page reads the code from the link");
 
 console.log("── the package a company downloads ──");
 const zipManifest = execSync("unzip -p public/groupwisdom-teams.zip manifest.json", { encoding: "utf8" });

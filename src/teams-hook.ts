@@ -70,7 +70,7 @@ import { queueIncrementalAnalysis, loadGroupMemory } from "./engine.js";
 import { listItems } from "./db.js";
 import { scopeMemory, channelScopeEnabled } from "./channel-scope.js";
 import { DEMO_INTRO, DEMO_MESSAGES, DEMO_CARD, formatCard } from "./adapters/buzz.js";
-import { formatMemoryReply } from "./adapters/teams.js";
+import { formatMemoryReply, pairingCard, teamsAdaptiveCardActivity } from "./adapters/teams.js";
 
 /** A beat between demo lines. Short in tests, conversational in a real channel. */
 const DEMO_BEAT_MS = Number(process.env.GW_DEMO_BEAT_MS || 8000);
@@ -176,16 +176,16 @@ async function offerPairing(activity: TeamsActivity, teamId: string) {
   });
 
   if (!ref) return;
-  await say(ref, pairingMessage(pending.code));
+  await sayCard(ref, pairingMessage(pending.code), pairingCard(pending.code, connectUrl(pending.code)));
   log(`offered pairing code to team ${teamId.slice(0, 12)}…`);
 }
 
+const connectUrl = (code: string) => `${PUBLIC_BASE}/teams?code=${encodeURIComponent(code)}`;
+
+/** The plain-text fallback under the card, for a client that cannot render it. */
 const pairingMessage = (code: string) =>
-  `I am not reading anything yet.\n\n` +
-  `To connect this team, go to ${PUBLIC_BASE}/teams and enter this code:\n\n` +
-  `${code}\n\n` +
-  `Whoever enters it chooses which GroupWisdom project this team belongs to. ` +
-  `Until then I will not read a single message. The code lasts 24 hours.`;
+  `I am not reading anything yet. To connect this team, open ${connectUrl(code)} — ` +
+  `the code ${code} is already in the link. It lasts 24 hours.`;
 
 /**
  * A message in a team nobody has claimed.
@@ -207,7 +207,7 @@ async function handleUnpairedMessage(activity: TeamsActivity, teamId: string) {
     serviceUrl: ref.serviceUrl,
     conversationId: ref.conversationId,
   });
-  await say(ref, pairingMessage(pending.code));
+  await sayCard(ref, pairingMessage(pending.code), pairingCard(pending.code, connectUrl(pending.code)));
 }
 
 // ── A message in a paired team ──────────────────────────────────────────────
@@ -365,6 +365,22 @@ async function postFindings(channel: string, wisdom: Insight[]) {
       releaseTeamsPost(channel, w.id);
       log(`post failed, released claim: ${(e as Error).message}`);
     }
+  }
+}
+
+/** Same as say(), carrying an Adaptive Card. */
+async function sayCard(
+  ref: { serviceUrl: string; conversationId: string; replyToId?: string | null },
+  text: string,
+  card: Record<string, unknown>,
+) {
+  try {
+    await postActivity(
+      { serviceUrl: ref.serviceUrl, conversationId: ref.conversationId },
+      teamsAdaptiveCardActivity(text, card, ref.replyToId ?? null),
+    );
+  } catch (e) {
+    log(`could not speak: ${(e as Error).message}`);
   }
 }
 

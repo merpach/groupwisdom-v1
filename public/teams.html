@@ -81,6 +81,7 @@
                font-size: 12.5px; color: var(--ink-2); }
   .uipath .sep { color: #c3c8cc; font-size: 12px; }
   .hint { font-size: 12.5px; color: var(--ink-3); line-height: 1.55; }
+  h3.route { font-size: 13.5px; font-weight: 700; margin: 16px 0 6px; }
   .step p { color: var(--ink-2); font-size: 14px; margin-bottom: 14px; }
 
   label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-2); margin-bottom: 5px; }
@@ -168,21 +169,39 @@
 
   <!-- 0 ─ install ─────────────────────────────────────────────────────── -->
   <div class="step" id="s0">
-    <div class="step-head"><div class="num">1</div><div class="step-title">Add it to your team</div></div>
-    <p>Download the app package and upload it to Teams. You need to be able to upload custom apps; most small organisations can, and an admin can allow it for the rest.</p>
+    <div class="step-head"><div class="num">1</div><div class="step-title">Get it into your Teams</div></div>
+    <p>GroupWisdom is one small app package. There are three ways in, and the first one works in every organisation.</p>
     <p><a class="btn-link" href="/groupwisdom-teams.zip" download>Download groupwisdom-teams.zip</a></p>
+
+    <h3 class="route">Send the zip to whoever runs your Microsoft 365</h3>
+    <div class="uipath">
+      <span class="k">Teams admin center</span><span class="sep">›</span><span class="k">Teams apps</span><span class="sep">›</span>
+      <span class="k">Manage apps</span><span class="sep">›</span><span class="k">Upload new app</span>
+    </div>
+    <p class="hint">One upload, no approval step. A few hours later it appears under <strong>Built for your org</strong> in the Teams store, and from then on anyone can open the store, find GroupWisdom, and choose <strong>Add to a team</strong>. Nobody needs custom-app permissions, and this route cannot be switched off.</p>
+
+    <h3 class="route">Or submit it from Teams yourself</h3>
+    <div class="uipath">
+      <span class="k">Teams</span><span class="sep">›</span><span class="k">Apps</span><span class="sep">›</span>
+      <span class="k">Manage your apps</span><span class="sep">›</span><span class="k">Upload an app</span>
+    </div>
+    <p class="hint">Choose the option to submit it to your organisation. Any user can; an admin approves it, and it appears under Built for your org the same way.</p>
+
+    <h3 class="route">Or, if you run your own Microsoft 365, upload it directly</h3>
     <div class="uipath">
       <span class="k">Teams</span><span class="sep">›</span><span class="k">Apps</span><span class="sep">›</span>
       <span class="k">Manage your apps</span><span class="sep">›</span><span class="k">Upload an app</span><span class="sep">›</span>
       <span class="k">Upload a custom app</span>
     </div>
-    <p class="hint">Pick the zip, then <strong>Add to a team</strong> and choose the team. GroupWisdom joins, reads only that team's standard channels, and posts a six-character code in the channel where it was added. If "Upload a custom app" is missing, a Teams admin needs to turn on custom app uploads: Teams admin center › Teams apps › Setup policies › <em>Upload custom apps</em>.</p>
+    <p class="hint">Pick the zip and choose <strong>Add to a team</strong>. If "Upload a custom app" is missing, custom uploads are switched off for the organisation — use the first route; it never is.</p>
+
+    <p>Whichever way it arrives, GroupWisdom joins the team, reads only that team's standard channels, and posts a message with a <strong>Connect this team</strong> button. Press it and the code below fills itself in.</p>
   </div>
 
   <!-- 1 ─ the code ────────────────────────────────────────────────────── -->
   <div class="step" id="s1">
     <div class="step-head"><div class="num">2</div><div class="step-title">Enter the code</div></div>
-    <p>Six characters, from the message GroupWisdom posted when it was added to your team. It lasts 24 hours.</p>
+    <p>Six characters, from the message GroupWisdom posted when it was added to your team. If you pressed the button there, it is already filled in. It lasts 24 hours.</p>
     <div class="field">
       <input class="code" id="code" maxlength="7" placeholder="••••••" autocomplete="off"
              spellcheck="false" aria-label="Pairing code">
@@ -468,6 +487,15 @@ function gate() {
 }
 
 async function boot() {
+  // A code in the link — the button on the Teams message carries it — is taken
+  // once, kept in sessionStorage so a sign-in redirect cannot lose it, and
+  // removed from the address bar so a reload does not re-apply it.
+  const fromLink = (new URLSearchParams(location.search).get("code") || "").toUpperCase().replace(CODE_CHARS, "").slice(0, 6);
+  if (fromLink.length === 6) {
+    $("code").value = fromLink;
+    sessionStorage.setItem(CODE_KEY, fromLink);
+    history.replaceState({}, "", location.pathname + location.hash);
+  }
   const saved = sessionStorage.getItem(CODE_KEY);
   if (saved && !$("code").value) $("code").value = saved;
   $("s1").classList.toggle("done", readCode().length === 6);

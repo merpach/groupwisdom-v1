@@ -235,6 +235,44 @@ export function teamsTextActivity(text: string, replyToId?: string | null) {
 }
 
 /**
+ * A message carrying an Adaptive Card attachment. Distinct from
+ * teamsCardActivity above, which renders a wisdom card as plain text.
+ * `text` is what a client shows if it cannot render the card.
+ */
+export function teamsAdaptiveCardActivity(text: string, card: Record<string, unknown>, replyToId?: string | null) {
+  return {
+    type: "message",
+    textFormat: "plain",
+    text: String(text ?? ""),
+    attachments: [{ contentType: "application/vnd.microsoft.card.adaptive", content: card }],
+    ...(replyToId ? { replyToId } : {}),
+  };
+}
+
+/**
+ * The pairing offer, as a card with a button.
+ *
+ * The code used to be read off the screen and retyped on the website. It is
+ * still shown, for anyone who would rather do that, but the button carries it
+ * in the link, so the ordinary path is press, sign in, pick a project.
+ */
+export function pairingCard(code: string, connectUrl: string) {
+  return {
+    type: "AdaptiveCard",
+    version: "1.4",
+    $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
+    body: [
+      { type: "TextBlock", text: "I am not reading anything yet.", weight: "Bolder", wrap: true },
+      { type: "TextBlock", wrap: true,
+        text: "Whoever connects this team chooses which GroupWisdom project it belongs to. Until then I will not read a single message." },
+      { type: "TextBlock", text: code, fontType: "Monospace", size: "ExtraLarge", weight: "Bolder", wrap: true },
+      { type: "TextBlock", text: "The code lasts 24 hours. It is already in the button.", isSubtle: true, size: "Small", wrap: true },
+    ],
+    actions: [{ type: "Action.OpenUrl", title: "Connect this team", url: connectUrl }],
+  };
+}
+
+/**
  * Where a reply goes.
  *
  * Posting to a conversation id that carries a `messageid=` suffix continues
