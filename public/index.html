@@ -253,9 +253,10 @@
     <a class="brand" href="/">GroupWisdom</a>
     <a class="link" href="#wisdom">What it posts</a>
     <a class="link" href="#api">API</a>
-    <a class="link" href="#buzz">For Buzz</a>
+    <a class="link" href="#teams">Teams</a>
+    <a class="link" href="#buzz">Buzz</a>
     <a class="link" href="/docs">Docs</a>
-    <a class="btn sm" href="/buzz">Connect Buzz</a>
+    <a class="btn sm" href="/account">Get an API key</a>
   </div>
 </div>
 
@@ -271,10 +272,10 @@
         while it still matters.
       </p>
       <div class="cta-row">
-        <a class="btn" href="/buzz">Connect your Buzz community <span class="arr">→</span></a>
-        <a class="btn ghost" href="#api">Build on the API</a>
+        <a class="btn" href="/account">Get an API key <span class="arr">→</span></a>
+        <a class="btn ghost" href="/docs">Read the docs</a>
       </div>
-      <p class="cta-note">Live in Buzz communities today, and a REST API for everything else.</p>
+      <p class="cta-note">A REST API and SDK, plus ready-made agents for Microsoft Teams and Buzz.</p>
     </div>
 
     <div class="mock" aria-label="A channel where three teammates post separately and GroupWisdom replies with the finding across all three.">
@@ -444,9 +445,97 @@ curl <span class="s">https://testgroupwisdom.com/v1/projects/:id/wisdom</span> \
 </section>
 
 <!-- ── Buzz: the launch integration ─────────────────────────────────── -->
-<section id="buzz" class="band">
+<section id="teams" class="band">
   <div class="shell pad-lg">
-    <div class="eyebrow">Our launch integration</div>
+    <div class="eyebrow">For Microsoft Teams <span class="badge" style="margin-left:6px">Early access</span></div>
+    <h2 style="margin:16px 0 16px">In Teams it's an app your team adds. Then it reads only that team.</h2>
+    <p class="prose">
+      A team owner uploads it and adds it to one team. It reads that team's standard channels — never private
+      channels, never chats it wasn't added to, and nothing at all until someone enters a pairing code. No
+      tenant-wide administrator is involved, and removing the app from the team stops it completely.
+    </p>
+
+    <div class="buzz-split">
+      <div class="steps">
+        <div class="stp">
+          <div class="n"></div>
+          <div>
+            <h3>Download the app package</h3>
+            <p>One zip. Teams, then Apps, then Manage your apps, then Upload a custom app.</p>
+          </div>
+        </div>
+        <div class="stp">
+          <div class="n"></div>
+          <div>
+            <h3>Add it to a team</h3>
+            <p>It joins that team and posts a six-character code in the channel where it was added. Nothing is read yet.</p>
+          </div>
+        </div>
+        <div class="stp">
+          <div class="n"></div>
+          <div>
+            <h3>Enter the code and pick a project</h3>
+            <p>On the connect page, signed in to your account. The team is bound to one project you own, and only then does it start reading.</p>
+          </div>
+        </div>
+        <div class="stp">
+          <div class="n"></div>
+          <div>
+            <h3>Wisdom arrives in the channel</h3>
+            <p>As a reply under the work it came from, where the team already is — not in a dashboard nobody opens.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="members" aria-label="A Teams team roster with GroupWisdom listed as an app among the people.">
+        <div class="members-hdr"><span class="ch">Team</span><span class="ct">4</span></div>
+        <div class="member"><span class="av" style="background:#8b5cf6">SR</span><span class="nm">Sarah</span></div>
+        <div class="member"><span class="av" style="background:#0ea5e9">JM</span><span class="nm">James</span></div>
+        <div class="member"><span class="av" style="background:#f97316">PK</span><span class="nm">Priya</span></div>
+        <div class="member agent"><span class="av" style="background:var(--wisdom)">W</span><span class="nm">GroupWisdom</span><span class="tag">that's us</span></div>
+        <div class="members-foot">Remove the app from the team and it stops. Disconnect on the connect page and it stops even if the app stays.</div>
+      </div>
+    </div>
+
+    <div class="cmds">
+      <div class="cmd">
+        <div class="lbl"><code>@GroupWisdom memory</code></div>
+        <p>Everything it believes this team has established, and whose work each piece came from. Scoped to the channel you ask in.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl"><code>@GroupWisdom demo</code></div>
+        <p>A one minute scripted example on invented messages, so a team can see it work before it has enough of its own.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl"><code>@GroupWisdom mute</code></div>
+        <p>Silence for now, or <code>mute today</code> for the rest of the day. It keeps reading and still answers when asked.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl">No admin ticket</div>
+        <p>It installs as a custom app, which a team owner can do in most organisations. Where that's switched off, one setting turns it on.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl">One team, standard channels only</div>
+        <p>What it says is built only from what that team's standard channels can see. Private channels and chats are never read.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl">Free while in early access</div>
+        <p>We're letting teams in a few at a time while we watch what it costs to run. Ask and we'll set you up.</p>
+      </div>
+    </div>
+
+    <div class="cta-row">
+      <a class="btn" href="/teams">Connect a Teams team <span class="arr">→</span></a>
+      <a class="btn ghost" href="/groupwisdom-teams.zip">Download the app package</a>
+    </div>
+    <p class="cta-note">Upload the zip, add it to a team, enter the code. About five minutes.</p>
+  </div>
+</section>
+
+<!-- ── Buzz ─────────────────────────────────────────────────────────── -->
+<section id="buzz">
+  <div class="shell pad-lg">
+    <div class="eyebrow">For Buzz</div>
     <h2 style="margin:16px 0 16px">In Buzz it isn't an integration. It's a member.</h2>
     <p class="prose">
       GroupWisdom joins your community with an invite link — the same one you would send a colleague. It
@@ -532,27 +621,6 @@ curl <span class="s">https://testgroupwisdom.com/v1/projects/:id/wisdom</span> \
 </section>
 
 <!-- ── Teams: separate, and honest about where it is ─────────────────── -->
-<section id="teams">
-  <div class="shell pad">
-    <div class="eyebrow">Also</div>
-    <div style="display:flex;align-items:center;gap:12px;margin:16px 0 14px;flex-wrap:wrap">
-      <h2 style="margin:0">Microsoft Teams</h2><span class="badge">In testing</span>
-    </div>
-    <p class="prose">
-      Installed into one team by its owner, it reads that team's standard channels — no @mention needed, and
-      no tenant-wide administrator involved. It reads nothing at all until someone enters a pairing code, and
-      disconnecting stops it even if the app stays installed.
-    </p>
-    <p class="sub prose" style="margin-top:14px">
-      Not listed on AppSource yet, so it is not something a stranger can install today. Get in touch if you
-      would like to try it in your tenant.
-    </p>
-    <div class="cta-row">
-      <a class="btn ghost" href="/teams">Connect a Teams team <span class="arr">→</span></a>
-    </div>
-  </div>
-</section>
-
 <!-- ── Agents count ─────────────────────────────────────────────────── -->
 <section>
   <div class="shell pad">
@@ -600,9 +668,9 @@ curl <span class="s">https://testgroupwisdom.com/v1/projects/:id/wisdom</span> \
 <section>
   <div class="shell closer">
     <h2>Point it at a group today.</h2>
-    <p class="lede">An API key, an invite link, or a pairing code. It stays quiet until the work adds up to something worth saying.</p>
+    <p class="lede">An API key, a Teams app, or a Buzz invite link. It stays quiet until the work adds up to something worth saying.</p>
     <div class="cta-row">
-      <a class="btn" href="/buzz">Connect your Buzz community <span class="arr">→</span></a>
+      <a class="btn" href="/account">Get an API key <span class="arr">→</span></a>
       <a class="btn ghost" href="/docs">Read the API reference</a>
     </div>
   </div>
@@ -612,11 +680,10 @@ curl <span class="s">https://testgroupwisdom.com/v1/projects/:id/wisdom</span> \
   <div class="shell">
     <div class="foot">
       <a href="#wisdom">What it posts</a>
-      <a href="#api">API</a>
       <a href="/docs">API reference</a>
-      <a href="/buzz">Connect Buzz</a>
-      <a href="/teams">Teams</a>
       <a href="/account">Your API key</a>
+      <a href="#teams">Teams</a>
+      <a href="#buzz">Buzz</a>
       <a href="/privacy">Privacy</a>
       <a href="/terms">Terms</a>
       <span class="spacer"></span>
