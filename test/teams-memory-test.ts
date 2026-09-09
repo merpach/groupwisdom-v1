@@ -75,6 +75,19 @@ ok(!/await say\(ref, pairingMessage\(/.test(hook) && /sayCard\(ref, pairingMessa
    "THE DRIFT GUARD: both offer sites send the card, not the bare text");
 ok(readFileSync("public/teams.html", "utf8").includes('URLSearchParams(location.search).get("code")'), "and the connect page reads the code from the link");
 
+console.log("── the setup page links somewhere useful ──");
+const page = readFileSync("public/teams.html", "utf8");
+ok(page.includes("https://admin.teams.microsoft.com/policies/manage-apps"),
+   "the recommended route links straight to the admin centre page that does it");
+ok(page.includes("https://admin.teams.microsoft.com/policies/app-setup"),
+   "and the 'option is missing' hint links to the setting that fixes it");
+ok(/id="copyNote"/.test(page) && /groupwisdom-teams\.zip/.test(page),
+   "a ready-made note for the admin, carrying the package URL");
+// The install deep link needs the per-tenant ORG CATALOG id, not our manifest
+// id, so it would fail in exactly the route we recommend. Better absent.
+ok(!/teams\.microsoft\.com\/l\/app\//.test(page),
+   "THE TRAP: no app-install deep link, which cannot work before the app is in the tenant");
+
 console.log("── the package a company downloads ──");
 const zipManifest = execSync("unzip -p public/groupwisdom-teams.zip manifest.json", { encoding: "utf8" });
 ok(zipManifest === readFileSync("teams-app/manifest.json", "utf8"), "public zip carries the exact manifest in the repo");
