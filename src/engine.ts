@@ -599,13 +599,26 @@ const WISDOM_TESTS = `A finding is real ONLY if every one of these holds:
    only say A happened and B happened, you may say both happened and nothing more.
 7. Every clause comes from them, not from you. You may join two contributions and
    name what the join means. You may not add a reason, a benefit, a trade-off or a
-   piece of general knowledge that nobody wrote. A review of this engine caught it
+   piece of general knowledge that nobody wrote. One exception, and only in the
+   closing sentence: the way forward may be yours, provided it is built out of
+   what they produced and is offered rather than asserted. "Their numbers would
+   let the same collapse work on billing" is allowed, because both halves came
+   from them. "Monthly pricing is the industry standard" is not, because nobody
+   produced it and it is general knowledge wearing their voice. A review of this engine caught it
    writing "trades 2.1x higher memory use for debuggability and ecosystem fit" when
    the contributor had reported a memory measurement and nothing else: the trade-off
    was real engineering opinion and it was the model's, presented as the group's
    with a confidence label on it. That is worse than an obvious mistake, because it
    sounds exactly like something a colleague would have said. Test each clause: which
    message says this? If none does, cut the clause.
+
+8. It is not obvious from the two pieces. A reader holding both contributions
+   would not already have thought it. "You fixed the thing most of the tickets
+   were about, so there will be fewer tickets" is arithmetic on what they just
+   read: true, and not worth saying. The join has to carry something the pair
+   does not announce on its own, which is usually what it makes possible, what
+   it costs, or what it changes about a plan they already hold. If naming the
+   join is the entire content, you have written a summary with two sources.
 
 Contributors are people and AI agents alike. An agent that researches, drafts or
 analyses is a contributor exactly as a person is. A person working with one agent
@@ -732,18 +745,33 @@ chat, so it must carry the finding without the title.
   "the plan puts 9,000 dollars into ads first", never "the budget allocates 40
   percent of monthly spend to paid acquisition". Prefer verbs to nouns, and avoid
   execution, structure, requirement, allocation, framework, infeasible, leverage,
-  alignment, and directly conflict.
-- Two sentences, three only when the third is the way through. Around 45 words.
+  alignment, and directly conflict. Never write a sentence you could imagine on
+  a slide.
+- One connected thought in full sentences, three or four of them, around 70
+  words. This is a message to a colleague, not a bulletin, so let each sentence
+  follow from the one before rather than sit beside it. Never join two
+  independent statements with a semicolon. Never stack facts onto one sentence
+  with commas and -ing verbs to save room: "Prem collapsed the flow from nine
+  screens to four, lifting completion from 41 to 68 percent and eliminating the
+  old drop-off" is three separate facts crushed into one breath, and it reads
+  like a status report. Say them as sentences.
 - No em dashes. Use full stops.
 - Time only when the material contains a real date or deadline, and then say it
   the way a person would: "worth sorting before Friday", "in about three weeks".
   Never a raw timestamp. If nothing in the material fixes a date, say nothing
   about time at all.
-- Hand over the finished work. Give the other contributor's actual finding, with
-  their real numbers, so the reader inherits it and skips that step. Never tell
-  anyone to go and do something with it. No "you can start by", no "test
-  whether", no "evaluate whether", no "adapt it". If all you have is a
-  suggestion of work someone could do, you have no finding.
+- Hand over the finished work first. Give the other contributor's actual
+  finding, with their real numbers, so the reader inherits it and skips that
+  step. That transfer is the finding itself, and a suggestion is never a
+  substitute for it: if all you have is work someone could go and do, you have
+  no finding and should return nothing.
+- End on a move, not a verdict. The last sentence must name something the
+  reader could do, built from their own numbers. "A monthly tier at twelve
+  dollars clears the seven-dollar cost and still sits under what two of them
+  can sign off alone" is a move. "So per-seat pricing can work" is a verdict,
+  and decides nothing for anyone. Offer it, never instruct, and never send them
+  off to check, review, clarify or confirm. If their material points nowhere,
+  stop after the finding.
 - Give each person's own findings and numbers, attributed to them. Use the name
   each contributor is known by, and only one name per person. Never put one
   person's figure in someone else's mouth, and never smooth a disagreement into
@@ -1075,6 +1103,12 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
     created.push({ ...saved, status: "acknowledged" });
     const headlineWords = saved.title.trim().split(/\s+/).length;
     if (headlineWords > 8) console.warn(`[card] headline ran to ${headlineWords} words: "${saved.title}"`);
+    // Consultant register survives both prompts because it reads as competent.
+    // Nothing here can rewrite it, but a card that ships with it should say so
+    // in the logs rather than be discovered by a customer reading the channel.
+    const jargon = `${saved.title} ${saved.body}`.toLowerCase()
+      .match(/go-to-market|cost structure|procurement|threshold|friction point|positioning|leverage|alignment|infeasible/g);
+    if (jargon) console.warn(`[card] slide language survived review: ${[...new Set(jargon)].join(", ")}`);
     recordGate(groupId, {
       stage: "review", verdict: "spoken", kind: saved.kind, title: saved.title,
       reason: `confidence ${ins.confidence}`, insightId: saved.id,
@@ -1275,7 +1309,9 @@ For each candidate, evaluate:
 - caveat: one short sentence naming the condition under which this would not hold, or null if solid. State it as a fact about the evidence — never as an instruction. Do not write "clarify", "confirm", "check", "verify" or "determine whether"; say what is assumed, not what someone should go do.
 - do_next: NOT a task, and not a suggestion of work. This field states one more completed result from another member that the reader now has for free, and then stops. e.g. "Maya's morale timeline already dates the drop to just after Stalingrad." Never write "you can", "start by", "test whether", "evaluate whether", "adapt", "check", "map", "verify" or "coordinate". If the only thing you can write is something the reader ought to go and do, use null. Most of the time null is right, because the body already carried the finding.
 - missing_voice: name of a contributor whose existing work would strengthen this reader's, or null
-- keep: false if the insight is too speculative, too thin, or not yet ready to surface — otherwise true
+- keep: false if the insight is too speculative, too thin, not yet ready to surface, or merely
+  obvious — a reader holding both contributions would already have thought it, which makes it a
+  summary with two sources rather than a finding. Otherwise true.
 - drop_reason: when keep is false, one short sentence naming why (too thin, single-source, already known, speculative). null when keep is true.
 - revised_kind: the label, re-derived from the FINAL wording after your revisions, using the
   ordered test below. Return it always, even when unchanged. The drafting stage guesses at a
@@ -1289,7 +1325,7 @@ For each candidate, evaluate:
   nobody has picked up) / pattern (a theme across three or more contributions) /
   direction (the fallback: the next question their work builds toward).
 - revised_title: the card's headline, and the first thing anyone reads. Each candidate above shows its current word count. Any headline over EIGHT words REQUIRES a revised_title of eight or fewer; returning null for one of those is a failure. Also rewrite when it reads as a label rather than the finding, or buries what was found. Shorter is better. Cut ruthlessly: drop qualifiers and detail, keep the thing that happened. The body carries the specifics. Before you return a revised_title, count its words yourself. If it is nine or more, cut it again.
-- revised_body: a revised body if you can materially improve clarity or precision, or fold in another member's actual finding so the reader inherits it directly rather than being pointed to it — otherwise null. Four things always require a revision. A body running past three sentences or roughly 50 words, which you cut back. Any sentence telling the reader to consult, review or clarify something, which you delete outright; a finding that only survives by pointing somewhere is not a finding. A body that names a conflict and stops, which you finish by saying what it means for the reader or which choice it leaves them; ending on the problem is the most common way these fail. And business abstraction, which you translate: "making parallel execution infeasible" becomes "so both cannot happen at once", "the budget allocates 40 percent to paid acquisition" becomes "the plan puts 9,000 dollars into ads first". Plain words, verbs over nouns, one name per contributor throughout.
+- revised_body: a revised body if you can materially improve clarity or precision, or fold in another member's actual finding so the reader inherits it directly rather than being pointed to it — otherwise null. Four things always require a revision. A body running past four sentences or roughly 80 words, which you cut back, and one under three sentences that reads as clipped, which you let breathe. Any sentence sending the reader off to consult, review, clarify or confirm something, which you delete outright, because a finding that only survives by pointing somewhere is not a finding. Keep the closing sentence when it names where the finding leads and is built from what the group produced; that is the point of the card, not a chore. A body that names a conflict and stops, which you finish by saying what it means for the reader or which choice it leaves them; ending on the problem is the most common way these fail. And business abstraction, which you translate: "making parallel execution infeasible" becomes "so both cannot happen at once", "the budget allocates 40 percent to paid acquisition" becomes "the plan puts 9,000 dollars into ads first". These exact words have all shipped from here and every one must be rewritten wherever you find it, in the title as much as the body: go-to-market, cost structure, procurement, threshold, friction point, capacity, positioning, converged, perceive, and model used as a noun. "Sitting below all three thresholds" becomes "cheaper than any of them would need to ask about". Fifth: a final sentence that only rules on what the body already said, which you replace with one naming something the reader could do, built from their own numbers. Plain words, verbs over nouns, one name per contributor throughout.
 
 Delete any clause the group did not produce. You may join their contributions and say what
 the join means; you may not supply a reason, benefit, trade-off or piece of general knowledge
@@ -1305,7 +1341,9 @@ Be strict on keep. It is better to suppress a weak insight than to deliver noise
 
 Style for every field you write (caveat, do_next, revised_title, revised_body): plain full
 sentences with full stops. Never use an em dash anywhere. Keep each person's own findings
-and numbers attributed to that person. A revised_body stays at 1-2 sentences, around 40 words.
+and numbers attributed to that person. A revised_body runs three or four full sentences,
+around 70 words, reading as one connected thought. Never compress it by joining independent
+statements with a semicolon or by hanging -ing clauses off a sentence to save room.
 
 Respond with ONLY valid JSON — an array matching the candidate order:
 [{"id":0,"confidence":"high","stated_in":"...","caveat":null,"do_next":"...","missing_voice":null,"keep":true,"drop_reason":null,"revised_kind":"tension","revised_title":null,"revised_body":null},...]`;
