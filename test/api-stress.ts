@@ -276,7 +276,7 @@ async function main() {
   eq(Object.keys(simple.json.data[0]).sort(), ["body", "id", "title"], "minimal view is exactly id/title/body");
   const fullW = await call("GET", `/projects/${A}/wisdom?format=full`, { key: alice.api_key });
   eq(Object.keys(fullW.json.data[0]).sort(),
-     ["body", "caveat", "channel", "confidence", "created_at", "do_next", "id", "kind", "missing_voice", "status", "title"],
+     ["body", "caveat", "channel", "confidence", "created_at", "do_next", "id", "kind", "missing_voice", "stated_in", "status", "title"],
      "full view carries every documented field");
   ok(fullW.json.data.every((w: any) => isIso(w.created_at)), "wisdom timestamps are ISO");
   eq((await call("GET", `/projects/${A}/wisdom?kind=sparkle`, { key: alice.api_key })).status, 400, "unknown kind is 400, not an empty list");

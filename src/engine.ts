@@ -18,7 +18,7 @@ import {
 } from "./db.js";
 import { truncate, parseModelJson } from "./text-util.js";
 import { channelScopeEnabled, visibleTo, scopeMemory } from "./channel-scope.js";
-import { nearestFinding, DEDUPE_THRESHOLD, DEDUPE_WATCH_FLOOR, similarity } from "./dedupe.js";
+import { nearestFinding, DEDUPE_THRESHOLD, DEDUPE_WATCH_FLOOR, similarity, figures } from "./dedupe.js";
 
 const MODEL = process.env.GW_MODEL || "claude-haiku-4-5-20251001"; // set GW_MODEL=claude-fable-5 to upgrade
 const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
@@ -47,6 +47,26 @@ function analysisAllowed(groupId: string, purpose: string): boolean {
 }
 
 /**
+ * Numbers in a finding that appear nowhere in the contributions.
+ *
+ * The quote check guards claims. This guards arithmetic, which is where the
+ * real damage has been: the engine shipped "$24 per seat per month for a
+ * four-person team" when nobody had mentioned four people, and "the $290 price
+ * does not cover $4.25 per seat" which only holds above six seats. Both
+ * invented a quantity in order to finish a calculation, and both read as data.
+ *
+ * A legitimately derived figure lands here too — seven billing tickets from
+ * twenty-two minus fourteen minus one is correct and appears nowhere — so this
+ * records rather than blocks. An unsourced number is one the reader cannot
+ * check, which is worth knowing about a card without being worth suppressing
+ * it over.
+ */
+export function ungroundedFigures(cardText: string, sourceText: string): string[] {
+  const held = figures(sourceText);
+  return [...figures(cardText)].filter(f => !held.has(f));
+}
+
+/**
  * The output style bans em dashes, but pass 2's revisions kept leaking them:
  * the style rules lived only in pass 1's prompt, and the review pass rewrites
  * bodies. The prompts now both carry the rule, and this is the mechanical
@@ -58,6 +78,33 @@ export function stripEmDashes(s: string): string {
     .replace(/\s*—\s*(\p{L})?/gu, (_, c: string | undefined) => (c ? ". " + c.toUpperCase() : ". "))
     .replace(/\s+–\s+(\p{L})?/gu, (_, c: string | undefined) => (c ? ". " + c.toUpperCase() : ". "))
     .replace(/\s+$/g, "");
+}
+
+/**
+ * A semicolon joining two statements becomes a full stop.
+ *
+ * Both prompts ban this and it ships anyway: "Two could approve $15 alone; one
+ * could expense anything under $10" is two thoughts pressed into one breath,
+ * and it is what makes a card read as a status line rather than a message from
+ * a colleague. Same treatment as the em dash, and for the same reason: the
+ * rule is simple enough to apply here, so it does not need to survive a prompt.
+ */
+export function stripJoiningSemicolons(s: string): string {
+  return s.replace(/;\s+(\p{L})/gu, (_, c: string) => ". " + c.toUpperCase());
+}
+
+/**
+ * Sentences with no verb, which is how a list gets punctuated as prose.
+ *
+ * "When he spoke with three separate decision-makers. At an agency, a SaaS
+ * company, and a university research group." is two fragments. Rewriting them
+ * safely is beyond a regex, so this only reports: a card that ships one should
+ * be visible rather than discovered by a reader.
+ */
+export function fragmentCount(body: string): number {
+  return body.split(/(?<=[.!?])\s+/)
+    .filter(x => x.trim().length > 12 && !/\b(is|are|was|were|has|have|had|will|would|can|could|does|did|do|run[s]?|show[s]?|found|said|named|sits?|costs?|means?|puts?|gives?|makes?|comes?|goes?|clears?|leaves?|works?)\b/i.test(x))
+    .length;
 }
 
 // ── Group memory ──────────────────────────────────────────────────────────────
@@ -291,14 +338,22 @@ export function groundConfidence(
   sourceText: string,
 ): { confidence: string; downgraded: boolean; why: string | null } {
   const c = ["high", "medium", "low"].includes(confidence) ? confidence : "medium";
-  if (c !== "high") return { confidence: c, downgraded: false, why: null };
-
   const quote = flatten(statedIn ?? "");
+
+  // A quote that is not in the contributions is wrong at every confidence, not
+  // just at high. Checking it only for "high" meant it was never checked at
+  // all: a joined finding is "medium" by construction, because nobody states a
+  // join outright, so every card that has ever shipped skipped this entirely.
+  if (quote.length >= QUOTE_MIN_CHARS && !flatten(sourceText).includes(quote)) {
+    return {
+      confidence: c === "high" ? "medium" : "low",
+      downgraded: true,
+      why: `anchored to words nobody wrote: "${String(statedIn).slice(0, 60)}"`,
+    };
+  }
+  if (c !== "high") return { confidence: c, downgraded: false, why: null };
   if (quote.length < QUOTE_MIN_CHARS) {
     return { confidence: "medium", downgraded: true, why: "high confidence without a quote from the contributions" };
-  }
-  if (!flatten(sourceText).includes(quote)) {
-    return { confidence: "medium", downgraded: true, why: `high confidence on a claim nobody wrote: "${String(statedIn).slice(0, 60)}"` };
   }
   return { confidence: "high", downgraded: false, why: null };
 }
@@ -1090,13 +1145,14 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
   const memberNamesForVoice = listMembers(groupId).map(m => m.name);
   for (const ins of annotated) {
     if (!ins.keep) continue;
-    const finalTitle = stripEmDashes(ins.revised_title ?? ins.title);
-    const finalBody = stripEmDashes(ins.revised_body ?? ins.body);
+    const finalTitle = stripJoiningSemicolons(stripEmDashes(ins.revised_title ?? ins.title));
+    const finalBody = stripJoiningSemicolons(stripEmDashes(ins.revised_body ?? ins.body));
     const saved = addInsight(groupId, settleKind(ins.revised_kind ?? ins.kind, finalTitle, finalBody), finalTitle, finalBody, {
       confidence: ins.confidence,
       caveat: ins.caveat ? stripEmDashes(ins.caveat) : undefined,
       do_next: ins.do_next ? stripEmDashes(ins.do_next) : undefined,
       missing_voice: validateMissingVoice(ins.missing_voice, memberNamesForVoice) ?? undefined,
+      stated_in: ins.stated_in ?? null,   // kept so the card can be checked against what was written
       channel: scanChannel,   // drawn for one channel, so only shown back to it
     });
     setInsightStatus(saved.id, "acknowledged"); // auto-accept live insights
@@ -1109,6 +1165,22 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
     const jargon = `${saved.title} ${saved.body}`.toLowerCase()
       .match(/go-to-market|cost structure|procurement|threshold|friction point|positioning|leverage|alignment|infeasible/g);
     if (jargon) console.warn(`[card] slide language survived review: ${[...new Set(jargon)].join(", ")}`);
+    const frags = fragmentCount(saved.body);
+    const sentences = (saved.body.match(/[.!?](\s|$)/g) ?? []).length;
+    if (frags || sentences > 5) {
+      console.warn(`[card] prose: ${sentences} sentences, ${frags} without a verb — "${saved.title}"`);
+    }
+    // Numbers the reader cannot trace back to a message. Recorded against the
+    // project rather than suppressed, so the rate is visible before anyone
+    // decides whether it should block.
+    const loose = ungroundedFigures(`${saved.title} ${saved.body}`, `${newText}\n${tailText}\n${memoryText}`);
+    if (loose.length) {
+      console.warn(`[card] figures not found in the contributions: ${loose.join(", ")}`);
+      recordGate(groupId, {
+        stage: "review", verdict: "spoken", kind: saved.kind, title: saved.title, insightId: saved.id,
+        reason: `figures the reader cannot trace: ${loose.join(", ")}`,
+      });
+    }
     recordGate(groupId, {
       stage: "review", verdict: "spoken", kind: saved.kind, title: saved.title,
       reason: `confidence ${ins.confidence}`, insightId: saved.id,
@@ -1302,13 +1374,21 @@ For each candidate, evaluate:
   data points is not enough: a claim you assembled from two true facts can be assembled backwards.
   "medium" when it follows from two contributions but nobody said it outright. "low" for one point
   or a longer inference.
-- stated_in: when confidence is "high", the exact words from a contribution that state the finding,
-  copied verbatim — not paraphrased, not reassembled. null otherwise. This is checked against what
-  people actually wrote, and a quote that is not found there drops the finding to medium, so
-  inventing one gains nothing.
+- stated_in: the words this finding rests on, copied verbatim from a contribution — the sentence
+  carrying the number or the claim the body leans on hardest. Fill it in on every finding, not
+  only confident ones: it is the anchor that lets someone check the card against what was
+  actually written. Copy, never paraphrase and never stitch two fragments together. It is matched
+  against the real messages, and a quote not found there lowers the finding rather than raising
+  it, so inventing one costs you. Use null only when the finding genuinely rests on no single
+  sentence.
 - caveat: one short sentence naming the condition under which this would not hold, or null if solid. State it as a fact about the evidence — never as an instruction. Do not write "clarify", "confirm", "check", "verify" or "determine whether"; say what is assumed, not what someone should go do.
 - do_next: NOT a task, and not a suggestion of work. This field states one more completed result from another member that the reader now has for free, and then stops. e.g. "Maya's morale timeline already dates the drop to just after Stalingrad." Never write "you can", "start by", "test whether", "evaluate whether", "adapt", "check", "map", "verify" or "coordinate". If the only thing you can write is something the reader ought to go and do, use null. Most of the time null is right, because the body already carried the finding.
 - missing_voice: name of a contributor whose existing work would strengthen this reader's, or null
+- Never supply a quantity in order to finish a calculation. If working something out needs a
+  number nobody gave — a team size, a headcount, how many months, how many seats — you do not
+  have that calculation, and choosing a value for it is inventing evidence. This engine wrote
+  "$24 per seat per month for a four-person team" when nobody had mentioned four people, and
+  the conclusion came out backwards. Say what the answer depends on, or drop that sentence.
 - keep: false if the insight is too speculative, too thin, not yet ready to surface, or merely
   obvious — a reader holding both contributions would already have thought it, which makes it a
   summary with two sources rather than a finding. Otherwise true.
@@ -1343,7 +1423,10 @@ Style for every field you write (caveat, do_next, revised_title, revised_body): 
 sentences with full stops. Never use an em dash anywhere. Keep each person's own findings
 and numbers attributed to that person. A revised_body runs three or four full sentences,
 around 70 words, reading as one connected thought. Never compress it by joining independent
-statements with a semicolon or by hanging -ing clauses off a sentence to save room.
+statements with a semicolon or by hanging -ing clauses off a sentence to save room. Every sentence
+must have a subject and a verb: "When he spoke with three team leads. One at a twelve-person agency,
+one in engineering." is two fragments, and it reads as a broken list rather than a thought. Join them
+into real sentences or cut the detail.
 
 Respond with ONLY valid JSON — an array matching the candidate order:
 [{"id":0,"confidence":"high","stated_in":"...","caveat":null,"do_next":"...","missing_voice":null,"keep":true,"drop_reason":null,"revised_kind":"tension","revised_title":null,"revised_body":null},...]`;

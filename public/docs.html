@@ -359,7 +359,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
     <tr><td>gw.updateProject(projectId, { webhook_url })</td><td>Update a project's webhook URL.</td></tr>
     <tr><td>gw.ingest(projectId, item | item[])</td><td>Send one or more items. Triggers analysis. Each item can include <code>contributed_by</code>.</td></tr>
     <tr><td>gw.listItems(projectId)</td><td>List all items in a project.</td></tr>
-    <tr><td>gw.listWisdom(projectId, kind?, { format? })</td><td>Get the project's wisdom. Default returns <code>{ id, title, body }</code>. Pass <code>format: "full"</code> to include <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, and <code>missing_voice</code>.</td></tr>
+    <tr><td>gw.listWisdom(projectId, kind?, { format? })</td><td>Get the project's wisdom. Default returns <code>{ id, title, body }</code>. Pass <code>format: "full"</code> to include <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, <code>missing_voice</code>, and <code>stated_in</code>.</td></tr>
     <tr><td>gw.listInsights(...)</td><td>The former name for <code>listWisdom</code>. Still present and returns identical data, so existing code needs no change.</td></tr>
     <tr><td>gw.analyze(projectId)</td><td>Trigger a full re-analysis of the project immediately, bypassing the automatic debounce. Returns when the request is accepted — analysis runs in the background.</td></tr>
   </table>
@@ -605,7 +605,8 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/wisdom</span></div>
   <p>Returns the wisdom the engine has surfaced, newest first. Supports <code>?limit</code>, <code>?offset</code>, and <code>?kind</code> filters.</p>
   <p class="note"><code>GET /v1/projects/:id/insights</code> is the former name for this endpoint and still works, identically. Nothing you have running needs to change.</p>
-  <p>By default returns a minimal shape — <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include the review fields: <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, and <code>missing_voice</code>.</p>
+  <p>By default returns a minimal shape — <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include the review fields: <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, <code>missing_voice</code>, and <code>stated_in</code>.</p>
+  <p><code>stated_in</code> is the words a finding rests on, copied from the message that carries them. It is there so a finding can be checked rather than taken on trust: if the quote is not found in what the group actually wrote, the engine lowers its own confidence in the finding and records that it did.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button># Default (minimal)
 curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/wisdom" \
   -H "Authorization: Bearer gw_proj_yourkey"

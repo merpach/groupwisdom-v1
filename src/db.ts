@@ -227,6 +227,10 @@ try { db.exec("CREATE INDEX IF NOT EXISTS idx_users_api_key_hash ON users(api_ke
 try { db.exec("CREATE INDEX IF NOT EXISTS idx_pak_key_hash ON project_api_keys(key_hash)"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE group_settings ADD COLUMN webhook_secret TEXT DEFAULT NULL"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE group_settings ADD COLUMN engine TEXT NOT NULL DEFAULT 'claude'"); } catch { /* already exists */ }
+// The words a finding rests on. Computed by the review pass since the start and
+// discarded every time for want of somewhere to put it, which is why every card
+// ever written reports no provenance.
+try { db.exec("ALTER TABLE insights ADD COLUMN stated_in TEXT DEFAULT NULL"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE insights ADD COLUMN confidence TEXT DEFAULT NULL"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE insights ADD COLUMN caveat TEXT DEFAULT NULL"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE insights ADD COLUMN do_next TEXT DEFAULT NULL"); } catch { /* already exists */ }
@@ -265,6 +269,8 @@ export type Insight = {
   id: string; group_id: string; kind: string; title: string; body: string;
   status: string; created_at: string;
   confidence: string | null; caveat: string | null; do_next: string | null; missing_voice: string | null;
+  /** Verbatim words from a contribution that this finding rests on, for checking it. */
+  stated_in: string | null;
   /** Channel this was drawn for, or null when it spans the whole project. */
   channel: string | null;
 };
@@ -447,14 +453,14 @@ export const searchItems = (groupId: string, q: string) => {
 
 export function addInsight(
   groupId: string, kind: string, title: string, body: string,
-  meta?: { confidence?: string; caveat?: string; do_next?: string; missing_voice?: string; channel?: string | null },
+  meta?: { confidence?: string; caveat?: string; do_next?: string; missing_voice?: string; channel?: string | null; stated_in?: string | null },
 ): Insight {
   const id = randomUUID();
   db.prepare(
-    "INSERT INTO insights (id, group_id, kind, title, body, confidence, caveat, do_next, missing_voice, channel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO insights (id, group_id, kind, title, body, confidence, caveat, do_next, missing_voice, channel, stated_in) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   ).run(id, groupId, kind, title, body,
     meta?.confidence ?? null, meta?.caveat ?? null, meta?.do_next ?? null, meta?.missing_voice ?? null,
-    meta?.channel ?? null);
+    meta?.channel ?? null, meta?.stated_in ?? null);
   return db.prepare("SELECT * FROM insights WHERE id = ?").get(id) as Insight;
 }
 export const listInsights = (groupId: string, kind?: string) =>
