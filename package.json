@@ -27,6 +27,7 @@
     "test:keys": "GW_DB=/tmp/gw-keys.db tsx test/key-storage-test.ts",
     "test:teams-memory": "tsx test/teams-memory-test.ts",
     "test:grounding": "tsx test/grounding-test.ts",
+    "test:teams-activity": "tsx test/teams-activity-test.ts",
     "test:teams": "GW_DB=/tmp/gw-teams.db tsx test/teams-route-test.ts",
     "test:json": "node test/json-repair-test.mjs",
     "smoke": "node test/prod-smoke.mjs"

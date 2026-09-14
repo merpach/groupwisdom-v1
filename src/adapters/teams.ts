@@ -65,7 +65,7 @@ export type TeamsActivity = {
   channelData?: {
     tenant?: { id?: string };
     team?: { id?: string; name?: string };
-    channel?: { id?: string; name?: string };
+    channel?: { id?: string; name?: string; membershipType?: string };  // Graph's name for the channel type
     channelType?: string;                // "private" and "shared" are not "standard"
     eventType?: string;                  // editMessage, deleteMessage, and so on
   };
@@ -104,7 +104,26 @@ export function stripMentions(activity: TeamsActivity): string {
   for (const e of activity?.entities ?? []) {
     if (e?.type === "mention" && e.text) text = text.split(e.text).join(" ");
   }
-  return text.replace(/\s+/g, " ").trim();
+  return decodeEntities(text).replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The few HTML entities Teams can leave in message text.
+ *
+ * A client that puts a non-breaking space after a mention sends
+ * "<at>GroupWisdom</at>&nbsp;memory". Undecoded, the command reads as
+ * "&nbsp;memory" and is missed, so the person asking gets silence, and the same
+ * entities would reach the engine as literal text. Ampersand goes last so
+ * "&amp;lt;" becomes "&lt;" rather than "<".
+ */
+export function decodeEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, "&");
 }
 
 /** Was our bot among the mentions? Compared on id, never on the display name. */
@@ -136,11 +155,17 @@ export function channelKeyOf(activity: TeamsActivity): string | null {
  * Private and shared channels are declined, because a bot cannot post into
  * them. Reading a room we can never answer would collect content to no purpose,
  * and would quietly bill for it.
+ *
+ * Two fields are checked because which one Teams sends is not pinned down:
+ * channelType on channelData, and membershipType on the channel, which is what
+ * Microsoft Graph calls it. The manifest is the real barrier, since it declares
+ * no support for non-standard channels, so this can only narrow what is read.
+ * A type that is present and is not "standard" is refused in either place.
  */
-export const canSpeakIn = (activity: TeamsActivity): boolean => {
-  const t = activity?.channelData?.channelType;
-  return !t || t === "standard";
-};
+export const canSpeakIn = (activity: TeamsActivity): boolean =>
+  [activity?.channelData?.channelType, activity?.channelData?.channel?.membershipType]
+    .filter((x): x is string => typeof x === "string" && x.length > 0)
+    .every(x => x.toLowerCase() === "standard");
 
 /** Our own posts come back to us in some configurations. They are never input. */
 export function isOwnMessage(activity: TeamsActivity, botId?: string): boolean {

@@ -62,8 +62,13 @@ function analysisAllowed(groupId: string, purpose: string): boolean {
  * it over.
  */
 export function ungroundedFigures(cardText: string, sourceText: string): string[] {
-  const held = figures(sourceText);
-  return [...figures(cardText)].filter(f => !held.has(f));
+  // Compared as bare numbers. The prose rules turn "41%" into "41 percent", and
+  // matching on the unit flagged correctly quoted figures as untraceable: a real
+  // card was recorded as "figures the reader cannot trace: 41, 68" when both came
+  // straight from the onboarding message it was built on.
+  const bare = (f: string) => f.replace(/[%x×]$/i, "");
+  const held = new Set([...figures(sourceText)].map(bare));
+  return [...figures(cardText)].filter(f => !held.has(bare(f)));
 }
 
 /**
@@ -331,6 +336,17 @@ const QUOTE_MIN_CHARS = 18;
 /** Loose enough to survive re-punctuation, tight enough that words must match. */
 const flatten = (t: string) =>
   String(t ?? "").toLowerCase().replace(/[^a-z0-9%.]+/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * The quote if it is really in the source, otherwise null. The same test
+ * groundConfidence applies, used to decide what gets stored: a paraphrase
+ * already lowers the finding, and keeping it would put words nobody wrote in a
+ * field documented as copied from the message that carries them.
+ */
+export function verifiedQuote(statedIn: string | null | undefined, sourceText: string): string | null {
+  const quote = flatten(statedIn ?? "");
+  return quote.length >= QUOTE_MIN_CHARS && flatten(sourceText).includes(quote) ? String(statedIn) : null;
+}
 
 export function groundConfidence(
   confidence: string,
@@ -1479,7 +1495,7 @@ Respond with ONLY valid JSON — an array matching the candidate order:
         keep: r?.keep ?? true,
         drop_reason: r?.drop_reason ?? null,
         revised_kind: r?.revised_kind ?? null,
-        stated_in: r?.stated_in ?? null,
+        stated_in: verifiedQuote(r?.stated_in, sourceText),
         revised_title: r?.revised_title ?? null,
         revised_body: r?.revised_body ?? null,
       };

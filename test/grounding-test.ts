@@ -10,7 +10,7 @@
  *
  * Run: npx tsx test/grounding-test.ts
  */
-import { groundConfidence, ungroundedFigures, stripJoiningSemicolons, fragmentCount } from "../src/engine.js";
+import { groundConfidence, ungroundedFigures, stripJoiningSemicolons, fragmentCount, verifiedQuote } from "../src/engine.js";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, n: string, extra = "") => {
@@ -55,6 +55,25 @@ ok(ungroundedFigures("Seven of the tickets were billing.", SOURCE).length === 0,
 ok(ungroundedFigures("That leaves 8 tickets in the other categories.", SOURCE).includes("8"),
    "but a derived digit is surfaced, which is why this records rather than blocks",
    ungroundedFigures("That leaves 8 tickets in the other categories.", SOURCE).join(","));
+
+console.log("── units: cards write figures differently from how people did ──");
+// A live card said "41 to 68 percent" about a message that said "41% to 68%",
+// and the check recorded both numbers as untraceable. Numbers compare bare now.
+ok(ungroundedFigures("Completion rose from 41 to 68 percent.", SOURCE).length === 0,
+   "THE FALSE POSITIVE: 41 percent matches 41% in the source",
+   ungroundedFigures("Completion rose from 41 to 68 percent.", SOURCE).join(","));
+ok(ungroundedFigures("Completion is at 68%.", "completion hit 68 percent this week").length === 0,
+   "and the other way round");
+ok(ungroundedFigures("A 3x improvement.", "it was three times faster").includes("3x"),
+   "a figure that genuinely appears nowhere is still flagged");
+
+console.log("── only real quotes are stored ──");
+ok(verifiedQuote("Fourteen were people stuck partway through setup", SOURCE) === "Fourteen were people stuck partway through setup",
+   "a quote found in the messages is kept as written");
+ok(verifiedQuote("all fourteen users independently got stuck in setup", SOURCE) === null,
+   "THE LEAK: a paraphrase is not stored as though someone wrote it");
+ok(verifiedQuote("stuck", SOURCE) === null, "a fragment too short to prove anything is not stored");
+ok(verifiedQuote(null, SOURCE) === null, "no quote stores nothing");
 
 console.log("── prose the prompt could not enforce ──");
 // Both prompts ban these and both shipped anyway across six live runs, so they
