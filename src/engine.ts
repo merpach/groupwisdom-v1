@@ -32,6 +32,9 @@ const SUMMARY_MODEL = process.env.GW_SUMMARY_MODEL || "claude-haiku-4-5-20251001
 // Opus made none of those errors on the same inputs. Defaults to the memory
 // model so that nothing changes until the cost is chosen deliberately.
 const JUDGMENT_MODEL = process.env.GW_JUDGMENT_MODEL || SUMMARY_MODEL;
+// Said once at boot, so the log answers which model is judging without
+// anyone reading the Railway variables.
+console.log(`[engine] memory on ${SUMMARY_MODEL}, judgment on ${JUDGMENT_MODEL}${process.env.GW_JUDGMENT_THINKING === "1" ? " with thinking" : ""}`);
 
 /**
  * Sampling for a call. The SDK default is temperature 1, the most random
