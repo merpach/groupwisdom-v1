@@ -32,6 +32,7 @@
     "test:json": "node test/json-repair-test.mjs",
     "test:join": "GW_DB=/tmp/gw-join.db GW_WISDOM_COOLDOWN_MIN=0 tsx test/join-test.ts",
     "test:ratelimit": "tsx test/ratelimit-test.ts",
+    "trial": "GW_DB=/tmp/gw-trial.db GW_WISDOM_COOLDOWN_MIN=0 tsx --env-file=.env tools/model-trial.ts",
     "smoke": "node test/prod-smoke.mjs"
   },
   "dependencies": {
