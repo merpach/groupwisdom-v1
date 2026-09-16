@@ -683,8 +683,18 @@ function appendActiveWisdom(groupId: string, insights: Insight[]) {
 }
 
 /** Gate records must never break the wisdom path they exist to explain. */
-function recordGate(groupId: string, rec: Parameters<typeof addGateRecord>[1]) {
-  try { addGateRecord(groupId, rec); } catch (err: any) {
+/**
+ * `at` names the gate, in fixed words the code chooses. It is logged and not
+ * stored: the verdict and the gate are what answer "did the engine run, and
+ * why is it quiet?" from the host log, which until now it could not, so a
+ * quiet channel looked identical to a broken one. The reason and title stay
+ * out of the log; both are written from message content and belong in the
+ * gate records, readable only with the owner's key.
+ */
+function recordGate(groupId: string, rec: Parameters<typeof addGateRecord>[1] & { at?: string }) {
+  const { at, ...stored } = rec;
+  console.log(`[gate] group ${groupId.slice(0, 8)}: ${rec.stage}/${rec.verdict}${rec.kind ? ` (${rec.kind})` : ""}${at ? `, ${at}` : ""}`);
+  try { addGateRecord(groupId, stored); } catch (err: any) {
     console.warn(`[gate] could not record verdict for group ${groupId}: ${err.message}`);
   }
 }
@@ -1248,7 +1258,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
         return [handed];
       }
     }
-    recordGate(groupId, { stage: "scan", verdict: "silent", reason: `No new contribution: ${update.why}` });
+    recordGate(groupId, { stage: "scan", verdict: "silent", reason: `No new contribution: ${update.why}`, at: "gate 1, nothing contributed" });
     await finalizeMemory([], []);
     return [];
   }
@@ -1256,7 +1266,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
   // Gate 2 — a floor between cards. Two findings minutes apart stack into one
   // wall of text in the channel, which reads as an agent that will not stop.
   if (spokeRecently(groupId, WISDOM_COOLDOWN_MIN)) {
-    recordGate(groupId, { stage: "scan", verdict: "silent", reason: `Spoke within the last ${WISDOM_COOLDOWN_MIN} minutes.` });
+    recordGate(groupId, { stage: "scan", verdict: "silent", reason: `Spoke within the last ${WISDOM_COOLDOWN_MIN} minutes.`, at: "gate 2, cooldown" });
     await finalizeMemory([], []);
     return [];
   }
@@ -1272,7 +1282,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
     return [];
   }
   if (!scout.worth_drafting) {
-    recordGate(groupId, { stage: "scan", verdict: "silent", reason: scout.why });
+    recordGate(groupId, { stage: "scan", verdict: "silent", reason: scout.why, at: "scout said no" });
     await finalizeMemory([], []);
     return [];
   }
@@ -1291,6 +1301,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
       reason: scout.sources.length
         ? "The scout named earlier work the group does not hold, so there was nothing to join."
         : "The scout named no earlier work to join the contribution to.",
+      at: "scout named nothing that resolves",
     });
     await finalizeMemory([], []);
     return [];
@@ -1357,7 +1368,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
     const reason = (result.new ?? []).length
       ? "candidate duplicated existing wisdom (title match)"
       : (result.why_silent?.trim() || "editor declined the scout's hypothesis");
-    recordGate(groupId, { stage: "scan", verdict: "silent", reason });
+    recordGate(groupId, { stage: "scan", verdict: "silent", reason, at: (result.new ?? []).length ? "duplicate of existing wisdom" : "editor declined" });
   }
 
   const suppressed = annotated.filter(ins => !ins.keep);
