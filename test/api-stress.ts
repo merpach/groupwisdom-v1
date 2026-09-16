@@ -57,11 +57,13 @@ const anthropic = http.createServer((req, res) => {
     let stage = "other", text = "";
     if (prompt.includes('"contributed"')) {
       stage = "memory";
-      text = JSON.stringify({ purpose: "p", facts: [{ fact: `established fact ${++nonce}`, by: "Ada", sources: [] }],
+      text = JSON.stringify({ purpose: "p", facts: [{ fact: `established fact ${++nonce}`, by: "Ada", sources: [nonce.toString(16).padStart(8, "0")] }],
         decisions: [], open_questions: [], contributed: true, why: "work" });
     } else if (prompt.includes('"worth_drafting"')) {
       stage = "scout";
-      text = JSON.stringify({ worth_drafting: true, hypothesis: "h", sources: [], why: "" });
+      // Name the piece of memory in front of it, the way the real scout is asked to.
+      const cited = prompt.match(/"sources":\["([0-9a-f]{8})"\]/);
+      text = JSON.stringify({ worth_drafting: true, hypothesis: "h", sources: cited ? [cited[1]] : [], why: "" });
     } else if (prompt.includes('"why_silent"')) {
       stage = "editor";
       text = JSON.stringify({ new: [{ kind: "convergence", title: `Distinct finding number ${++nonce} entirely`,

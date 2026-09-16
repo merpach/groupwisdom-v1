@@ -30,6 +30,8 @@
     "test:teams-activity": "tsx test/teams-activity-test.ts",
     "test:teams": "GW_DB=/tmp/gw-teams.db tsx test/teams-route-test.ts",
     "test:json": "node test/json-repair-test.mjs",
+    "test:join": "GW_DB=/tmp/gw-join.db GW_WISDOM_COOLDOWN_MIN=0 tsx test/join-test.ts",
+    "test:ratelimit": "tsx test/ratelimit-test.ts",
     "smoke": "node test/prod-smoke.mjs"
   },
   "dependencies": {

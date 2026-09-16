@@ -1,7 +1,8 @@
 /**
  * Remote MCP endpoint — mounted at /mcp in the Express server.
  * Speaks the Streamable HTTP transport so Claude.ai connectors work.
- * Auth: ?key=USER_API_KEY in the URL (user's personal API key from their settings).
+ * Auth: Authorization: Bearer USER_API_KEY, or ?key=USER_API_KEY in the URL for
+ * clients that cannot set a header (Claude.ai custom connectors).
  * Each request is stateless; a new McpServer is created per-request.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -280,13 +281,18 @@ function buildMcpServer(userId: string) {
 }
 
 export async function handleMcpRequest(req: Request, res: Response) {
-  // Auth: ?key=USER_API_KEY or Authorization: Bearer USER_API_KEY
+  // Auth: Authorization: Bearer USER_API_KEY, or ?key=USER_API_KEY in the URL.
+  // The header wins when both are sent. The URL form stays because it is the
+  // only form a Claude.ai custom connector can send: that dialog takes a URL
+  // and nothing else. A key in a URL can land in request logs, which is why
+  // the main API refuses it; this server logs no request URLs itself, and a
+  // client that can set a header should.
   const apiKey =
-    (req.query.key as string) ||
-    req.headers.authorization?.replace(/^Bearer\s+/i, "");
+    req.headers.authorization?.replace(/^Bearer\s+/i, "").trim() ||
+    (typeof req.query.key === "string" ? req.query.key : "");
 
   if (!apiKey) {
-    res.status(401).json({ error: "Missing API key. Add ?key=YOUR_KEY to the MCP URL." });
+    res.status(401).json({ error: "Missing API key. Send it as Authorization: Bearer YOUR_KEY, or as ?key=YOUR_KEY in the MCP URL when your client cannot set headers." });
     return;
   }
 

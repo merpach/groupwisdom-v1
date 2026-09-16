@@ -10,7 +10,7 @@
  *
  * Run: npx tsx test/grounding-test.ts
  */
-import { groundConfidence, ungroundedFigures, stripJoiningSemicolons, fragmentCount, verifiedQuote } from "../src/engine.js";
+import { groundConfidence, ungroundedFigures, stripJoiningSemicolons, fragmentCount, verifiedQuote, stripEmDashes } from "../src/engine.js";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, n: string, extra = "") => {
@@ -85,6 +85,21 @@ ok(stripJoiningSemicolons("Costs run $4.25 per seat.") === "Costs run $4.25 per 
    "a body without one is untouched");
 ok(fragmentCount("When he spoke with three leads. At an agency, a SaaS company, and a research group.") >= 2,
    "a list punctuated as prose is counted as fragments");
+console.log("── dashes ──");
+const aside = stripEmDashes("The team can now surface whether the engine visibility problem — two of three testers reported uncertainty — is real friction or noise.");
+ok(aside === "The team can now surface whether the engine visibility problem, two of three testers reported uncertainty, is real friction or noise.",
+   "THE MANGLED CARD: a pair of dashes bracketing an aside becomes a pair of commas", aside);
+ok(fragmentCount(aside) === 0, "and the sentence it interrupted is whole again", String(fragmentCount(aside)));
+ok(stripEmDashes("Prem cut the flow to four screens — completion rose to 68 percent.")
+   === "Prem cut the flow to four screens. Completion rose to 68 percent.",
+   "a single dash joining two statements is still a full stop");
+ok(stripEmDashes("Completion went from 41–68 percent – which is the whole gain – in two weeks.")
+   === "Completion went from 41–68 percent, which is the whole gain, in two weeks.",
+   "spaced en dashes bracket an aside too, and the unspaced range inside is left alone");
+ok(stripEmDashes("Costs — $4.25 a seat — never pass $7.") === "Costs, $4.25 a seat, never pass $7.",
+   "a decimal inside the aside does not end it early");
+ok(stripEmDashes("A — b — c — d") === "A, b, c. D", "an odd third dash falls back to a full stop");
+
 ok(fragmentCount("Prem found the engine runs at $4.25 per seat. Three leads named $15 as their limit.") === 0,
    "real sentences are not");
 

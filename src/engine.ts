@@ -13,11 +13,11 @@ import {
   setKnowledgeDoc, getGroup, setProjectSummary, setUserContext, listUserContexts,
   getMemberByUserId, listItemsByMember, recordUsage, isGroupOverBudget, getGroupEngine,
   getGroupMemoryRaw, setGroupMemoryRaw, addGateRecord, isGlobalOverBudget, spokeRecently,
-  listRecentInsightsOfKind,
+  listRecentInsightsOfKind, listRecentInsights,
   type Item, type Insight,
 } from "./db.js";
 import { truncate, parseModelJson } from "./text-util.js";
-import { channelScopeEnabled, visibleTo, scopeMemory } from "./channel-scope.js";
+import { channelScopeEnabled, visibleTo, scopeMemory, normalizeSourceId } from "./channel-scope.js";
 import { nearestFinding, DEDUPE_THRESHOLD, DEDUPE_WATCH_FLOOR, similarity, figures } from "./dedupe.js";
 
 const MODEL = process.env.GW_MODEL || "claude-haiku-4-5-20251001"; // set GW_MODEL=claude-fable-5 to upgrade
@@ -77,9 +77,20 @@ export function ungroundedFigures(cardText: string, sourceText: string): string[
  * bodies. The prompts now both carry the rule, and this is the mechanical
  * backstop for what still slips through. Em dashes become sentence breaks;
  * spaced en dashes too (the unspaced ones stay — they are numeric ranges).
+ *
+ * A pair of dashes bracketing an aside is the exception: those are commas.
+ * Treating them as two sentence breaks shipped "surface whether the engine
+ * visibility problem. Two of three testers reported uncertainty. Is real
+ * friction" to a real channel, the aside cut out on its own and the clause it
+ * interrupted left in two pieces, neither with a verb.
  */
 export function stripEmDashes(s: string): string {
+  // Either dash opens or closes an aside, but the en dash only when spaced:
+  // "41–68 percent" is a range, not a bracket. Full stops end the aside
+  // early (it was not one), except inside a number like $4.25.
+  const aside = /(?:\s*—\s*|\s+–\s+)((?:[^—–.!?]|\.(?=\d))+?)(?:\s*—\s*|\s+–\s+)(?=\S)/gu;
   return s
+    .replace(aside, ", $1, ")
     .replace(/\s*—\s*(\p{L})?/gu, (_, c: string | undefined) => (c ? ". " + c.toUpperCase() : ". "))
     .replace(/\s+–\s+(\p{L})?/gu, (_, c: string | undefined) => (c ? ". " + c.toUpperCase() : ". "))
     .replace(/\s+$/g, "");
@@ -634,6 +645,119 @@ function recordGate(groupId: string, rec: Parameters<typeof addGateRecord>[1]) {
   }
 }
 
+// ── The join ─────────────────────────────────────────────────────────────────
+// A finding joins the new contribution to one piece of earlier work, and the
+// scout has to say which piece. Two cards in production reached instead: an
+// onboarding measurement and then a load test were each welded to a survey
+// answer about whether the bot seemed to be running, because the scout is
+// asked for a second piece and will find one whether or not it belongs, and
+// the editor, shown the whole memory, welded in two more topics for good
+// measure. Three things hold that down. The scout's named pieces are resolved
+// against memory, and a hypothesis that names nothing resolvable is silence.
+// The editor is shown only the pieces that resolved. And memory a card was
+// built on rests afterwards, so the fact that made one good card cannot be
+// the second piece of the next three.
+
+/** How long the memory behind a card rests before it can anchor another. */
+const JOINED_FACT_REST_HOURS = 24 * 7;
+/** A join is two pieces and a pattern three. More is a summary. */
+const JOIN_MAX_PIECES = 3;
+
+type MemoryCore = Omit<GroupMemory, "active_wisdom">;
+
+export type Join = {
+  facts: GroupMemory["facts"];
+  decisions: GroupMemory["decisions"];
+  /** Short item ids the chosen pieces rest on. */
+  ids: string[];
+  /** Whether the pieces were named by id, recovered from the wording, or not found. */
+  how: "ids" | "text" | "none";
+};
+
+const STOPWORDS = new Set([
+  "about", "after", "again", "their", "there", "these", "those", "which", "while", "would",
+  "could", "should", "because", "before", "between", "through", "where", "other", "every",
+  "since", "still", "being", "under", "against", "found", "finding", "joins", "joined",
+]);
+const contentWords = (s: string) =>
+  new Set((s.toLowerCase().match(/\p{L}{5,}/gu) ?? []).filter(w => !STOPWORDS.has(w)));
+
+/**
+ * Which pieces of memory the scout meant. By id when it copied them, which is
+ * what it is asked to do; from the wording when it did not, which a verdict
+ * cut off at the token ceiling cannot help. Nothing resolving is an answer
+ * too, and the caller treats it as no.
+ */
+export function resolveJoin(scout: { hypothesis: string; sources: string[] }, memory: MemoryCore): Join {
+  const named = new Set<string>();
+  for (const s of scout.sources) {
+    for (const m of s.matchAll(/[0-9a-f]{8}/gi)) named.add(m[0].toLowerCase());
+    const whole = normalizeSourceId(s);
+    if (whole) named.add(whole);
+  }
+  const cites = (sources: string[]) => sources.some(src => named.has(normalizeSourceId(src)));
+
+  let facts = memory.facts.filter(f => cites(f.sources));
+  let decisions = memory.decisions.filter(d => cites(d.sources));
+  let how: Join["how"] = facts.length || decisions.length ? "ids" : "none";
+
+  if (how === "none") {
+    // Recover from the wording: figures count double, because a shared number
+    // is rarely a coincidence, and a piece by someone the hypothesis names gets
+    // a point for that.
+    const wording = `${scout.hypothesis} ${scout.sources.join(" ")}`;
+    const figs = figures(wording), words = contentWords(wording);
+    const score = (text: string, by = "") => {
+      let n = 0;
+      for (const f of figures(text)) if (figs.has(f)) n += 2;
+      for (const w of contentWords(text)) if (words.has(w)) n += 1;
+      if (by && wording.toLowerCase().includes(by.toLowerCase())) n += 1;
+      return n;
+    };
+    const ranked = [
+      ...memory.facts.map(f => ({ kind: "fact" as const, piece: f, score: score(f.fact, f.by) })),
+      ...memory.decisions.map(d => ({ kind: "decision" as const, piece: d, score: score(d.decision) })),
+    ].filter(x => x.score >= 2).sort((a, b) => b.score - a.score).slice(0, JOIN_MAX_PIECES);
+    facts = ranked.filter(x => x.kind === "fact").map(x => x.piece as GroupMemory["facts"][number]);
+    decisions = ranked.filter(x => x.kind === "decision").map(x => x.piece as GroupMemory["decisions"][number]);
+    if (facts.length || decisions.length) how = "text";
+  }
+
+  const chosen = [...facts, ...decisions].slice(0, JOIN_MAX_PIECES);
+  facts = facts.filter(f => chosen.includes(f));
+  decisions = decisions.filter(d => chosen.includes(d));
+  const ids = [...new Set(chosen.flatMap(p => p.sources.map(normalizeSourceId)).filter(Boolean))];
+  return { facts, decisions, ids, how };
+}
+
+/**
+ * Memory with the pieces recent cards were built on taken out. A fact that
+ * has had its card has had its turn: the survey answer behind the one good
+ * card in production was the second piece of the next two bad ones, and no
+ * rule about relevance held against a scout that wanted a second piece and
+ * could see one.
+ */
+export function restJoinedMemory(memory: MemoryCore, resting: Set<string>): { memory: MemoryCore; rested: number } {
+  if (!resting.size) return { memory, rested: 0 };
+  const awake = (sources: string[]) => !sources.some(s => resting.has(normalizeSourceId(s)));
+  const facts = memory.facts.filter(f => awake(f.sources));
+  const decisions = memory.decisions.filter(d => awake(d.sources));
+  const rested = memory.facts.length - facts.length + memory.decisions.length - decisions.length;
+  return { memory: { ...memory, facts, decisions }, rested };
+}
+
+/** Short item ids behind every card spoken in the rest window. */
+function joinedSourceIds(groupId: string): Set<string> {
+  const out = new Set<string>();
+  for (const ins of listRecentInsights(groupId, JOINED_FACT_REST_HOURS)) {
+    if (!ins.sources) continue;
+    try {
+      for (const s of JSON.parse(ins.sources)) { const id = normalizeSourceId(s); if (id) out.add(id); }
+    } catch { /* an old or hand-written row; nothing to rest */ }
+  }
+  return out;
+}
+
 // ── The scout and the editor ─────────────────────────────────────────────────
 // These were one call: "surface a finding" plus a reviewer deciding whether to
 // keep it. A model told to write something writes something, and once a fluent
@@ -733,9 +857,19 @@ ${wisdomText}
 ${WISDOM_TESTS}
 
 Answer with a hypothesis only when you can name BOTH pieces of work being joined,
-and the second one is not simply the request this message answers. Reaching back
-into memory for that second piece is the whole job. If the only thing you can
-point at is the message in front of you, the answer is no.
+and the second one is not simply the request this message answers. If the only
+thing you can point at is the message in front of you, the answer is no.
+
+The second piece has to be about what the new contribution is about. Two pieces
+of work that share a project but not a subject are not a combination, however
+neatly a sentence could weld them: this engine once joined a load test to a
+survey answer about a different feature because it wanted a second piece, and
+the card was nonsense. If you would have to explain why the two are related,
+they are not, and the answer is no.
+
+"sources" carries the source ids of the facts or decisions you are joining,
+copied exactly from their "sources" arrays above. A hypothesis whose sources
+name nothing the group holds is discarded unread.
 
 Respond ONLY with valid JSON:
 {"worth_drafting":false,"hypothesis":"","sources":[],"why":"one short sentence naming the test that failed"}`,
@@ -782,13 +916,16 @@ drawn from: ${scout.sources.join(", ") || "(unspecified)"}
 New contribution${newText.includes("\n") ? "s" : ""}:
 ${newText}
 
-What the group already knows, distilled from its whole history:
+The earlier work the scout pointed at. This is the only earlier work in front
+of you, and the only earlier work the finding may rest on. If it needs a third
+piece to stand, it does not stand:
 ${memoryText}
 
 The last few messages, for conversational context only:
 ${tailText}
 
-Current wisdom (never repeat these; flag any now outdated):
+Headlines already spoken, so that you do not say them again. They are not
+material: nothing in them may appear in the finding. Flag any now outdated:
 ${wisdomText}
 
 ${WISDOM_TESTS}
@@ -1017,12 +1154,15 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
   // the editor is narrower: only facts this channel could have seen. Traced
   // against the unfiltered item list, because telling a fact from another
   // channel apart from one we simply cannot place needs to know both exist.
-  const visibleMemory = scoping
+  const visibleMemory = normalizeMemoryCore(scoping
     ? scopeMemory(scanMemory, scanChannel, allItems, { strict: false }).memory
-    : scanMemory;
+    : scanMemory);
+  // The memory behind recent cards rests. What the scout sees is what it may join.
+  const { memory: scoutMemory, rested } = restJoinedMemory(visibleMemory, joinedSourceIds(groupId));
+  if (rested) console.log(`[scout] ${rested} piece(s) of memory resting after recent cards for group ${groupId}`);
   const memoryText = JSON.stringify({
-    purpose: visibleMemory.purpose, facts: visibleMemory.facts,
-    decisions: visibleMemory.decisions, open_questions: visibleMemory.open_questions,
+    purpose: scoutMemory.purpose, facts: scoutMemory.facts,
+    decisions: scoutMemory.decisions, open_questions: scoutMemory.open_questions,
   });
   // Headlines we already spoke, so we do not repeat ourselves — but only the ones
   // spoken into this channel. Another channel's headline is its own content.
@@ -1092,12 +1232,38 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
   // logs — it is stored in the gate records, readable only with the owner's key.
   console.log(`[scout] candidate found for group ${groupId}`);
 
+  // Which pieces it meant. A hypothesis that points at nothing the group holds
+  // is a reach by definition, unless the batch itself carries two pieces of
+  // work, which two people posting inside the same three seconds can do.
+  const join = resolveJoin(scout, scoutMemory);
+  if (join.how === "none" && newWithNames.length < 2) {
+    console.log(`[scout] candidate named no earlier work that resolves for group ${groupId}`);
+    recordGate(groupId, {
+      stage: "scan", verdict: "silent",
+      reason: scout.sources.length
+        ? "The scout named earlier work the group does not hold, so there was nothing to join."
+        : "The scout named no earlier work to join the contribution to.",
+    });
+    await finalizeMemory([], []);
+    return [];
+  }
+  const joinMemoryText = JSON.stringify({ purpose: scoutMemory.purpose, facts: join.facts, decisions: join.decisions });
+  const joinPieces = [
+    ...join.facts.map(f => `- ${f.fact} (${f.by || "unattributed"})`),
+    ...join.decisions.map(d => `- decision: ${d.decision}`),
+  ];
+  const joinText =
+    `New contribution${newWithNames.length > 1 ? "s" : ""}:\n${newText}\n` +
+    (joinPieces.length
+      ? `Earlier work it is joined to, and the only earlier work it may rest on:\n${joinPieces.join("\n")}`
+      : "Earlier work it is joined to: none. The join is between the new contributions themselves.");
+
   // The editor drafts only what the scout pointed at, and may still decline it.
   let result: DraftResult;
   try {
     result = await draftFinding(
       groupId, group.name, listMembers(groupId).map(m => m.name).join(", ") || "unknown",
-      scout, newText, memoryText, tailText, wisdomText,
+      scout, newText, joinMemoryText, tailText, wisdomText,
     );
   } catch (err: any) {
     // Silently returning [] here made a non-responding engine indistinguishable
@@ -1132,6 +1298,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
         candidates, group.name, listMembers(groupId).map(m => m.name),
         allWithMembers.length, getGroupEngine(groupId), groupId,
         `${newText}\n${tailText}`,
+        joinText,
       )
     : [];
 
@@ -1169,6 +1336,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
       do_next: ins.do_next ? stripEmDashes(ins.do_next) : undefined,
       missing_voice: validateMissingVoice(ins.missing_voice, memberNamesForVoice) ?? undefined,
       stated_in: ins.stated_in ?? null,   // kept so the card can be checked against what was written
+      sources: [...new Set([...newWithNames.map(i => shortId(i.id)), ...join.ids])],   // what rests after this
       channel: scanChannel,   // drawn for one channel, so only shown back to it
     });
     setInsightStatus(saved.id, "acknowledged"); // auto-accept live insights
@@ -1189,7 +1357,7 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
     // Numbers the reader cannot trace back to a message. Recorded against the
     // project rather than suppressed, so the rate is visible before anyone
     // decides whether it should block.
-    const loose = ungroundedFigures(`${saved.title} ${saved.body}`, `${newText}\n${tailText}\n${memoryText}`);
+    const loose = ungroundedFigures(`${saved.title} ${saved.body}`, `${newText}\n${tailText}\n${joinMemoryText}`);
     if (loose.length) {
       console.warn(`[card] figures not found in the contributions: ${loose.join(", ")}`);
       recordGate(groupId, {
@@ -1199,7 +1367,10 @@ async function runIncrementalWisdom(groupId: string, newItems: Item[], scanChann
     }
     recordGate(groupId, {
       stage: "review", verdict: "spoken", kind: saved.kind, title: saved.title,
-      reason: `confidence ${ins.confidence}`, insightId: saved.id,
+      reason: `confidence ${ins.confidence}; ` + (join.how === "none"
+        ? "joined within the batch"
+        : `joined to ${join.facts.length + join.decisions.length} piece(s) of memory, named by ${join.how === "ids" ? "id" : "wording"}`),
+      insightId: saved.id,
     });
   }
   const dismissed = (result.dismiss ?? []).filter(id => existing.some(e => e.id === id));
@@ -1376,6 +1547,7 @@ async function metacognitivePass(
   engine: string,
   groupId?: string,
   sourceText = "",
+  joinText = "",
 ): Promise<MetaInsight[]> {
   const prompt = `You are a metacognitive evaluator for a group intelligence engine called GroupWisdom.
 A first-pass AI has generated candidate insights from the shared data of a group called "${groupName}".
@@ -1384,7 +1556,11 @@ Group stats: ${memberNames.length} contributors (${memberNames.join(", ")}), ${i
 
 Candidate insights:
 ${candidates.map((ins, i) => `[${i}] (${ins.kind}) headline [${ins.title.trim().split(/\s+/).length} words]: "${ins.title}"\n    body: ${ins.body}`).join("\n")}
-
+${joinText ? `
+What the candidates were built from. A finding joins the new contribution to earlier
+work, and these are the only pieces it may rest on:
+${joinText}
+` : ""}
 For each candidate, evaluate:
 - confidence: "high" only when a contribution STATES this finding and you can quote it. Counting
   data points is not enough: a claim you assembled from two true facts can be assembled backwards.
@@ -1407,8 +1583,13 @@ For each candidate, evaluate:
   the conclusion came out backwards. Say what the answer depends on, or drop that sentence.
 - keep: false if the insight is too speculative, too thin, not yet ready to surface, or merely
   obvious — a reader holding both contributions would already have thought it, which makes it a
-  summary with two sources rather than a finding. Otherwise true.
-- drop_reason: when keep is false, one short sentence naming why (too thin, single-source, already known, speculative). null when keep is true.
+  summary with two sources rather than a finding. Also false when it reaches: the new contribution
+  and the earlier work it is joined to are about different things, and the connection exists only
+  in the finding's own sentences. Two pieces of finished work can be joined when each bears on what
+  the other is about. If you would have to explain why they are related, they are not. This engine
+  shipped a load test welded to a survey answer about a different feature because the first pass
+  wanted a second piece, and a reader could not have said what the card was about. Otherwise true.
+- drop_reason: when keep is false, one short sentence naming why (too thin, single-source, already known, speculative, reaching). null when keep is true.
 - revised_kind: the label, re-derived from the FINAL wording after your revisions, using the
   ordered test below. Return it always, even when unchanged. The drafting stage guesses at a
   label before the text is settled, which is how one finding came back as "tension" on one run

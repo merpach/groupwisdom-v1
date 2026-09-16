@@ -131,6 +131,11 @@ app.use("/v1", rateLimit({ name: "v1", windowMs: 60_000, max: 240, keyFn: apiKey
 // an hour. Five an hour is plenty for a person trying the API.
 app.use("/v1/demo", rateLimit({ name: "demo", windowMs: 60 * 60_000, max: 5 }));
 app.use("/buzz/connect", rateLimit({ name: "connect", windowMs: 60_000, max: 5 }));
+// The Bot Framework endpoint. Every customer's Teams traffic arrives from
+// Microsoft's shared addresses, so this counts rejections rather than
+// requests: a caller whose token verifies is never slowed, and an address
+// throwing forged activities at the URL is cut off after sixty in a minute.
+app.use("/teams/messages", rateLimit({ name: "teams", windowMs: 60_000, max: 60, failuresOnly: true }));
 
 app.use(supabaseAuth); // /auth/supabase/* — 404s unless SUPABASE_URL/ANON_KEY are set
 app.use(googleAuth);   // /auth/google — 404s unless GOOGLE_CLIENT_ID/SECRET are set

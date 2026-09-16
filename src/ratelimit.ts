@@ -24,25 +24,42 @@ export function rateLimit(opts: {
   max: number;
   name: string;
   keyFn?: (req: Request) => string | null;
+  /**
+   * Count responses of 400 and above instead of requests. For an endpoint
+   * whose legitimate traffic all arrives from one upstream: every customer's
+   * Teams messages come from Microsoft's shared addresses, so a limit on
+   * requests per address would slow real customers together, while a limit
+   * on rejections never touches a caller whose token verifies.
+   */
+  failuresOnly?: boolean;
 }) {
   const keyFn = opts.keyFn ?? ((req: Request) => req.ip ?? "unknown");
-  return (req: Request, res: Response, next: NextFunction) => {
-    const key = keyFn(req);
-    if (key === null) return next();
-    const id = `${opts.name}:${key}`;
-    const now = Date.now();
+  const bucket = (id: string, now: number) => {
     let b = buckets.get(id);
     if (!b || b.resetAt <= now) {
       b = { count: 0, resetAt: now + opts.windowMs };
       buckets.set(id, b);
     }
-    b.count++;
+    return b;
+  };
+  return (req: Request, res: Response, next: NextFunction) => {
+    const key = keyFn(req);
+    if (key === null) return next();
+    const id = `${opts.name}:${key}`;
+    const now = Date.now();
+    const b = bucket(id, now);
+    if (!opts.failuresOnly) b.count++;
     const remaining = Math.max(0, opts.max - b.count);
     res.setHeader("X-RateLimit-Limit", String(opts.max));
     res.setHeader("X-RateLimit-Remaining", String(remaining));
-    if (b.count > opts.max) {
+    // Counting failures, the bucket fills after the fact, so a full bucket
+    // refuses the next request rather than this one.
+    if (opts.failuresOnly ? b.count >= opts.max : b.count > opts.max) {
       res.setHeader("Retry-After", String(Math.ceil((b.resetAt - now) / 1000)));
       return res.status(429).json({ error: "Too many requests. Slow down and retry shortly." });
+    }
+    if (opts.failuresOnly) {
+      res.on("finish", () => { if (res.statusCode >= 400) bucket(id, Date.now()).count++; });
     }
     next();
   };

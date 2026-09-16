@@ -256,6 +256,10 @@ async function handleMessage(activity: TeamsActivity, projectId: string) {
     source: "teams",
     channel,                       // scopes the scan, and what may be said here
   });
+  // Names and sizes only, the same line the Buzz adapter writes. Content never
+  // reaches the host log; this is what answers "is anything arriving?" without
+  // reading the project back through the API.
+  log(`ingested → project ${projectId.slice(0, 8)} | ${activity?.channelData?.channel?.name || "General"} | from ${contributor} (${content.length} chars)`);
 
   queueIncrementalAnalysis(projectId, item, async (wisdom: Insight[]) => {
     if (wisdom?.length) await postFindings(channel, wisdom);

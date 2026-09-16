@@ -231,6 +231,10 @@ try { db.exec("ALTER TABLE group_settings ADD COLUMN engine TEXT NOT NULL DEFAUL
 // discarded every time for want of somewhere to put it, which is why every card
 // ever written reports no provenance.
 try { db.exec("ALTER TABLE insights ADD COLUMN stated_in TEXT DEFAULT NULL"); } catch { /* already exists */ }
+// The short item ids a finding was built on, as a JSON array. Read back when
+// the next scan decides which memory to show the scout: a fact that has had
+// its card rests for a while rather than being welded to whatever comes next.
+try { db.exec("ALTER TABLE insights ADD COLUMN sources TEXT DEFAULT NULL"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE insights ADD COLUMN confidence TEXT DEFAULT NULL"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE insights ADD COLUMN caveat TEXT DEFAULT NULL"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE insights ADD COLUMN do_next TEXT DEFAULT NULL"); } catch { /* already exists */ }
@@ -271,6 +275,8 @@ export type Insight = {
   confidence: string | null; caveat: string | null; do_next: string | null; missing_voice: string | null;
   /** Verbatim words from a contribution that this finding rests on, for checking it. */
   stated_in: string | null;
+  /** JSON array of the short item ids the finding was built on, or null for findings that predate it. */
+  sources: string | null;
   /** Channel this was drawn for, or null when it spans the whole project. */
   channel: string | null;
 };
@@ -430,6 +436,17 @@ export function listRecentInsightsOfKind(groupId: string, kind: string, hours: n
   ).all(groupId, kind, `-${hours} hours`) as Insight[];
 }
 
+/**
+ * Every insight from the last `hours`, dismissed ones included: a card that
+ * was spoken and then dismissed still spoke, and the memory it rested on has
+ * still had its turn.
+ */
+export function listRecentInsights(groupId: string, hours: number): Insight[] {
+  return db.prepare(
+    "SELECT * FROM insights WHERE group_id = ? AND created_at > datetime('now', ?) ORDER BY created_at DESC"
+  ).all(groupId, `-${hours} hours`) as Insight[];
+}
+
 export type ItemWithMember = Item & { member_name: string | null };
 export const listItemsWithMembers = (groupId: string): ItemWithMember[] =>
   (db.prepare(
@@ -453,14 +470,15 @@ export const searchItems = (groupId: string, q: string) => {
 
 export function addInsight(
   groupId: string, kind: string, title: string, body: string,
-  meta?: { confidence?: string; caveat?: string; do_next?: string; missing_voice?: string; channel?: string | null; stated_in?: string | null },
+  meta?: { confidence?: string; caveat?: string; do_next?: string; missing_voice?: string; channel?: string | null; stated_in?: string | null; sources?: string[] },
 ): Insight {
   const id = randomUUID();
   db.prepare(
-    "INSERT INTO insights (id, group_id, kind, title, body, confidence, caveat, do_next, missing_voice, channel, stated_in) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO insights (id, group_id, kind, title, body, confidence, caveat, do_next, missing_voice, channel, stated_in, sources) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   ).run(id, groupId, kind, title, body,
     meta?.confidence ?? null, meta?.caveat ?? null, meta?.do_next ?? null, meta?.missing_voice ?? null,
-    meta?.channel ?? null, meta?.stated_in ?? null);
+    meta?.channel ?? null, meta?.stated_in ?? null,
+    meta?.sources?.length ? JSON.stringify(meta.sources) : null);
   return db.prepare("SELECT * FROM insights WHERE id = ?").get(id) as Insight;
 }
 export const listInsights = (groupId: string, kind?: string) =>
