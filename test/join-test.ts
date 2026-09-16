@@ -134,12 +134,12 @@ process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${(server.address() as any).p
 process.env.ANTHROPIC_API_KEY = "sk-ant-fake-for-test";
 
 const g = createGroup("Join path");
-addMember(g.id, "Prem", "", "prem@ex.com", null);
+const prem = addMember(g.id, "Prem", "", "prem@ex.com", null);
 
 /** Feed one batch through the debounced path Teams and Buzz use, and wait for it. */
 async function batch(m: Mode, contents: string[]) {
   mode = m;
-  const items = contents.map(c => addItem(g.id, "note", c, "", "", "Prem"));
+  const items = contents.map(c => addItem(g.id, { member_id: prem.id, type: "note", title: c.slice(0, 60), content: c, source: "teams" }));
   const done = new Promise<void>(r => {
     items.forEach((it, i) => queueIncrementalAnalysis(g.id, it, i === items.length - 1 ? () => r() : undefined));
   });

@@ -80,6 +80,24 @@ const jaccard = (a: Set<string>, b: Set<string>) => {
 };
 
 /** Distinctive figures: "2.1x", "41.3", "40%". Shared ones are strong evidence. */
+/**
+ * Number words as digits, for the source side of a figure check. "Fourteen
+ * were people stuck partway through setup" holds the figure 14, and a card
+ * that writes it as 14 was correct to; the check flagged it as untraceable.
+ * Cards are not expanded: a number written as a word is not a figure claim.
+ */
+const ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+const TENS: Record<string, number> = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+export function numberWordsToDigits(text: string): string {
+  const tens = Object.keys(TENS).join("|"), ones = ONES.join("|");
+  return String(text ?? "")
+    .replace(new RegExp(`\\b(${tens})[-\\s](${ones.replace("zero|", "")})\\b`, "gi"),
+      (_, t: string, o: string) => String(TENS[t.toLowerCase()] + ONES.indexOf(o.toLowerCase())))
+    .replace(new RegExp(`\\b(${tens})\\b`, "gi"), (_, t: string) => String(TENS[t.toLowerCase()]))
+    .replace(new RegExp(`\\b(${ones})\\b`, "gi"), (_, o: string) => String(ONES.indexOf(o.toLowerCase())));
+}
+
 export function figures(text: string): Set<string> {
   const out = new Set<string>();
   for (const m of String(text ?? "").matchAll(/\d+(?:\.\d+)?\s*(?:%|x|×)?/gi)) {

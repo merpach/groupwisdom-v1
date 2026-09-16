@@ -86,10 +86,10 @@ const errorGates = (groupId: string) =>
 /** Feed two contributions through the debounced path Buzz uses, and wait. */
 async function runBatch(name: string) {
   const g = createGroup(name);
-  addMember(g.id, "Sarah", "", "sarah@ex.com", null);
-  addMember(g.id, "James", "", "james@ex.com", null);
-  const a = addItem(g.id, "note", "Checkout prototype tested 22% faster to complete", "", "", "Sarah");
-  const b = addItem(g.id, "note", "In 6 of 8 interviews users preferred the one-tap payment prototype", "", "", "James");
+  const sarah = addMember(g.id, "Sarah", "", "sarah@ex.com", null);
+  const james = addMember(g.id, "James", "", "james@ex.com", null);
+  const a = addItem(g.id, { member_id: sarah.id, type: "note", title: "Checkout timing", content: "Checkout prototype tested 22% faster to complete", source: "teams" });
+  const b = addItem(g.id, { member_id: james.id, type: "note", title: "Interview preference", content: "In 6 of 8 interviews users preferred the one-tap payment prototype", source: "teams" });
   const done = new Promise<void>(r => {
     queueIncrementalAnalysis(g.id, a);
     queueIncrementalAnalysis(g.id, b, () => r());

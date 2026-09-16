@@ -18,10 +18,49 @@ import {
 } from "./db.js";
 import { truncate, parseModelJson } from "./text-util.js";
 import { channelScopeEnabled, visibleTo, scopeMemory, normalizeSourceId } from "./channel-scope.js";
-import { nearestFinding, DEDUPE_THRESHOLD, DEDUPE_WATCH_FLOOR, similarity, figures } from "./dedupe.js";
+import { nearestFinding, DEDUPE_THRESHOLD, DEDUPE_WATCH_FLOOR, similarity, figures, numberWordsToDigits } from "./dedupe.js";
 
 const MODEL = process.env.GW_MODEL || "claude-haiku-4-5-20251001"; // set GW_MODEL=claude-fable-5 to upgrade
-const SUMMARY_MODEL = "claude-haiku-4-5-20251001";
+// Memory (bootstrap and update) runs on this: extraction work, where the
+// small model is fine and the call happens on every batch.
+const SUMMARY_MODEL = process.env.GW_SUMMARY_MODEL || "claude-haiku-4-5-20251001";
+
+// The scout, the editor and the review run on this. These are the judgment
+// stages, and they are where the cards went wrong: on the production inputs,
+// Haiku assumed a per-seat price nobody stated, read last quarter's tickets
+// as caused by last sprint's fix, and called 30 teams more than a tested 40.
+// Opus made none of those errors on the same inputs. Defaults to the memory
+// model so that nothing changes until the cost is chosen deliberately.
+const JUDGMENT_MODEL = process.env.GW_JUDGMENT_MODEL || SUMMARY_MODEL;
+
+/**
+ * Sampling for a call. The SDK default is temperature 1, the most random
+ * setting there is, and every stage ran on it. GW_ENGINE_TEMPERATURE sets it
+ * for the one model known to take the parameter: the Claude 5 generation
+ * rejects it outright ("`temperature` is deprecated for this model", a 400
+ * that stops the scout dead), so it is never sent to anything else.
+ */
+const sampling = (model: string): { temperature?: number } => {
+  const t = process.env.GW_ENGINE_TEMPERATURE;
+  if (!model.includes("haiku-4-5") || t === undefined || t === "") return {};
+  return { temperature: Math.max(0, Math.min(1, Number(t))) };
+};
+
+/**
+ * Model and ceiling for a judgment stage. With GW_JUDGMENT_THINKING=1 the
+ * model reasons in thinking blocks instead of in the reply, which is what a
+ * Claude 5 model does anyway when a question is hard: Sonnet 5 wrote its
+ * reasoning as prose before the JSON and ran into the 700-token ceiling on
+ * exactly the batches it had something to say about. The ceiling then has to
+ * hold the thinking as well as the answer, and temperature cannot be set.
+ */
+function judgment(stage: "scout" | "editor" | "review"): { model: string; max_tokens: number; temperature?: number; thinking?: any } {
+  const ceiling = { scout: 700, editor: 700, review: 1200 }[stage];
+  if (process.env.GW_JUDGMENT_THINKING === "1") {
+    return { model: JUDGMENT_MODEL, thinking: { type: "adaptive" }, max_tokens: ceiling + 5000 };
+  }
+  return { model: JUDGMENT_MODEL, max_tokens: ceiling, ...sampling(JUDGMENT_MODEL) };
+}
 const KINDS = ["convergence", "opportunity", "tension", "pattern", "direction", "decision"];
 
 const running = new Set<string>();
@@ -67,7 +106,7 @@ export function ungroundedFigures(cardText: string, sourceText: string): string[
   // card was recorded as "figures the reader cannot trace: 41, 68" when both came
   // straight from the onboarding message it was built on.
   const bare = (f: string) => f.replace(/[%x×]$/i, "");
-  const held = new Set([...figures(sourceText)].map(bare));
+  const held = new Set([...figures(numberWordsToDigits(sourceText))].map(bare));
   return [...figures(cardText)].filter(f => !held.has(bare(f)));
 }
 
@@ -423,6 +462,7 @@ async function bootstrapGroupMemory(groupId: string, groupName: string): Promise
   const msg = await client.messages.create({
     model: SUMMARY_MODEL,
     max_tokens: 1500,
+    ...sampling(SUMMARY_MODEL),
     messages: [{
       role: "user",
       content: `You maintain the working memory of a shared project called "${groupName}": the compact record of what the group currently knows. It is the only long-term context the wisdom engine sees, so a fact dropped here is forgotten and a fact kept here is remembered.
@@ -479,6 +519,7 @@ async function updateMemoryCore(
     // A full memory plus a hand-off can brush 1500. Output is billed on what
     // is generated, so the headroom is free on the usual round.
     max_tokens: 2000,
+    ...sampling(SUMMARY_MODEL),
     messages: [{
       role: "user",
       content: `You maintain the working memory of a shared project called "${groupName}": the compact record of what the group currently knows. It is the only long-term context the wisdom engine sees, so a fact dropped here is forgotten and a fact kept here is remembered.
@@ -814,6 +855,12 @@ const WISDOM_TESTS = `A finding is real ONLY if every one of these holds:
    does not announce on its own, which is usually what it makes possible, what
    it costs, or what it changes about a plan they already hold. If naming the
    join is the entire content, you have written a summary with two sources.
+9. Quantities are compared only in the same units. "$290 a year" against
+   "$4.25 per seat per month" is a comparison across a number of seats, and
+   unless a message says how many seats there are, or says the $290 is per
+   seat, it cannot be made. Every model that has run this engine assumed the
+   price was per seat, and nobody had said so. When the units differ, say what
+   the comparison depends on, or leave the comparison out.
 
 Contributors are people and AI agents alike. An agent that researches, drafts or
 analyses is a contributor exactly as a person is. A person working with one agent
@@ -830,11 +877,10 @@ async function scoutForCandidate(
 ): Promise<ScoutVerdict> {
   const client = new Anthropic();
   const msg = await client.messages.create({
-    model: SUMMARY_MODEL,
     // A "no" costs about forty tokens; only a "yes" — which has to name both
     // pieces of work — ever ran into the old 300 ceiling. Output is billed on
     // what is generated, so the headroom is free and buys the answers we want.
-    max_tokens: 700,
+    ...judgment("scout"),
     messages: [{
       role: "user",
       content: `You are the scout for a shared project called "${groupName}". Your only job is to
@@ -875,7 +921,7 @@ Respond ONLY with valid JSON:
 {"worth_drafting":false,"hypothesis":"","sources":[],"why":"one short sentence naming the test that failed"}`,
     }],
   });
-  recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "scout");
+  recordUsage(groupId, msg.model, msg.usage.input_tokens, msg.usage.output_tokens, "scout");
   if (msg.stop_reason === "max_tokens") console.warn(`[scout] reply hit the token ceiling for group ${groupId}`);
 
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
@@ -902,8 +948,7 @@ async function draftFinding(
 ): Promise<DraftResult> {
   const client = new Anthropic();
   const msg = await client.messages.create({
-    model: SUMMARY_MODEL,
-    max_tokens: 700,
+    ...judgment("editor"),
     messages: [{
       role: "user",
       content: `You are the Wisdom engine for a shared project called "${groupName}".
@@ -1024,7 +1069,7 @@ Respond ONLY with valid JSON:
 {"new":[{"kind":"...","title":"...","body":"..."}],"dismiss":["id1"],"why_silent":null}`,
     }],
   });
-  recordUsage(groupId, SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "editor");
+  recordUsage(groupId, msg.model, msg.usage.input_tokens, msg.usage.output_tokens, "editor");
 
   const raw = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
   return parseModelJson(raw, "editor");
@@ -1581,6 +1626,10 @@ For each candidate, evaluate:
   have that calculation, and choosing a value for it is inventing evidence. This engine wrote
   "$24 per seat per month for a four-person team" when nobody had mentioned four people, and
   the conclusion came out backwards. Say what the answer depends on, or drop that sentence.
+  The same goes for units: "$290 a year" set against "$4.25 per seat per month" is a comparison
+  across seats, and unless a message gives the seat count or says the $290 is per seat, the
+  comparison cannot be made. Every model that has run this engine assumed per seat. A card that
+  compares across units without saying what it depends on gets revised or dropped.
 - keep: false if the insight is too speculative, too thin, not yet ready to surface, or merely
   obvious — a reader holding both contributions would already have thought it, which makes it a
   summary with two sources rather than a finding. Also false when it reaches: the new contribution
@@ -1641,11 +1690,10 @@ Respond with ONLY valid JSON — an array matching the candidate order:
     } else if (process.env.ANTHROPIC_API_KEY) {
       const client = new Anthropic();
       const msg = await client.messages.create({
-        model: SUMMARY_MODEL, // Haiku — fast and cheap for structured evaluation
-        max_tokens: 1200,
+        ...judgment("review"),
         messages: [{ role: "user", content: prompt }],
       });
-      recordUsage(groupId ?? "meta", SUMMARY_MODEL, msg.usage.input_tokens, msg.usage.output_tokens, "metacognitive_pass");
+      recordUsage(groupId ?? "meta", msg.model, msg.usage.input_tokens, msg.usage.output_tokens, "metacognitive_pass");
       text = msg.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
     } else {
       // No API — pass through all candidates with default annotations

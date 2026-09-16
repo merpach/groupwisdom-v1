@@ -64,7 +64,9 @@ ok(ungroundedFigures("Completion rose from 41 to 68 percent.", SOURCE).length ==
    ungroundedFigures("Completion rose from 41 to 68 percent.", SOURCE).join(","));
 ok(ungroundedFigures("Completion is at 68%.", "completion hit 68 percent this week").length === 0,
    "and the other way round");
-ok(ungroundedFigures("A 3x improvement.", "it was three times faster").includes("3x"),
+ok(ungroundedFigures("A 3x improvement.", "it was three times faster").length === 0,
+   "3x traces to 'three times' now that the source's number words count");
+ok(ungroundedFigures("A 3x improvement.", "it was much faster").includes("3x"),
    "a figure that genuinely appears nowhere is still flagged");
 
 console.log("── only real quotes are stored ──");
@@ -85,6 +87,18 @@ ok(stripJoiningSemicolons("Costs run $4.25 per seat.") === "Costs run $4.25 per 
    "a body without one is untouched");
 ok(fragmentCount("When he spoke with three leads. At an agency, a SaaS company, and a research group.") >= 2,
    "a list punctuated as prose is counted as fragments");
+console.log("── figures people wrote as words ──");
+ok(ungroundedFigures("14 of the 22 tickets were setup problems", "Fourteen were people stuck partway through setup, all 22 of them.").length === 0,
+   "THE FALSE ALARM: 14 traces to 'Fourteen' in the source");
+ok(ungroundedFigures("The fix took 22 tickets down", "twenty-two tickets last quarter").length === 0,
+   "and hyphenated tens trace too");
+ok(ungroundedFigures("Completion rose to 68 percent", "Completion went from forty-one to sixty-eight percent").length === 0,
+   "whatever the source's spelling of the number");
+ok(ungroundedFigures("Nine screens became four", "nine screens down to four").length === 0,
+   "a card that writes the number as a word makes no figure claim");
+ok(ungroundedFigures("A four-person team pays $24", "Priced at $290 a year. Costs run $4.25 a seat.").join() === "24",
+   "and an invented figure is still caught");
+
 console.log("── dashes ──");
 const aside = stripEmDashes("The team can now surface whether the engine visibility problem — two of three testers reported uncertainty — is real friction or noise.");
 ok(aside === "The team can now surface whether the engine visibility problem, two of three testers reported uncertainty, is real friction or noise.",

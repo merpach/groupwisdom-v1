@@ -801,13 +801,20 @@ export const revokeProjectApiKey = (keyId: string) =>
 const COST_PER_TOKEN: Record<string, { input: number; output: number }> = {
   haiku:  { input: 1e-6,  output: 5e-6  },  // $1.00 / $5.00 per MTok
   sonnet: { input: 3e-6,  output: 15e-6 },  // $3.00 / $15.00 per MTok
+  opus:   { input: 5e-6,  output: 25e-6 },  // $5.00 / $25.00 per MTok
+  fable:  { input: 10e-6, output: 50e-6 },  // $10.00 / $50.00 per MTok
 };
 
 const USER_BUDGET_USD = 50;
 
-function modelRates(model: string) {
-  if (model.includes("haiku")) return COST_PER_TOKEN.haiku;
-  return COST_PER_TOKEN.sonnet;
+function modelRates(model: string | undefined) {
+  // Anything unrecognised is billed at Opus rates: the cap must err toward
+  // counting too much, never too little, when a model is switched.
+  const m = String(model ?? "").toLowerCase();
+  if (m.includes("haiku")) return COST_PER_TOKEN.haiku;
+  if (m.includes("sonnet")) return COST_PER_TOKEN.sonnet;
+  if (m.includes("fable") || m.includes("mythos")) return COST_PER_TOKEN.fable;
+  return COST_PER_TOKEN.opus;
 }
 
 export function recordUsage(
