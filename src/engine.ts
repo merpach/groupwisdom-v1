@@ -187,7 +187,10 @@ export type GroupMemory = {
 // Mechanical backstops. The update prompt targets ~30 facts; these only bite
 // if the model ignores its size discipline, so memory can never silently grow
 // the cost per scan.
-const MEMORY_MAX_FACTS = 40;
+// Thirty facts held a two-week, one-product project; it lost the newest
+// topic the evening a second product arrived. Forty-five costs the scout
+// about five hundred more tokens per call and holds both.
+const MEMORY_MAX_FACTS = 60;
 const MEMORY_MAX_WISDOM = 25;
 
 const shortId = (id: string) => id.slice(0, 8);
@@ -439,11 +442,12 @@ const MEMORY_SHAPE =
 
 const MEMORY_RULES = `Rules:
 - One sentence per fact. "by" is whoever actually contributed it — never move a finding from one contributor to another. "sources" keeps the item ids in [brackets].
+- Every fact names the thing it is about: which product, feature, experiment or customer. "The $5 per month subscription is the most effective option" is written wrong; "The $5 per month subscription for the Cal Calorie app is the most effective option" is right. A group can work on more than one thing, and a fact that could be read as being about a different one of them will be joined to it.
 - Newest wins: when a contribution corrects or updates an earlier fact on the same point, replace the old fact and keep the new source id.
 - Record decisions the group has clearly made, and open questions that are genuinely open. Delete questions that have been answered.
 - Not everything is a fact. Chatter, acknowledgements and coordination add nothing; skip them.
 - Keep facts in the order they were learned, newest last.
-- Size discipline: at most about 30 facts. When over, merge the oldest and least consequential into fewer, shorter entries, keeping their source ids.`;
+- Size discipline: at most about 45 facts. When over, merge the oldest and least consequential into fewer, shorter entries, keeping their source ids. Never make room by leaving out what the newest contributions established: a group that has moved on to a new piece of work needs that work held most of all.`;
 
 /**
  * One-time distillation of an existing project's history into its first
@@ -514,7 +518,7 @@ async function updateMemoryCore(
   groupId: string, groupName: string, mem: GroupMemory, newItems: (Item & { member_name?: string | null })[],
 ): Promise<MemoryUpdate> {
   const { active_wisdom: _, ...core } = mem;
-  const overBudget = mem.facts.length > 30;
+  const overBudget = mem.facts.length > 45;
 
   const client = new Anthropic();
   const msg = await client.messages.create({
@@ -923,8 +927,11 @@ The second piece has to be about what the new contribution is about. Two pieces
 of work that share a project but not a subject are not a combination, however
 neatly a sentence could weld them: this engine once joined a load test to a
 survey answer about a different feature because it wanted a second piece, and
-the card was nonsense. If you would have to explain why the two are related,
-they are not, and the answer is no.
+the card was nonsense. The same subject means the same thing, not the same
+category: a $5 subscription for one app and a $290 tier for another product are
+both prices and are not the same subject, and this engine has joined exactly
+those two. If you would have to explain why the two are related, they are not,
+and the answer is no.
 
 "sources" carries the source ids of the facts or decisions you are joining,
 copied exactly from their "sources" arrays above. A hypothesis whose sources
@@ -1051,20 +1058,24 @@ weigh them against each other and pick a favourite: the same finding must get
 the same label every time it is derived, and the only way that holds is if the
 order decides it.
 
-1. tension — two things that cannot both hold, or two readings of the same
-   evidence. A booking that clashes with a flight qualifies as much as two people
-   disagreeing. Test: can you state both sides, and is it impossible for both to
-   stand? State the actual difference.
+1. opportunity — their own finished work has opened something nobody has picked
+   up. Test: name the work it rests on, and what is now possible that was not.
 2. convergence — two contributors reached the same place from different
    directions. Test: can you name both, and are their routes genuinely different?
 3. decision — the group HAS SETTLED something. Test: quote the words in which
    they settled it. If nobody wrote anything like "we will", "we are going with",
    "agreed", "decided", then this is NOT a decision, whatever it feels like.
    Finding a bug, measuring a result, or noticing a problem is never a decision.
-4. opportunity — their own finished work has opened something nobody has picked
-   up. Test: name the work it rests on, and what is now possible that was not.
-5. pattern — a theme across three or more contributions that none of them named.
+4. pattern — a theme across three or more contributions that none of them named.
    Test: name the contributions.
+5. tension — two things that cannot both hold, or two readings of the same
+   evidence. A booking that clashes with a flight qualifies as much as two people
+   disagreeing. Test: can you state both sides, and is it impossible for both to
+   stand? State the actual difference. Tested this late on purpose. A cost that a
+   plan will have to cover is not a tension, it is what the plan now knows, and
+   when the same material reads both as a threat and as what it makes possible,
+   the finding is the second one. Four of the five cards this engine got wrong in
+   production were tensions manufactured from two numbers that never conflicted.
 6. direction — the next question their work is building toward. This is the
    fallback when nothing above fits.
 
@@ -1658,11 +1669,14 @@ For each candidate, evaluate:
   label before the text is settled, which is how one finding came back as "tension" on one run
   and "direction" on the next; deciding it once, here, from the text that actually ships, is
   what makes it stable. Take the FIRST that passes:
-  tension (two things that cannot both hold, or two readings of one piece of evidence) /
+  opportunity (their finished work opened something nobody has picked up) /
   convergence (two contributors reached the same place by different routes, both nameable) /
   decision (they HAVE SETTLED it — you must be able to quote the settling words; finding a bug
-  or measuring a result is not a decision) / opportunity (their finished work opened something
-  nobody has picked up) / pattern (a theme across three or more contributions) /
+  or measuring a result is not a decision) / pattern (a theme across three or more contributions) /
+  tension (two things that cannot both hold, or two readings of one piece of evidence; tested this
+  late on purpose, because a cost a plan will have to cover is what the plan now knows, not a
+  tension, and material that reads both as a threat and as what it makes possible is the second;
+  when you relabel a tension this way, revise the body to say what the numbers make possible) /
   direction (the fallback: the next question their work builds toward).
 - revised_title: the card's headline, and the first thing anyone reads. Each candidate above shows its current word count. Any headline over EIGHT words REQUIRES a revised_title of eight or fewer; returning null for one of those is a failure. Also rewrite when it reads as a label rather than the finding, or buries what was found. Shorter is better. Cut ruthlessly: drop qualifiers and detail, keep the thing that happened. The body carries the specifics. Before you return a revised_title, count its words yourself. If it is nine or more, cut it again.
 - revised_body: a revised body if you can materially improve clarity or precision, or fold in another member's actual finding so the reader inherits it directly rather than being pointed to it — otherwise null. Four things always require a revision. A body running past four sentences or roughly 80 words, which you cut back, and one under three sentences that reads as clipped, which you let breathe. Any sentence sending the reader off to consult, review, clarify or confirm something, which you delete outright, because a finding that only survives by pointing somewhere is not a finding. Keep the closing sentence when it names where the finding leads and is built from what the group produced; that is the point of the card, not a chore. A body that names a conflict and stops, which you finish by saying what it means for the reader or which choice it leaves them; ending on the problem is the most common way these fail. And business abstraction, which you translate: "making parallel execution infeasible" becomes "so both cannot happen at once", "the budget allocates 40 percent to paid acquisition" becomes "the plan puts 9,000 dollars into ads first". These exact words have all shipped from here and every one must be rewritten wherever you find it, in the title as much as the body: go-to-market, cost structure, procurement, threshold, friction point, capacity, positioning, converged, perceive, and model used as a noun. "Sitting below all three thresholds" becomes "cheaper than any of them would need to ask about". Fifth: a final sentence that only rules on what the body already said, which you replace with one naming something the reader could do, built from their own numbers. Plain words, verbs over nouns, one name per contributor throughout.

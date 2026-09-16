@@ -32,14 +32,18 @@ if (!process.env.ANTHROPIC_API_KEY) {
 
 const label = process.argv[2] ?? "unlabelled";
 const reps = Number(process.argv[3] ?? 2);
-const inputs = JSON.parse(readFileSync(new URL("./model-trial-inputs.json", import.meta.url), "utf8")) as Record<string, string>;
+// TRIAL_INPUTS names another inputs file: a JSON object of message texts by
+// key, plus an optional "_scenarios" map of scenario name to key order, for
+// replaying a channel that is not the one this tool ships with.
+const inputsPath = process.env.TRIAL_INPUTS ?? new URL("./model-trial-inputs.json", import.meta.url);
+const inputs = JSON.parse(readFileSync(inputsPath, "utf8")) as Record<string, any>;
 const resultsFile = join(tmpdir(), "gw-model-trial.jsonl");
 
 const { createGroup, addMember, addItem, listInsights, listGateRecords, deleteGroup, db } = await import("../src/db.js");
-const { queueIncrementalAnalysis } = await import("../src/engine.js");
+const { queueIncrementalAnalysis, loadGroupMemory } = await import("../src/engine.js");
 
 // Each scenario is the order the real channel saw the messages, one batch each.
-const SCENARIOS: Record<string, string[]> = {
+const SCENARIOS: Record<string, string[]> = inputs._scenarios ?? {
   pricing:    ["annual", "costs", "leads"],
   onboarding: ["testers", "onboarding", "tickets"],
   load:       ["testers", "annual", "load", "wave"],
@@ -67,10 +71,15 @@ async function run(scenario: string, rep: number) {
     const gatesNow = listGateRecords(g.id, 100);
     const gates = gatesNow.slice(0, gatesNow.length - gatesBefore)
       .map(x => `${x.stage}/${x.verdict}: ${x.reason ?? x.title ?? ""}`);
+    // What memory holds after the step, when asked: the scout's view is the
+    // first thing to check when a message that should have joined did not.
+    const memory = process.env.TRIAL_SHOW_MEMORY === "1"
+      ? (loadGroupMemory(g.id)?.facts ?? []).map(f => `${f.fact} (${f.by}) [${f.sources.join(",")}]`)
+      : undefined;
     steps.push({
       step: key,
       cards: fresh.map(c => ({ kind: c.kind, confidence: c.confidence, title: c.title, body: c.body, stated_in: c.stated_in, caveat: c.caveat, do_next: c.do_next, sources: c.sources })),
-      gates, ms: Date.now() - t0,
+      gates, ms: Date.now() - t0, ...(memory ? { memory } : {}),
     });
   }
   const usage = db.prepare(
@@ -91,7 +100,8 @@ for (const r of results) {
   console.log(`\n═══ ${r.label} · ${r.scenario} #${r.rep} · $${r.cost.toFixed(4)} ═══`);
   for (const s of r.steps) {
     console.log(`  ▸ ${s.step} (${(s.ms / 1000).toFixed(0)}s)`);
-    for (const gt of s.gates) console.log(`      gate  ${gt.slice(0, 160)}`);
+    for (const gt of s.gates) console.log(`      gate  ${gt.slice(0, 300)}`);
+    for (const m of (s as any).memory ?? []) console.log(`      mem   ${m.slice(0, 160)}`);
     for (const c of s.cards) {
       console.log(`      CARD  [${c.kind}/${c.confidence}] ${c.title}`);
       console.log(`            ${c.body}`);
