@@ -10,7 +10,10 @@ export interface Project {
   name: string;
   created_at: string;
   webhook_url: string | null;
+  /** Only on the response that set a webhook_url; never shown again. */
   webhook_secret?: string;
+  /** Which model runs analysis, when the server has it; otherwise Claude runs regardless. */
+  engine: "claude" | "muse-spark" | string;
   counts: { items: number; wisdom: number; /** @deprecated same value as `wisdom` */ insights: number };
 }
 
@@ -32,11 +35,16 @@ export interface Item {
   id: string;
   group_id: string;
   member_id: string | null;
+  /** The name sent in contributed_by, resolved from the member; null when none was given. */
+  contributed_by: string | null;
   type: string;
   title: string;
   content: string;
   url: string;
+  /** "api" for anything sent through this API; an adapter's name otherwise. */
   source: string;
+  /** The channel the item was sent with, or null. */
+  channel: string | null;
   created_at: string;
 }
 

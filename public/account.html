@@ -401,10 +401,13 @@ $("check").onclick = async () => {
       <span class="v-body"><span class="v-kind">${esc(w.kind ?? "")}</span><b>${esc(w.title)}</b> — ${esc(w.body ?? "")}</span></div>`;
   }
   if (!findings.length) {
-    const silent = records.find(r => r.verdict === "silent" || r.verdict === "suppressed");
-    v.innerHTML += silent
-      ? `<div class="v-row"><span class="v-mark">—</span><span class="v-body"><b>Silent, on the record:</b> ${esc(silent.reason ?? silent.title ?? "no reason recorded")}</span></div>`
-      : `<div class="v-empty">Nothing yet. Send the two items from step 3, give it ~10 seconds, and check again.</div>`;
+    // The newest decision about a batch or a draft. Memory records say what
+    // the engine forgot, not why it was quiet, so they are skipped here.
+    const decided = records.find(r => r.stage !== "memory" && ["silent", "suppressed", "error"].includes(r.verdict));
+    const label = decided?.verdict === "error" ? "Engine error, on the record:" : "Silent, on the record:";
+    v.innerHTML += decided
+      ? `<div class="v-row"><span class="v-mark">—</span><span class="v-body"><b>${label}</b> ${esc(decided.reason ?? decided.title ?? "no reason recorded")}</span></div>`
+      : `<div class="v-empty">Nothing yet. Send the two items from step 3, give it ~20 seconds, and check again.</div>`;
   }
   $("s3").classList.toggle("done", findings.length > 0 || records.length > 0);
   $("s4").classList.toggle("done", findings.length > 0 || records.length > 0);

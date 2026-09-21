@@ -263,6 +263,7 @@
   <div class="nav-section">API Keys</div>
   <a class="nav-link" href="#project-keys">Project keys</a>
   <a class="nav-link" href="#create-key">Create key</a>
+  <a class="nav-link" href="#list-keys">List keys</a>
   <a class="nav-link" href="#revoke-key">Revoke key</a>
   <div class="nav-section">Webhooks</div>
   <a class="nav-link" href="#webhook-setup">Setup</a>
@@ -465,18 +466,26 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   "name": "Q3 User Research",
   "created_at": "2026-06-26T14:22:00Z",
   "webhook_url": "https://your-server.com/groupwisdom-hook",
-  "counts": { "items": 0, "wisdom": 0, "insights": 0 }
+  "engine": "claude",
+  "counts": { "items": 0, "wisdom": 0, "insights": 0 },
+  "webhook_secret": "9f3a1c…48 hex characters…7b2e"
 }</pre>
+  <p><code>webhook_secret</code> is present only when the request set a <code>webhook_url</code>. It is the key you verify signatures with; a project keeps one secret for its life, and the same value comes back from any later <code>PATCH</code> that sets a URL, but no other call returns it. <code>counts.insights</code> is the older name for <code>counts.wisdom</code>, same value. Personal key only: a project key answers 403.</p>
 
   <h2 id="list-projects">List projects</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects</span></div>
-  <p>Returns all projects you have access to.</p>
+  <p>Returns every project on your account as a plain array, not a paginated object. Personal key only.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl https://testgroupwisdom.com/v1/projects \
   -H "Authorization: Bearer gw_yourkey"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>[
+  { "id": "5d96994a-9164-44bb-891c-caf57eb6760d", "name": "Q3 User Research", "created_at": "2026-06-26T14:22:00Z",
+    "webhook_url": "https://your-server.com/groupwisdom-hook", "engine": "claude",
+    "counts": { "items": 142, "wisdom": 3, "insights": 3 } }
+]</pre>
 
   <h2 id="get-project">Get project</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id</span></div>
-  <p>Returns a single project with current item and wisdom counts.</p>
+  <p>Returns a single project with current item and wisdom counts, in the same shape as above without <code>webhook_secret</code>. Works with the project's own key.</p>
 
   <h2 id="update-project">Update project</h2>
   <div class="endpoint"><span class="method patch">PATCH</span><span class="path">/v1/projects/:id</span></div>
@@ -561,18 +570,34 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/items?limit=20&offset=0" \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
-  "data": [...],
+  "data": [
+    {
+      "id": "e4f36a38-5081-4e4c-98c2-ab7f943c09c0",
+      "group_id": "5d96994a-9164-44bb-891c-caf57eb6760d",
+      "member_id": "d208d22e-7089-41be-b3a5-2c263496488a",
+      "contributed_by": "Ada",
+      "type": "note",
+      "title": "Shipped the onboarding rewrite: nine screens down to four. C",
+      "content": "Shipped the onboarding rewrite: nine screens down to four. Completion went from 41% to 68% in the two weeks since.",
+      "url": "",
+      "source": "api",
+      "channel": null,
+      "created_at": "2026-09-21T05:12:04Z"
+    }
+  ],
   "total": 142,
   "limit": 20,
   "offset": 0,
   "has_more": true
 }</pre>
+  <p>An item sent with <code>content</code> and no <code>title</code> gets the first sixty characters of its content as its title, which is what you see above. <code>contributed_by</code> is the name you sent; <code>source</code> is <code>api</code> for anything that arrived through this API and the adapter's name otherwise.</p>
 
   <h2 id="delete-item">Delete item</h2>
-  <div class="endpoint"><span class="method patch" style="background:#ffe8e8;color:#cc3333">DELETE</span><span class="path">/v1/projects/:id/items/:itemId</span></div>
-  <p>Permanently removes an item from a project.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X DELETE https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/items/item_001 \
+  <div class="endpoint"><span class="method delete">DELETE</span><span class="path">/v1/projects/:id/items/:itemId</span></div>
+  <p>Permanently removes an item from a project. What the engine already established from it stays in memory until the memory is next folded forward.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X DELETE https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/items/e4f36a38-5081-4e4c-98c2-ab7f943c09c0 \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "deleted": true, "id": "e4f36a38-5081-4e4c-98c2-ab7f943c09c0" }</pre>
 
   <!-- How the engine works -->
   <h2 id="rename-contributor">Rename a contributor</h2>
@@ -629,37 +654,75 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/memory</span></div>
   <p>Returns the working memory the engine reasons from: the project's purpose as it understands it, the facts it has established and who contributed them, the decisions it has seen made, and the questions it still considers open. Each fact carries the items it came from.</p>
   <p>This is the fastest way to answer "is it actually following what we are doing". If a finding looks wrong, this shows you what it was built on. It is also the first place to look when the engine has gone quiet and you expected otherwise.</p>
-  <p><code>memory</code> is <code>null</code> on a project that has not accumulated anything yet.</p>
+  <p>The response is always <code>{ memory, updated_at }</code>. On a project the engine has not read yet, both are <code>null</code>; treat that as the normal state of a new project, not an error.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/memory" \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>// A project nothing has been sent to yet
+{ "memory": null, "updated_at": null }
+
+// Once the engine has read something
+{
   "memory": {
     "purpose": "Shipping the mobile checkout redesign",
     "facts": [
-      { "fact": "The redesign tested 22% faster than the current flow", "by": "Sarah", "sources": ["a1b2c3d4"] }
+      { "fact": "The redesign for the mobile checkout tested 22% faster than the current flow", "by": "Sarah", "sources": ["a1b2c3d4"] }
     ],
     "decisions": [
-      { "decision": "Ship behind a flag", "sources": ["e5f6a7b8"] }
+      { "decision": "Ship the redesign behind a flag", "sources": ["e5f6a7b8"] }
     ],
     "open_questions": ["Who owns the migration for saved cards?"],
-    "active_wisdom": [ { "id": "9f2c1e04-…", "kind": "opportunity", "title": "Saved-card migration is the last blocker" } ]
+    "active_wisdom": [
+      { "id": "9f2c1e04-7b3a-4d51-9c88-1a6e2f0b47d3", "kind": "opportunity", "title": "Saved-card migration is the last blocker" }
+    ]
   },
-  "updated_at": "2026-08-17 21:40:11"
+  "updated_at": "2026-09-21T05:12:36Z"
 }</pre>
+  <table>
+    <tr><th>Field</th><th>Description</th></tr>
+    <tr><td>purpose</td><td>What the engine understands the project to be for, in its own words.</td></tr>
+    <tr><td>facts[]</td><td><code>fact</code>, <code>by</code> (the contributor's name as sent in <code>contributed_by</code>), and <code>sources</code>: the first eight characters of the item ids it came from. Each fact names the thing it is about, so a group working on two things is not confused for one.</td></tr>
+    <tr><td>decisions[]</td><td><code>decision</code> and <code>sources</code>, only for things the group has settled in so many words.</td></tr>
+    <tr><td>open_questions[]</td><td>Questions the engine considers still open, as strings.</td></tr>
+    <tr><td>active_wisdom[]</td><td>The findings currently standing: <code>id</code>, <code>kind</code>, <code>title</code>. Maintained by the engine so it does not say the same thing twice; a dismissed finding drops out.</td></tr>
+  </table>
 
   <!-- Gate records -->
   <h2 id="gate-records">Why it stayed quiet</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/gate-records</span></div>
   <p>The engine says nothing most of the time, on purpose. Every one of those decisions is recorded with the reason for it, so silence is auditable rather than mysterious. Supports <code>?limit</code> (default 50, max 200), newest first.</p>
-  <p><code>verdict</code> is one of <code>silent</code> (nothing was worth saying), <code>suppressed</code> (something was drafted and the review dropped it), <code>spoken</code> (a finding was surfaced, with its <code>insight_id</code>), or <code>error</code>.</p>
   <p>If your integration seems too quiet, read this before assuming it is broken. Most of the time it will tell you the messages were requests, restatements, or a single person thinking aloud, none of which the engine treats as something to combine.</p>
+  <table>
+    <tr><th>Field</th><th>Values</th></tr>
+    <tr><td>stage</td><td><code>scan</code> (the pass over a new batch), <code>review</code> (the check on a drafted finding), <code>memory</code> (the working memory being folded forward), <code>handoff</code> (finished work offered to someone as they start a task)</td></tr>
+    <tr><td>verdict</td><td><code>silent</code> nothing was worth saying · <code>spoken</code> a finding was surfaced, with its <code>insight_id</code> · <code>suppressed</code> something was drafted and the review dropped it · <code>dropped</code> a fact left the working memory in the last update, named in <code>reason</code> · <code>error</code> a stage failed, with the message</td></tr>
+    <tr><td>kind</td><td>The finding's kind on <code>spoken</code> and <code>suppressed</code> records; <code>null</code> otherwise</td></tr>
+    <tr><td>title</td><td>The finding's headline where there was one; <code>null</code> otherwise</td></tr>
+    <tr><td>reason</td><td>The engine's reason in full, written from your messages, so it can quote them</td></tr>
+    <tr><td>insight_id</td><td>The finding's id on <code>spoken</code> records; <code>null</code> otherwise</td></tr>
+    <tr><td>id, group_id, created_at</td><td>The record's own id, the project, and when</td></tr>
+  </table>
+  <p>A spoken finding usually has more than one review record: one for the verdict, and one for each thing the review noticed about it, such as a quote it could not find in the messages or a figure that appears in no contribution. Read them together.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/gate-records?limit=20" \
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
   "records": [
-    { "stage": "scan",   "verdict": "silent",     "reason": "No new contribution: a question to a colleague adds nothing to combine", "created_at": "..." },
-    { "stage": "review", "verdict": "suppressed", "title": "Team is aligned on timing", "reason": "confidence low", "created_at": "..." },
-    { "stage": "review", "verdict": "spoken",     "title": "Paid ads must start before partners commit", "insight_id": "...", "created_at": "..." }
+    { "id": "de8e196c-d27a-4b9b-b82d-a53b1f57f007", "group_id": "5d96994a-9164-44bb-891c-caf57eb6760d",
+      "stage": "scan", "verdict": "silent", "kind": null, "title": null, "insight_id": null,
+      "reason": "Test 8: the join is obvious from the two pieces. A reader holding both contributions would already think the rewrite addressed what most of the tickets were about.",
+      "created_at": "2026-09-21T05:12:36Z" },
+    { "id": "…", "group_id": "…",
+      "stage": "memory", "verdict": "dropped", "kind": null, "title": null, "insight_id": null,
+      "reason": "No longer carried forward after the last update: Free trial period under consideration, either 3 days or 7 days",
+      "created_at": "2026-09-21T05:12:35Z" },
+    { "id": "…", "group_id": "…",
+      "stage": "review", "verdict": "spoken", "kind": "opportunity", "title": "Card-entry friction is blocking mobile checkout",
+      "insight_id": "03807d77-c0b6-4e5d-b855-d33eb0939dac",
+      "reason": "confidence medium; joined to 2 piece(s) of memory, named by id",
+      "created_at": "2026-09-21T05:14:28Z" },
+    { "id": "…", "group_id": "…",
+      "stage": "review", "verdict": "suppressed", "kind": "tension", "title": "Team is aligned on timing", "insight_id": null,
+      "reason": "confidence low",
+      "created_at": "2026-09-21T05:14:28Z" }
   ]
 }</pre>
 
@@ -670,13 +733,14 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <p class="note">Requires your personal API key. Project keys cannot read account-wide usage.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "https://testgroupwisdom.com/v1/usage" \
   -H "Authorization: Bearer gw_yourkey"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "percent_used": 12, "limit_reached": false }</pre>
 
   <!-- List insights -->
   <h2 id="list-wisdom">List wisdom</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/wisdom</span></div>
   <p>Returns the wisdom the engine has surfaced, newest first. Supports <code>?limit</code>, <code>?offset</code>, and <code>?kind</code> filters.</p>
   <p class="note"><code>GET /v1/projects/:id/insights</code> is the former name for this endpoint and still works, identically. Nothing you have running needs to change.</p>
-  <p>By default returns a minimal shape — <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include the review fields: <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, <code>missing_voice</code>, <code>stated_in</code>, and <code>channel</code> (the channel the finding was drawn for, when your items carry one; otherwise null).</p>
+  <p>By default returns a minimal shape — <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include the review fields: <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, <code>missing_voice</code>, <code>stated_in</code>, and <code>channel</code> (the channel the finding was drawn for, when your items carry one; otherwise null). <code>status</code> is <code>new</code>, <code>acknowledged</code> or <code>dismissed</code>; findings from live sources arrive as <code>acknowledged</code>.</p>
   <p><code>stated_in</code> is the words a finding rests on, copied from the message that carries them. It is there so a finding can be checked rather than taken on trust: if the quote is not found in what the group actually wrote, the engine lowers its own confidence in the finding and records that it did.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button># Default (minimal)
 curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/wisdom" \
@@ -762,7 +826,21 @@ curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb676
   -H "Authorization: Bearer gw_proj_yourkey" -H "Content-Type: application/json" \
   -d '{"verdict": "helpful", "member": "Sarah", "source_event_id": "reaction-8841"}'</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "recorded": true, "verdict": "helpful" }</pre>
-  <p>Withdraw a verdict by its <code>source_event_id</code> with <code>DELETE /v1/wisdom/feedback/:sourceEventId</code>, which answers <code>{ "withdrawn": true }</code>. Read a project's verdicts and totals with <code>GET /v1/projects/:id/feedback</code>, which returns <code>{ summary, feedback }</code>. A finding you do not own answers 404, the same as one that does not exist.</p>
+  <p>Withdraw a verdict by its <code>source_event_id</code> with <code>DELETE /v1/wisdom/feedback/:sourceEventId</code>, which answers <code>{ "withdrawn": true }</code> (<code>false</code> if nothing was recorded under that id). A finding you do not own answers 404, the same as one that does not exist.</p>
+  <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/feedback</span></div>
+  <p>A project's verdicts and their totals. <code>?limit</code> caps the rows (default 100, max 500).</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
+  "summary": {
+    "total": 7,
+    "byVerdict": { "helpful": 5, "wrong": 1, "late": 1 },
+    "highConfidenceWrong": 0,
+    "breakdown": [ { "verdict": "helpful", "confidence": "medium", "n": 5 }, { "verdict": "wrong", "confidence": "low", "n": 1 }, { "verdict": "late", "confidence": "medium", "n": 1 } ]
+  },
+  "feedback": [
+    { "id": "…", "group_id": "…", "insight_id": "9f2c1e04-7b3a-4d51-9c88-1a6e2f0b47d3", "member": "Sarah",
+      "verdict": "helpful", "source_event_id": "reaction-8841", "withdrawn": 0, "created_at": "2026-09-21T05:20:11Z" }
+  ]
+}</pre>
 
   <h2 id="project-keys">Project API keys</h2>
   <p>Project keys (<code>gw_proj_...</code>) are scoped to a single project. Use them in production apps instead of your personal key — if a project key leaks, you revoke just that key without touching your account or other projects.</p>
@@ -780,17 +858,28 @@ curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb676
   -H "Content-Type: application/json" \
   -d '{"name": "Production"}'</pre>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{
-  "id": "key_xyz",
+  "id": "3c1e7a90-52d4-4b1f-9e2a-7f0c1d8b6e44",
   "name": "Production",
   "key": "gw_proj_a1b2c3d4e5f6...",
   "created_at": "2026-06-30T10:00:00Z"
 }</pre>
 
-  <h2 id="revoke-key">Revoke a key</h2>
-  <div class="endpoint"><span class="method patch" style="background:#ffe8e8;color:#cc3333">DELETE</span><span class="path">/v1/projects/:id/keys/:keyId</span></div>
-  <p>Immediately invalidates the key. Any requests using it will receive a 401.</p>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X DELETE https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/keys/key_xyz \
+  <h2 id="list-keys">List keys</h2>
+  <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/keys</span></div>
+  <p>The project's keys with a redacted preview each, newest first. Personal key only.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/keys \
   -H "Authorization: Bearer gw_your_personal_key"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>[
+  { "id": "3c1e7a90-52d4-4b1f-9e2a-7f0c1d8b6e44", "name": "Production", "key_preview": "gw_proj_a1b2...",
+    "created_at": "2026-06-30T10:00:00Z", "last_used_at": "2026-09-21T05:14:28Z" }
+]</pre>
+
+  <h2 id="revoke-key">Revoke a key</h2>
+  <div class="endpoint"><span class="method delete">DELETE</span><span class="path">/v1/projects/:id/keys/:keyId</span></div>
+  <p>Immediately invalidates the key. Any request using it afterwards receives 401. Personal key only.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X DELETE https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/keys/3c1e7a90-52d4-4b1f-9e2a-7f0c1d8b6e44 \
+  -H "Authorization: Bearer gw_your_personal_key"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "revoked": true, "id": "3c1e7a90-52d4-4b1f-9e2a-7f0c1d8b6e44" }</pre>
 
   <!-- Webhooks -->
   <h2 id="webhook-setup">Webhook setup</h2>
@@ -817,7 +906,7 @@ app.post("/groupwisdom-hook", express.raw({ type: "application/json" }), (req, r
   // handle payload.insights ...
   res.sendStatus(200)
 })</pre>
-  <p>Your <code>webhook_secret</code> is returned when you set a <code>webhook_url</code> via PATCH. Store it securely — it is only shown once.</p>
+  <p>Your <code>webhook_secret</code> is returned when you set a <code>webhook_url</code> via PATCH. Store it securely: no call other than setting a <code>webhook_url</code> returns it.</p>
 
   <h2 id="webhook-payload-shape">Payload shape</h2>
   <p>Webhook payloads include the full wisdom shape, equivalent to <code>?format=full</code>, so you have every review field without a follow-up GET.</p>
