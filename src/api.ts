@@ -77,7 +77,9 @@ api.post("/auth/signup", async (req, res) => {
   // With Supabase configured it owns new passwords, which is what makes reset
   // emails and confirmation possible. Local bcrypt remains the path when it is not.
   if (supabaseAuthEnabled()) {
-    const r = await supabaseSignUp(String(email).trim(), String(password), String(name).trim());
+    const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] || req.protocol || "https";
+    const host = (req.headers["x-forwarded-host"] as string)?.split(",")[0] || req.get("host");
+    const r = await supabaseSignUp(String(email).trim(), String(password), String(name).trim(), `${proto}://${host}/account?confirmed=1`);
     if (!r.ok) return res.status(r.needsConfirmation ? 202 : 400).json({ error: r.error, needs_confirmation: r.needsConfirmation ?? false });
     req.session.userId = r.user.id;
     return res.status(201).json(account(r.user));

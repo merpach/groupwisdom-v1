@@ -370,7 +370,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <p>There are two types of API key:</p>
   <table>
     <tr><th>Key type</th><th>Format</th><th>Access</th></tr>
-    <tr><td>Personal key</td><td><code>gw_...</code></td><td>All your projects. Found in <strong>Developer API → Dashboard</strong>. Use for setup scripts and trusted backends.</td></tr>
+    <tr><td>Personal key</td><td><code>gw_...</code></td><td>All your projects. Shown on <a href="/account">your account page</a> the moment you sign in. Use for setup scripts and trusted backends.</td></tr>
     <tr><td>Project key</td><td><code>gw_proj_...</code></td><td>One specific project only. Create via API or dashboard. Use in production apps — if it leaks, revoke it without affecting your account.</td></tr>
   </table>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>Authorization: Bearer gw_proj_your_project_key</pre>

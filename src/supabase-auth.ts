@@ -110,8 +110,14 @@ export type SupabaseResult =
   | { ok: false; error: string; needsConfirmation?: boolean };
 
 /** Email + password sign-up through Supabase, so recovery emails work later. */
-export async function supabaseSignUp(email: string, password: string, name: string): Promise<SupabaseResult> {
-  const r = await sb("/auth/v1/signup", { method: "POST", body: JSON.stringify({ email, password, data: { name } }) });
+export async function supabaseSignUp(email: string, password: string, name: string, redirectTo?: string): Promise<SupabaseResult> {
+  // Where the confirmation link lands. Without this it goes to the Supabase
+  // project's site URL, which is whatever was typed into the dashboard once,
+  // and a tester who has just confirmed is left on a page that says nothing
+  // about signing in. It has to be on the project's redirect allow-list;
+  // if it is not, Supabase falls back to the site URL, no worse than before.
+  const path = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : "";
+  const r = await sb(`/auth/v1/signup${path}`, { method: "POST", body: JSON.stringify({ email, password, data: { name } }) });
   if (!r.ok) return { ok: false, error: r.body?.msg || r.body?.error_description || "Could not create that account." };
 
   // With email confirmation switched on, Supabase returns the user but no

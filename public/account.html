@@ -463,6 +463,15 @@ $("authGo").onclick = async () => {
   $("authGo").disabled = true;
   const { ok, body } = await post("/api/auth/" + authMode, { email, password, name });
   $("authGo").disabled = false;
+  if (!ok && body?.needs_confirmation) {
+    // Not a failure: the account exists and a confirmation email is on its
+    // way. Say so calmly and leave the form ready for the sign-in that follows.
+    setAuthMode("login");
+    $("emailIn").value = email;
+    $("authMsg").className = "msg ok";
+    $("authMsg").textContent = "Almost there. Open the email we just sent to " + email + ", click the link, then sign in here.";
+    return;
+  }
   if (!ok) { $("authMsg").className = "msg err"; $("authMsg").textContent = body?.error || "That did not work."; return; }
   location.reload();
 };
@@ -477,9 +486,18 @@ $("authGo").onclick = async () => {
   if (!signedIn) {
     setAuthMode("signup");
     await renderProviders();
-    if (new URLSearchParams(location.search).has("auth_error")) {
+    const params = new URLSearchParams(location.search);
+    if (params.has("auth_error")) {
       $("authMsg").className = "msg err";
       $("authMsg").textContent = "That sign-in did not complete. Try again, or use an email and password.";
+      history.replaceState({}, "", location.pathname);
+    }
+    // Where the confirmation email's link lands. The account is confirmed at
+    // this point; the only thing left is the sign-in.
+    if (params.has("confirmed")) {
+      setAuthMode("login");
+      $("authMsg").className = "msg ok";
+      $("authMsg").textContent = "Email confirmed. Sign in and your API key is on the next screen.";
       history.replaceState({}, "", location.pathname);
     }
     return;
