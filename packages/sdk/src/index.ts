@@ -50,7 +50,8 @@ export type WisdomKind =
   | "tension"       // two views worth putting together, stated as the actual difference
   | "pattern"       // a theme across several contributions none of them named
   | "direction"     // the next question their work is building toward
-  | "decision";     // something they have arrived at, and what led there
+  | "decision"      // something they have arrived at, and what led there
+  | "handoff";      // finished work by someone else, handed to a person as they start on a task
 
 /** Simple wisdom — the default API response */
 export interface Wisdom {
@@ -71,6 +72,48 @@ export interface WisdomFull extends Wisdom {
   caveat: string | null;
   /** A contributor whose existing work would strengthen this. */
   missing_voice: string | null;
+  /** The words the finding rests on, copied from a contribution and verified against it. */
+  stated_in: string | null;
+  /** The channel the finding was drawn for, when items carry one. */
+  channel: string | null;
+}
+
+/** One decision by the engine: why it spoke, or why it stayed quiet. */
+export interface GateRecord {
+  id: string;
+  stage: "scan" | "review" | "memory" | "handoff";
+  verdict: "silent" | "spoken" | "suppressed" | "error" | "dropped";
+  kind: string | null;
+  title: string | null;
+  reason: string | null;
+  insight_id: string | null;
+  created_at: string;
+}
+
+/** What the engine currently believes the project has established. */
+export interface ProjectMemory {
+  purpose: string;
+  facts: Array<{ fact: string; by: string; sources: string[] }>;
+  decisions: Array<{ decision: string; sources: string[] }>;
+  open_questions: string[];
+}
+
+export interface UsageStatus {
+  /** Share of the account's analysis allowance used, across every project. */
+  percent_used: number;
+  limit_reached: boolean;
+}
+
+export type FeedbackVerdict = "helpful" | "wrong" | "late";
+
+export interface FeedbackRow {
+  id: string;
+  insight_id: string;
+  member: string;
+  verdict: FeedbackVerdict | string;
+  source_event_id: string | null;
+  withdrawn: number;
+  created_at: string;
 }
 
 /** @deprecated Use {@link WisdomKind}. */
@@ -165,8 +208,80 @@ class GroupWisdom {
    * Update a project's webhook URL. Returns the project with webhook_secret
    * included — store this secret to verify incoming webhook signatures.
    */
-  updateProject(projectId: string, updates: { webhook_url?: string | null }): Promise<Project> {
+  updateProject(projectId: string, updates: { webhook_url?: string | null; engine?: "claude" | "muse-spark" }): Promise<Project> {
     return this.request("PATCH", `/projects/${projectId}`, updates);
+  }
+
+  /** Delete a project with everything in it. Requires personal API key. Cannot be undone. */
+  deleteProject(projectId: string): Promise<{ deleted: boolean; id: string }> {
+    return this.request("DELETE", `/projects/${projectId}`);
+  }
+
+  /**
+   * Trigger a full re-analysis of the project now. Returns once the request
+   * is accepted; the analysis runs in the background and reaches your webhook
+   * or listWisdom. Limited to one per project every few minutes (429 with
+   * Retry-After inside the window).
+   */
+  analyze(projectId: string): Promise<{ message: string }> {
+    return this.request("POST", `/projects/${projectId}/analyze`);
+  }
+
+  /**
+   * Send a signed sample event to the project's webhook URL right now, and
+   * report the status your endpoint returned.
+   */
+  testWebhook(projectId: string): Promise<{ sent: boolean; status?: number; error?: string }> {
+    return this.request("POST", `/projects/${projectId}/test-webhook`);
+  }
+
+  // ── The engine's own account of itself ──────────────────────────────────────
+
+  /**
+   * Why the engine spoke, or why it stayed quiet: every decision, newest
+   * first. The first thing to read when a project seems too quiet.
+   */
+  async getGateRecords(projectId: string, options?: { limit?: number }): Promise<GateRecord[]> {
+    const r = await this.request<{ records: GateRecord[] }>("GET", `/projects/${projectId}/gate-records${buildQS(options)}`);
+    return r.records;
+  }
+
+  /** What the engine currently believes the project has established. Null before anything has accumulated. */
+  async getMemory(projectId: string): Promise<{ memory: ProjectMemory | null; updated_at: string | null }> {
+    return this.request("GET", `/projects/${projectId}/memory`);
+  }
+
+  /** How much of the account's analysis allowance is used. Requires personal API key. */
+  getUsage(): Promise<UsageStatus> {
+    return this.request("GET", "/usage");
+  }
+
+  // ── Feedback ────────────────────────────────────────────────────────────────
+
+  /**
+   * Record what a reader made of a finding. Pass source_event_id when your
+   * source has one (a reaction id, say) so the verdict can be withdrawn later.
+   */
+  giveFeedback(wisdomId: string, verdict: FeedbackVerdict, options?: { member?: string; source_event_id?: string }): Promise<{ recorded: boolean; verdict: FeedbackVerdict }> {
+    return this.request("POST", `/wisdom/${wisdomId}/feedback`, { verdict, ...options });
+  }
+
+  /** Withdraw a verdict by the source_event_id it was recorded with. */
+  withdrawFeedback(sourceEventId: string): Promise<{ withdrawn: boolean }> {
+    return this.request("DELETE", `/wisdom/feedback/${encodeURIComponent(sourceEventId)}`);
+  }
+
+  /** A project's verdicts and their totals. */
+  listFeedback(projectId: string, options?: { limit?: number }): Promise<{ summary: Record<string, number>; feedback: FeedbackRow[] }> {
+    return this.request("GET", `/projects/${projectId}/feedback${buildQS(options)}`);
+  }
+
+  /**
+   * Merge everything filed under one contributor name into another, for work
+   * that arrived before you knew someone's real name.
+   */
+  renameContributor(projectId: string, from: string, to: string): Promise<{ renamed: boolean } & Record<string, unknown>> {
+    return this.request("POST", `/projects/${projectId}/rename-contributor`, { from, to });
   }
 
   // ── Ingest ──────────────────────────────────────────────────────────────────

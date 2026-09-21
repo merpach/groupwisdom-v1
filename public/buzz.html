@@ -236,21 +236,25 @@
            this server can actually complete that sign-in. -->
       <div id="socialWrap" style="display:none">
         <div id="socialBtns"></div>
-        <div class="or">or</div>
+        <p class="hint" style="margin:8px 0 0">By continuing you agree to the <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</p>
       </div>
 
-      <div class="auth-tabs">
-        <button id="tabSignup" class="on">Create account</button>
-        <button id="tabLogin">I already have one</button>
-      </div>
-      <div class="auth-form">
-        <input id="aName" placeholder="Your name" autocomplete="name">
-        <input id="aEmail" type="email" placeholder="you@example.com" autocomplete="email">
-        <input id="aPass" type="password" placeholder="Password" autocomplete="current-password">
-        <p class="hint" id="legalNote" style="margin:0">By creating an account you agree to the <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</p>
-        <div>
-          <button class="primary" id="authGo">Create account</button>
-          <button id="forgotBtn" style="display:none;border-color:transparent;color:var(--ink-3)">Forgot password?</button>
+      <!-- Email and password remain for a server with no sign-in provider
+           configured. On the hosted service Google is the only door. -->
+      <div id="emailAuth" style="display:none">
+        <div class="auth-tabs">
+          <button id="tabSignup" class="on">Create account</button>
+          <button id="tabLogin">I already have one</button>
+        </div>
+        <div class="auth-form">
+          <input id="aName" placeholder="Your name" autocomplete="name">
+          <input id="aEmail" type="email" placeholder="you@example.com" autocomplete="email">
+          <input id="aPass" type="password" placeholder="Password" autocomplete="current-password">
+          <p class="hint" id="legalNote" style="margin:0">By creating an account you agree to the <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</p>
+          <div>
+            <button class="primary" id="authGo">Create account</button>
+            <button id="forgotBtn" style="display:none;border-color:transparent;color:var(--ink-3)">Forgot password?</button>
+          </div>
         </div>
       </div>
       <div class="msg" id="authMsg"></div>
@@ -413,7 +417,7 @@ const LABEL = { google: "Google", github: "GitHub", azure: "Microsoft", apple: "
 
 async function renderProviders() {
   const p = await j("/api/auth/providers");
-  if (!p.ok || !p.body) return;
+  if (!p.ok || !p.body) { $("emailAuth").style.display = ""; return; }
 
   const buttons = [];
   for (const prov of (p.body.social || [])) {
@@ -423,12 +427,16 @@ async function renderProviders() {
   // those accounts also get password reset.
   if (p.body.google_direct) buttons.push({ href: "/auth/google?next=/buzz", name: "Google", mark: GOOGLE_MARK });
 
+  // A sign-in provider is the only door when one exists. The email form is
+  // for a server that has none.
   if (buttons.length) {
     $("socialBtns").innerHTML = buttons.map(b =>
       `<button class="google-btn" data-href="${esc(b.href)}">${b.mark}<span>Continue with ${esc(b.name)}</span></button>`
     ).join("");
     $("socialBtns").querySelectorAll("button").forEach(b => b.onclick = () => { location.href = b.dataset.href; });
     $("socialWrap").style.display = "";
+  } else {
+    $("emailAuth").style.display = "";
   }
 
   if (p.body.password_reset) {

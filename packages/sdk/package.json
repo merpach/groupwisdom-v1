@@ -1,6 +1,6 @@
 {
   "name": "@groupwisdom/sdk",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Official JavaScript/TypeScript SDK for the GroupWisdom API",
   "type": "module",
   "main": "./dist/index.cjs",

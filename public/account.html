@@ -169,18 +169,22 @@
 
     <div class="step" style="max-width:460px">
       <div class="social" id="socialBtns"></div>
-      <div class="or" id="orLine" style="display:none">or</div>
-      <div class="authtabs">
-        <button id="tabSignup" class="on" type="button">Create account</button>
-        <button id="tabLogin" type="button">Sign in</button>
+      <!-- Email and password remain for a server with no sign-in provider
+           configured (self-hosted, local). On the hosted service Google is the
+           only door, so a new account never waits on a confirmation email. -->
+      <div id="emailAuth" style="display:none">
+        <div class="authtabs">
+          <button id="tabSignup" class="on" type="button">Create account</button>
+          <button id="tabLogin" type="button">Sign in</button>
+        </div>
+        <div class="field" id="aName"><label for="nameIn">Your name</label><input id="nameIn" autocomplete="name"></div>
+        <div class="field"><label for="emailIn">Email</label><input id="emailIn" type="email" autocomplete="email"></div>
+        <div class="field"><label for="passIn">Password</label><input id="passIn" type="password" autocomplete="new-password"></div>
+        <button class="primary" id="authGo" type="button">Create account</button>
       </div>
-      <div class="field" id="aName"><label for="nameIn">Your name</label><input id="nameIn" autocomplete="name"></div>
-      <div class="field"><label for="emailIn">Email</label><input id="emailIn" type="email" autocomplete="email"></div>
-      <div class="field"><label for="passIn">Password</label><input id="passIn" type="password" autocomplete="new-password"></div>
-      <button class="primary" id="authGo" type="button">Create account</button>
       <div class="msg" id="authMsg"></div>
       <p class="sub" id="legalNote" style="margin-top:12px">
-        By creating an account you agree to the <a href="/terms">terms</a> and <a href="/privacy">privacy policy</a>.
+        By continuing you agree to the <a href="/terms">terms</a> and <a href="/privacy">privacy policy</a>.
       </p>
     </div>
   </div>
@@ -430,7 +434,6 @@ function setAuthMode(mode) {
   $("aName").style.display = signup ? "" : "none";
   $("passIn").autocomplete = signup ? "new-password" : "current-password";
   $("authGo").textContent = signup ? "Create account" : "Sign in";
-  $("legalNote").style.display = signup ? "" : "none";
   $("authMsg").className = "msg";
 }
 $("tabSignup").onclick = () => setAuthMode("signup");
@@ -445,16 +448,16 @@ const LABEL = { google: "Google", github: "GitHub", azure: "Microsoft", apple: "
 
 async function renderProviders() {
   const p = await j("/api/auth/providers");
-  if (!p.ok || !p.body) return;
   const buttons = [];
-  for (const prov of (p.body.social || [])) {
+  for (const prov of (p.ok && p.body ? (p.body.social || []) : [])) {
     buttons.push({ href: "/auth/supabase/" + encodeURIComponent(prov) + "?next=/account",
                    name: LABEL[prov] || prov, mark: prov === "google" ? GOOGLE_MARK : "" });
   }
-  if (p.body.google_direct) buttons.push({ href: "/auth/google?next=/account", name: "Google", mark: GOOGLE_MARK });
-  if (!buttons.length) return;
+  if (p.ok && p.body?.google_direct) buttons.push({ href: "/auth/google?next=/account", name: "Google", mark: GOOGLE_MARK });
+  // A sign-in provider is the only door when one exists. The email form is
+  // for a server that has none.
+  if (!buttons.length) { $("emailAuth").style.display = ""; return; }
   $("socialBtns").innerHTML = buttons.map(b => '<a href="' + b.href + '">' + b.mark + 'Continue with ' + esc(b.name) + '</a>').join("");
-  $("orLine").style.display = "";
 }
 
 $("authGo").onclick = async () => {

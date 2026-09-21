@@ -39,6 +39,7 @@
   .method.post { background: #e8f5ee; color: #1d7a46; }
   .method.get { background: #e8f0ff; color: #2255cc; }
   .method.patch { background: #fff5e0; color: #996600; }
+  .method.delete { background: #fdecea; color: #b03a2e; }
   .path { font-size: 13px; color: #111; }
 
   /* Code */
@@ -225,6 +226,8 @@
   <a class="nav-link" href="/account">Your API key</a>
   <a class="nav-link" href="/privacy">Privacy</a>
   <a class="nav-link" href="/terms">Terms</a>
+  <div class="nav-section">Start</div>
+  <a class="nav-link" href="#five-minute-start">Five-minute start</a>
   <div class="nav-section">Buzz</div>
   <a class="nav-link" href="/buzz">Connect a community</a>
   <div class="nav-section">Demo</div>
@@ -242,9 +245,11 @@
   <a class="nav-link" href="#list-projects">List projects</a>
   <a class="nav-link" href="#get-project">Get project</a>
   <a class="nav-link" href="#update-project">Update project</a>
+  <a class="nav-link" href="#delete-project">Delete project</a>
   <div class="nav-section">Data</div>
   <a class="nav-link" href="#ingest">Ingest items</a>
   <a class="nav-link" href="#list-items">List items</a>
+  <a class="nav-link" href="#rename-contributor">Rename a contributor</a>
   <div class="nav-section">Wisdom</div>
   <a class="nav-link" href="#how-it-works">How the engine works</a>
   <a class="nav-link" href="#limits">Rate limits and allowance</a>
@@ -254,6 +259,7 @@
   <a class="nav-link" href="#list-wisdom">List wisdom</a>
   <a class="nav-link" href="#trigger-analysis">Trigger analysis</a>
   <a class="nav-link" href="#wisdom-kinds">Wisdom kinds</a>
+  <a class="nav-link" href="#feedback">Feedback</a>
   <div class="nav-section">API Keys</div>
   <a class="nav-link" href="#project-keys">Project keys</a>
   <a class="nav-link" href="#create-key">Create key</a>
@@ -262,6 +268,7 @@
   <a class="nav-link" href="#webhook-setup">Setup</a>
   <a class="nav-link" href="#webhook-payload">Signature</a>
   <a class="nav-link" href="#webhook-payload-shape">Payload shape</a>
+  <a class="nav-link" href="#test-webhook">Test delivery</a>
   <div class="nav-section">Examples</div>
   <a class="nav-link" href="#example-js">JavaScript</a>
   <a class="nav-link" href="#example-python">Python</a>
@@ -275,6 +282,46 @@
   <div class="intro-card">
     <p>POST items to a project → GroupWisdom decides whether there is anything worth saying, and usually there is not → when there is, wisdom is POSTed to your <code>webhook_url</code> and available via GET anytime.</p>
   </div>
+
+  <!-- FIVE-MINUTE START -->
+  <h2 id="five-minute-start">Five-minute start</h2>
+  <p>Four calls from a terminal, ending with the engine's own verdict. Sign in with Google on <a href="/account">the account page</a> and your personal key is on the first screen. Put it in <code>GW_KEY</code> and the commands below run as written.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>export GW_KEY=gw_your_personal_key
+
+# 1. Create a project
+curl -X POST https://testgroupwisdom.com/v1/projects \
+  -H "Authorization: Bearer $GW_KEY" -H "Content-Type: application/json" \
+  -d '{"name": "First project"}'
+# → {"id": "PROJECT_ID", ...}   copy the id into the calls below
+
+# 2. Send it two pieces of finished work, each attributed to whoever did it
+curl -X POST https://testgroupwisdom.com/v1/projects/PROJECT_ID/ingest \
+  -H "Authorization: Bearer $GW_KEY" -H "Content-Type: application/json" \
+  -d '{"items": [
+    {"content": "Shipped the onboarding rewrite: nine screens down to four. Completion went from 41% to 68% in the two weeks since.", "contributed_by": "Ada"},
+    {"content": "Went through the 22 support tickets from last quarter. Fourteen were people stuck partway through setup.", "contributed_by": "Bo"}
+  ]}'
+# → 202. The engine runs on its own a few seconds later.
+
+# 3. Ask what it decided, and why (give it about 20 seconds first)
+curl "https://testgroupwisdom.com/v1/projects/PROJECT_ID/gate-records?limit=3" \
+  -H "Authorization: Bearer $GW_KEY"
+
+# 4. Read whatever it found
+curl "https://testgroupwisdom.com/v1/projects/PROJECT_ID/wisdom?format=full" \
+  -H "Authorization: Bearer $GW_KEY"</pre>
+  <p>Step 3 is the one to read first. Most batches end in silence with a recorded reason, and that is the design: a question, a status update, or one person restating their own work produces nothing. The two items above were chosen because a fix and the tickets it addressed are two pieces of finished work that bear on each other; the engine may still call the join obvious and say so in the record.</p>
+  <p>The same four steps in JavaScript, with the SDK:</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>import GroupWisdom from '@groupwisdom/sdk'
+const gw = new GroupWisdom({ apiKey: process.env.GW_KEY })
+const project = await gw.createProject('First project')
+await gw.ingest(project.id, [
+  { content: 'Shipped the onboarding rewrite: nine screens down to four. Completion went from 41% to 68% in the two weeks since.', contributed_by: 'Ada' },
+  { content: 'Went through the 22 support tickets from last quarter. Fourteen were people stuck partway through setup.', contributed_by: 'Bo' },
+])
+await new Promise(r => setTimeout(r, 20_000))
+const { data } = await gw.listWisdom(project.id, undefined, { format: 'full' })
+console.log(data)   // [] with a reason in the gate records, or the finding</pre>
 
   <!-- DEMO -->
   <h2 id="demo">Live demo</h2>
@@ -361,9 +408,12 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
     <tr><td>gw.listItems(projectId)</td><td>List all items in a project.</td></tr>
     <tr><td>gw.listWisdom(projectId, kind?, { format? })</td><td>Get the project's wisdom. Default returns <code>{ id, title, body }</code>. Pass <code>format: "full"</code> to include <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, <code>missing_voice</code>, and <code>stated_in</code>.</td></tr>
     <tr><td>gw.listInsights(...)</td><td>The former name for <code>listWisdom</code>. Still present and returns identical data, so existing code needs no change.</td></tr>
-    <tr><td>gw.analyze(projectId)</td><td>Trigger a full re-analysis of the project immediately, bypassing the automatic debounce. Returns when the request is accepted — analysis runs in the background.</td></tr>
+    <tr><td>gw.deleteItem(projectId, itemId)</td><td>Remove one item.</td></tr>
+    <tr><td>gw.createKey(projectId, name)</td><td>Issue a project key. The full key is returned once. Personal key required.</td></tr>
+    <tr><td>gw.listKeys(projectId)</td><td>List a project's keys, redacted. Personal key required.</td></tr>
+    <tr><td>gw.revokeKey(projectId, keyId)</td><td>Revoke a project key at once. Personal key required.</td></tr>
   </table>
-  <p>Full TypeScript types are included — your editor will autocomplete every field.</p>
+  <p>Full TypeScript types are included — your editor will autocomplete every field. Gate records, memory, usage, full analysis, project deletion and feedback are plain HTTP calls for now (each is two lines of <code>fetch</code>, shown in the reference below); the next SDK release wraps them.</p>
 
   <!-- Authentication -->
   <h2 id="authentication">Authentication</h2>
@@ -385,10 +435,14 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <p>All errors return JSON with an <code>error</code> field and a standard HTTP status code.</p>
   <table>
     <tr><th>Status</th><th>Meaning</th></tr>
-    <tr><td>401</td><td>Missing or invalid API key</td></tr>
-    <tr><td>400</td><td>Bad request — missing required field</td></tr>
-    <tr><td>404</td><td>Project not found or not yours</td></tr>
-    <tr><td>202</td><td>Accepted — ingest queued, not yet processed</td></tr>
+    <tr><td>202</td><td>Accepted — ingest queued or analysis started, not yet processed</td></tr>
+    <tr><td>400</td><td>Bad request — a missing required field, or a webhook URL this server will not deliver to</td></tr>
+    <tr><td>401</td><td>Missing, invalid or revoked API key</td></tr>
+    <tr><td>403</td><td>A project key used outside its project, or for something only a personal key may do (listing projects, managing keys, reading usage)</td></tr>
+    <tr><td>404</td><td>Project, item or finding not found, or not yours — the same answer either way</td></tr>
+    <tr><td>413</td><td>Request body over 2 MB</td></tr>
+    <tr><td>429</td><td>Rate limit, or a full analysis inside its cooldown. Carries <code>Retry-After</code> in seconds</td></tr>
+    <tr><td>502</td><td>Test delivery could not reach your webhook URL</td></tr>
   </table>
 
   <!-- Projects -->
@@ -438,6 +492,13 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   -d '{"engine": "muse-spark"}'</pre>
 
   <!-- Ingest -->
+  <h2 id="delete-project">Delete project</h2>
+  <div class="endpoint"><span class="method delete">DELETE</span><span class="path">/v1/projects/:id</span></div>
+  <p>Removes the project with its items, wisdom, memory and keys. Personal key only; it cannot be undone, and the analysis allowance it used is not returned.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X DELETE https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d \
+  -H "Authorization: Bearer gw_yourkey"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "deleted": true, "id": "5d96994a-9164-44bb-891c-caf57eb6760d" }</pre>
+
   <h2 id="ingest">Ingest items</h2>
   <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects/:id/ingest</span></div>
   <p>Send one item or an array of items. GroupWisdom queues analysis immediately — wisdom is delivered to your <code>webhook_url</code> within seconds and available via GET anytime.</p>
@@ -514,6 +575,14 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   -H "Authorization: Bearer gw_proj_yourkey"</pre>
 
   <!-- How the engine works -->
+  <h2 id="rename-contributor">Rename a contributor</h2>
+  <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects/:id/rename-contributor</span></div>
+  <p>Merges everything filed under one contributor name into another, so work sent before you knew someone's real name stops appearing as a second person. Findings attribute by name, which is why this matters.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/rename-contributor \
+  -H "Authorization: Bearer gw_proj_yourkey" -H "Content-Type: application/json" \
+  -d '{"from": "npub1q8x…", "to": "Sarah"}'</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "renamed": true, "members": 1, "memoryUpdated": true }</pre>
+
   <h2 id="how-it-works">How the engine works</h2>
   <p>Analysis runs automatically a few seconds after each <code>/ingest</code>. Most of the time it produces nothing, and that is the intended result.</p>
 
@@ -522,8 +591,8 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <p>The practical effect is that the great majority of ingested messages never reach the drafting stage, so they cost a fraction of a full analysis.</p>
 
   <h3>After it speaks, it pauses</h3>
-  <p>Once a finding is posted, the project stays quiet for <b>10 minutes</b> regardless of what arrives in the meantime. Two good findings a minute apart still read as one wall of text in a chat client, so the cooldown protects the thing restraint is for.</p>
-  <p>This is the most common reason a working integration looks broken: you send more items, nothing comes back, and the engine appears to have stopped. It has not. <a href="#gate-records">GET /gate-records</a> will show <code>Spoke within the last 10 minutes.</code> against the batch. Set <code>GW_WISDOM_COOLDOWN_MIN</code> if you are self-hosting and want a different window.</p>
+  <p>Once a finding is posted, the project stays quiet for a short cooldown regardless of what arrives in the meantime: <b>two minutes</b> on the hosted API at the moment, ten by default when you self-host. Two good findings a minute apart still read as one wall of text in a chat client, so the cooldown protects the thing restraint is for.</p>
+  <p>This is the most common reason a working integration looks broken: you send more items, nothing comes back, and the engine appears to have stopped. It has not. <a href="#gate-records">GET /gate-records</a> will show <code>Spoke within the last 2 minutes.</code> against the batch. Set <code>GW_WISDOM_COOLDOWN_MIN</code> if you are self-hosting and want a different window.</p>
 
   <h3>Cost does not grow with your project</h3>
   <p>The engine reasons from a compact working memory of what your group has established, not from your accumulated history. That memory is bounded and folded forward as new items arrive, so a scan on a project's five hundredth day costs about what it cost on the first. Adding history makes the findings better without making the analysis more expensive.</p>
@@ -546,6 +615,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
     <tr><td><code>/v1/*</code> — everything in this reference</td><td>240</td></tr>
     <tr><td>Sign-in and account routes</td><td>10</td></tr>
     <tr><td>Connecting a Buzz community</td><td>5</td></tr>
+    <tr><td><code>POST /v1/demo</code> — a project and key with no account</td><td>5 per hour</td></tr>
   </table>
   <p>Ingest accepts arrays, so a batch of items is one request. Sending them one at a time is the usual way to reach the limit for no benefit.</p>
 
@@ -605,7 +675,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/wisdom</span></div>
   <p>Returns the wisdom the engine has surfaced, newest first. Supports <code>?limit</code>, <code>?offset</code>, and <code>?kind</code> filters.</p>
   <p class="note"><code>GET /v1/projects/:id/insights</code> is the former name for this endpoint and still works, identically. Nothing you have running needs to change.</p>
-  <p>By default returns a minimal shape — <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include the review fields: <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, <code>missing_voice</code>, and <code>stated_in</code>.</p>
+  <p>By default returns a minimal shape — <code>id</code>, <code>title</code>, and <code>body</code>. Pass <code>?format=full</code> to include the review fields: <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, <code>missing_voice</code>, <code>stated_in</code>, and <code>channel</code> (the channel the finding was drawn for, when your items carry one; otherwise null).</p>
   <p><code>stated_in</code> is the words a finding rests on, copied from the message that carries them. It is there so a finding can be checked rather than taken on trust: if the quote is not found in what the group actually wrote, the engine lowers its own confidence in the finding and records that it did.</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button># Default (minimal)
 curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/wisdom" \
@@ -651,7 +721,7 @@ curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb676
   <h3>Review fields</h3>
   <table>
     <tr><th>Field</th><th>Values</th><th>Description</th></tr>
-    <tr><td>confidence</td><td><code>high</code> · <code>medium</code> · <code>low</code></td><td>How strongly the evidence supports this finding. High = 3+ independent data points; medium = 2; low = 1 or inferred.</td></tr>
+    <tr><td>confidence</td><td><code>high</code> · <code>medium</code> · <code>low</code></td><td>How far the finding can be checked against what was written. <code>high</code>: a contribution states it in so many words and <code>stated_in</code> quotes them; the quote is verified against the real messages. <code>medium</code>: it follows from two contributions but nobody said it outright, which is what most joins are. <code>low</code>: one contribution, a longer inference, or a quote that could not be found in the messages.</td></tr>
     <tr><td>do_next</td><td>string or null</td><td>Inherited work, never a task: one more completed result from another member that the reader now has for free. <b>Usually null, by design</b> — the body already hands over the work, and this only fills when a <i>second</i> member's finished result also applies. If what would go here is something the reader ought to go and do, the field stays null rather than turning into advice.</td></tr>
     <tr><td>caveat</td><td>string or null</td><td>A condition or limitation that could invalidate the finding if ignored.</td></tr>
     <tr><td>missing_voice</td><td>string or null</td><td>The <b>name</b> of a member whose existing work would strengthen this reader's — just the name, checked against your project's real members. A name we cannot match to the roster is dropped rather than returned, so this field never invents a person.</td></tr>
@@ -682,6 +752,15 @@ curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb676
   </table>
 
   <!-- Project API Keys -->
+  <h2 id="feedback">Feedback on a finding</h2>
+  <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/wisdom/:id/feedback</span></div>
+  <p>Record what a reader made of a finding: <code>helpful</code>, <code>wrong</code>, or <code>late</code>. This is the signal that says whether the engine is any good, as opposed to merely quiet, and the chat adapters send it from reactions. Pass <code>member</code> for who said so and, if your source has one, <code>source_event_id</code> so the verdict can be withdrawn later when the reaction is removed.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://testgroupwisdom.com/v1/wisdom/9f2c1e04-7b3a-4d51-9c88-1a6e2f0b47d3/feedback \
+  -H "Authorization: Bearer gw_proj_yourkey" -H "Content-Type: application/json" \
+  -d '{"verdict": "helpful", "member": "Sarah", "source_event_id": "reaction-8841"}'</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "recorded": true, "verdict": "helpful" }</pre>
+  <p>Withdraw a verdict by its <code>source_event_id</code> with <code>DELETE /v1/wisdom/feedback/:sourceEventId</code>, which answers <code>{ "withdrawn": true }</code>. Read a project's verdicts and totals with <code>GET /v1/projects/:id/feedback</code>, which returns <code>{ summary, feedback }</code>. A finding you do not own answers 404, the same as one that does not exist.</p>
+
   <h2 id="project-keys">Project API keys</h2>
   <p>Project keys (<code>gw_proj_...</code>) are scoped to a single project. Use them in production apps instead of your personal key — if a project key leaks, you revoke just that key without touching your account or other projects.</p>
   <p>Project keys can ingest data, read items, and read wisdom. They cannot create new projects or manage other keys — that requires your personal key.</p>
@@ -764,6 +843,14 @@ X-GroupWisdom-Signature: sha256=abc123...
 }</pre>
 
   <!-- Examples -->
+  <h2 id="test-webhook">Test delivery</h2>
+  <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects/:id/test-webhook</span></div>
+  <p>Sends a signed sample event to the project's <code>webhook_url</code> right now and reports the status your endpoint returned, so you can check the signature code before any real finding arrives. The sample carries <code>"event": "test"</code>.</p>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X POST https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d/test-webhook \
+  -H "Authorization: Bearer gw_proj_yourkey"</pre>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>{ "sent": true, "status": 200 }</pre>
+  <p>A project with no <code>webhook_url</code> answers 400. A URL that resolves to a private network answers 400 as well and nothing is sent; one that cannot be reached answers 502 with the error.</p>
+
   <h2 id="example-js">JavaScript / TypeScript example</h2>
   <p>Using the SDK (recommended):</p>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>import GroupWisdom from '@groupwisdom/sdk'
@@ -792,7 +879,7 @@ await fetch(`${BASE}/projects/5d96994a-9164-44bb-891c-caf57eb6760d/ingest`, {
 });</pre>
 
   <h2 id="example-python">Python example</h2>
-  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>import os, requests
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>import os, time, requests
 
 GW_KEY = os.environ["GROUPWISDOM_API_KEY"]
 BASE   = "https://testgroupwisdom.com/v1"
@@ -804,22 +891,30 @@ def ingest(project_id, items):
     r.raise_for_status()
     return r.json()
 
-def get_insights(project_id, kind=None):
-    params = {"kind": kind} if kind else {}
-    r = requests.get(f"{BASE}/projects/{project_id}/insights",
+def list_wisdom(project_id, kind=None):
+    params = {"format": "full", **({"kind": kind} if kind else {})}
+    r = requests.get(f"{BASE}/projects/{project_id}/wisdom",
                      params=params, headers=HEADERS)
     r.raise_for_status()
-    return r.json()
+    return r.json()["data"]          # paginated: data, total, limit, offset, has_more
+
+def why_quiet(project_id, limit=5):
+    r = requests.get(f"{BASE}/projects/{project_id}/gate-records",
+                     params={"limit": limit}, headers=HEADERS)
+    r.raise_for_status()
+    return r.json()["records"]
 
 # Usage
 ingest("5d96994a-9164-44bb-891c-caf57eb6760d", [
-    {"title": "User retention dropped 12% in APAC", "type": "note"},
-    {"title": "APAC pricing change rolled out last week", "type": "note"},
+    {"content": "User retention dropped 12% in APAC this quarter.", "contributed_by": "Sarah"},
+    {"content": "The APAC pricing change rolled out last week.", "contributed_by": "James"},
 ])
 
-insights = get_insights("5d96994a-9164-44bb-891c-caf57eb6760d", kind="pattern")
-for ins in insights:
-    print(f"[{ins['kind']}] {ins['title']}: {ins['body']}")
+time.sleep(20)                       # the engine runs a few seconds after ingest
+for w in list_wisdom("5d96994a-9164-44bb-891c-caf57eb6760d"):
+    print(f"[{w['kind']}/{w['confidence']}] {w['title']}: {w['body']}")
+for rec in why_quiet("5d96994a-9164-44bb-891c-caf57eb6760d"):
+    print(rec["stage"], rec["verdict"], rec.get("reason"))
 </pre>
 
 </main>
