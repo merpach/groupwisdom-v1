@@ -484,7 +484,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <table>
     <tr><th>Field</th><th>Type</th><th>Description</th></tr>
     <tr><td>webhook_url</td><td>string | null</td><td>Set to <code>null</code> to remove the webhook</td></tr>
-    <tr><td>engine</td><td>string</td><td><code>claude</code> (default) or <code>muse-spark</code> — sets which model runs analysis for this project</td></tr>
+    <tr><td>engine</td><td>string</td><td><code>claude</code> (default) or <code>muse-spark</code> — which model runs analysis for this project, when the server has that model configured. The hosted API runs Claude; a value it cannot honour is stored and Claude runs regardless.</td></tr>
   </table>
   <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl -X PATCH https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb6760d \
   -H "Authorization: Bearer gw_yourkey" \
@@ -641,7 +641,8 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
     "decisions": [
       { "decision": "Ship behind a flag", "sources": ["e5f6a7b8"] }
     ],
-    "open_questions": ["Who owns the migration for saved cards?"]
+    "open_questions": ["Who owns the migration for saved cards?"],
+    "active_wisdom": [ { "id": "9f2c1e04-…", "kind": "opportunity", "title": "Saved-card migration is the last blocker" } ]
   },
   "updated_at": "2026-08-17 21:40:11"
 }</pre>
@@ -712,7 +713,9 @@ curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb676
       "confidence": "high",
       "do_next": "Priya's checkout usability study already located the drop-off at the card-entry step.",
       "caveat": "All data is from support tickets — may overrepresent frustrated users.",
-      "missing_voice": "Priya"
+      "missing_voice": "Priya",
+      "stated_in": "Four of six items point to the same checkout drop-off",
+      "channel": null
     }
   ],
   ...
@@ -791,7 +794,7 @@ curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb676
 
   <!-- Webhooks -->
   <h2 id="webhook-setup">Webhook setup</h2>
-  <p>Set a <code>webhook_url</code> on any project (at creation or via PATCH). GroupWisdom will POST to that URL each time new wisdom is generated — typically within 3–5 seconds of an ingest call.</p>
+  <p>Set a <code>webhook_url</code> on any project (at creation or via PATCH). GroupWisdom will POST to that URL each time new wisdom is generated — typically 10 to 40 seconds after the ingest call (a three-second batch window, then the engine's run).</p>
   <p>Your endpoint must return a 2xx status. Failed deliveries are retried twice — after 5 seconds, then 30 seconds. If all three attempts fail, the delivery is dropped — poll <code>/v1/projects/:id/wisdom</code> as a long-term fallback.</p>
   <p>Use <a href="https://webhook.site" target="_blank">webhook.site</a> to inspect payloads during development.</p>
 
@@ -837,7 +840,9 @@ X-GroupWisdom-Signature: sha256=abc123...
       "confidence": "high",
       "do_next": "Priya's checkout usability study already located the drop-off at the card-entry step.",
       "caveat": null,
-      "missing_voice": "Priya"
+      "missing_voice": "Priya",
+      "stated_in": "Four of six items point to the same checkout drop-off",
+      "channel": null
     }
   ]
 }</pre>
