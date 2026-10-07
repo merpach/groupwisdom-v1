@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Add GroupWisdom to Slack · GroupWisdom</title>
+<meta name="description" content="Add GroupWisdom to Slack. It reads only the channels you invite it to, and speaks when two pieces of your team's finished work add up to something neither said alone.">
+<meta property="og:site_name" content="GroupWisdom">
+<meta property="og:title" content="Add GroupWisdom to Slack">
+<meta property="og:description" content="It reads only the channels you invite it to, and speaks when two pieces of finished work add up to something neither said alone.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<style>
+  :root {
+    --ink:    #101113;
+    --ink-2:  #4a4e55;
+    --ink-3:  #8a9099;
+    --rule:   #e6e8ea;
+    --rule-2: #f1f3f4;
+    --paper:  #ffffff;
+    --panel:  #f6f7f8;
+    --accent: #1b4fff;
+    --wisdom: #1d7a46;
+    --warn:   #9c3128;
+
+    --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: "SF Mono", "Fira Mono", ui-monospace, monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--sans); font-size: 15px; line-height: 1.6; color: var(--ink);
+         background: var(--paper); -webkit-font-smoothing: antialiased; }
+  a { color: var(--ink); }
+
+  .shell { max-width: 720px; margin: 0 auto; padding: 0 24px 120px; }
+
+  .nav-wrap { border-bottom: 1px solid var(--rule); margin-bottom: 52px; }
+  .nav { max-width: 720px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center;
+         gap: 20px; height: 62px; }
+  .brand { font-size: 15px; font-weight: 700; letter-spacing: -.2px; text-decoration: none; margin-right: auto; }
+  .brand .for { color: var(--ink-3); font-weight: 400; }
+  .who { color: var(--ink-3); font-size: 13px; display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .who-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .who button { font: inherit; font-size: 13px; color: var(--ink-3); background: none; border: none;
+                cursor: pointer; padding: 0 0 0 10px; flex-shrink: 0; }
+  .who button:hover { color: var(--ink); }
+
+  .eyebrow { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em;
+             color: var(--ink-3); display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .eyebrow::after { content: ""; height: 1px; width: 30px; background: var(--accent); opacity: .55; }
+  h1 { font-family: var(--display); font-size: 40px; font-weight: 600; line-height: 1.08;
+       letter-spacing: -.02em; margin-bottom: 14px; text-wrap: balance; }
+  h2 { font-family: var(--display); font-size: 27px; font-weight: 600; line-height: 1.18;
+       letter-spacing: -.015em; margin: 56px 0 14px; padding-top: 48px; border-top: 1px solid var(--rule); }
+  h2.tight { padding-top: 0; border-top: none; margin-top: 46px; }
+  .lede { color: var(--ink-2); font-size: 17px; line-height: 1.62; max-width: 58ch; margin-bottom: 30px; }
+  p { color: var(--ink-2); line-height: 1.7; margin-bottom: 12px; }
+
+  .step { border: 1px solid var(--rule); border-radius: 11px; padding: 21px 23px; margin-bottom: 12px;
+          transition: border-color .15s, background .15s; }
+  .step.done { border-color: #cfe4d5; background: #fcfefc; }
+  .step.off { opacity: .45; }
+  .step-head { display: flex; align-items: baseline; gap: 11px; margin-bottom: 8px; }
+  .num { width: 21px; height: 21px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 11px;
+         font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+         transform: translateY(2px); }
+  .step.done .num { background: var(--wisdom); }
+  .step.off .num { background: var(--ink-3); }
+  .step-title { font-weight: 700; font-size: 15px; }
+  .step p { font-size: 14px; margin-bottom: 14px; }
+
+  .social { display: flex; flex-direction: column; gap: 8px; }
+  .social a { display: flex; align-items: center; justify-content: center; gap: 9px; text-decoration: none;
+              border: 1px solid var(--rule); border-radius: 8px; padding: 9px; font-size: 14px; font-weight: 600; }
+  .social a:hover { border-color: var(--ink-3); }
+  .social svg { width: 17px; height: 17px; }
+
+  /* What the installer agrees to. Slack's terms ask for this authorisation from
+     the organisation installing the app; it is recorded with the install. */
+  .consent { border: 1px solid var(--rule); border-radius: 9px; background: var(--panel); padding: 14px 16px; margin-bottom: 14px; }
+  .consent ul { list-style: none; display: grid; gap: 7px; margin-bottom: 12px; }
+  .consent li { font-size: 13.5px; color: var(--ink-2); padding-left: 16px; position: relative; line-height: 1.55; }
+  .consent li::before { content: "·"; position: absolute; left: 4px; color: var(--ink-3); font-weight: 700; }
+  .agree { display: flex; gap: 9px; align-items: flex-start; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+  .agree input { margin-top: 3px; width: 15px; height: 15px; accent-color: var(--ink); flex-shrink: 0; }
+
+  a.slack-btn { display: inline-flex; align-items: center; gap: 9px; font-size: 14.5px; font-weight: 600;
+                padding: 10px 18px; border-radius: 8px; background: var(--ink); color: #fff; text-decoration: none; }
+  a.slack-btn:hover { background: #000; }
+  a.slack-btn[aria-disabled="true"] { background: var(--ink-3); pointer-events: none; }
+  a.slack-btn svg { width: 17px; height: 17px; }
+
+  .invite { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .invite code { font-size: 15px; padding: 7px 11px; }
+  button.ghost { font: inherit; font-size: 13px; background: none; border: 1px solid var(--rule);
+                 border-radius: 7px; padding: 6px 12px; cursor: pointer; color: var(--ink-2); }
+  button.ghost:hover { border-color: var(--ink-3); color: var(--ink); }
+  button.danger:hover { border-color: var(--warn); color: var(--warn); }
+
+  .msg { font-size: 13.5px; margin-top: 12px; }
+  .msg:empty { display: none; }
+  .msg.err { color: var(--warn); }
+  .msg.ok  { color: var(--wisdom); }
+  .banner { border-radius: 9px; padding: 13px 16px; font-size: 14px; margin: -10px 0 26px; }
+  .banner:empty { display: none; }
+  .banner.ok { background: #f3faf5; border: 1px solid #cfe4d5; color: var(--wisdom); }
+  .banner.err { background: #fdf4f3; border: 1px solid #f0d6d2; color: var(--warn); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
+  th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3);
+       font-weight: 700; padding: 0 10px 7px 0; border-bottom: 1px solid var(--rule); }
+  td { padding: 11px 10px 11px 0; border-bottom: 1px solid var(--rule-2); color: var(--ink-2); vertical-align: top; }
+  td.name { color: var(--ink); font-weight: 600; }
+  .chan { font-size: 13px; color: var(--ink-2); display: block; }
+  .tag { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); margin-left: 6px; }
+  .tag.muted { color: var(--warn); }
+
+  .note { background: var(--panel); border-left: 2px solid var(--accent); padding: 14px 18px; border-radius: 0 8px 8px 0;
+          font-size: 14px; color: var(--ink-2); margin: 20px 0; }
+  .note b { color: var(--ink); }
+  dl.cmds { display: grid; grid-template-columns: max-content 1fr; gap: 9px 18px; font-size: 14px; margin: 8px 0 18px; }
+  dl.cmds dt code { white-space: nowrap; }
+  dl.cmds dd { color: var(--ink-2); }
+
+  code { font-family: var(--mono); font-size: 13px; background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 31px; }
+    .who-email { display: none; }
+    dl.cmds { grid-template-columns: 1fr; gap: 3px 0; }
+    dl.cmds dd { margin-bottom: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="nav-wrap">
+  <nav class="nav">
+    <a class="brand" href="/">GroupWisdom <span class="for">for Slack</span></a>
+    <span class="who" id="who"></span>
+  </nav>
+</div>
+
+<div class="shell">
+
+  <div class="eyebrow">Slack</div>
+  <h1>Add GroupWisdom to Slack</h1>
+  <p class="lede">
+    It reads only the channels you invite it to, each as its own project, and speaks when two pieces of
+    finished work in a channel add up to something neither said alone. Most of the time it says nothing.
+  </p>
+
+  <div class="banner" id="banner"></div>
+
+  <!-- 1 ─ sign in ─────────────────────────────────────────────────────── -->
+  <div class="step" id="s1">
+    <div class="step-head"><div class="num">1</div><div class="step-title" id="s1Title">Sign in</div></div>
+    <div id="signin">
+      <p>The workspace is connected to your GroupWisdom account, and its findings live there.</p>
+      <div class="social" id="socialBtns"></div>
+      <p class="msg" id="noProvider" style="display:none">Sign in on <a href="/account">your account page</a>, then come back here.</p>
+    </div>
+    <p id="signedIn" style="display:none;margin:0"></p>
+  </div>
+
+  <!-- 2 ─ consent and install ─────────────────────────────────────────── -->
+  <div class="step off" id="s2">
+    <div class="step-head"><div class="num">2</div><div class="step-title">Agree to what it keeps, then add it</div></div>
+    <div class="consent">
+      <ul>
+        <li>It reads messages only in public channels someone invites it to. Never private channels, direct messages, or channels shared with another company.</li>
+        <li>Messages are stored encrypted. The raw text is deleted after 30 days; what it has established about the channel is kept until you disconnect.</li>
+        <li>Messages are analysed by Anthropic's Claude, which does not train on them. Nothing from your workspace is used for anyone else.</li>
+        <li>Findings are written by an AI model and can be wrong. Each one quotes the message it rests on so it can be checked.</li>
+        <li>Disconnecting here, or removing the app in Slack, deletes everything it holds from the workspace.</li>
+      </ul>
+      <label class="agree"><input type="checkbox" id="agree"> I agree to this, and I'm allowed to add apps to this Slack workspace.</label>
+    </div>
+    <a class="slack-btn" id="addBtn" href="#" aria-disabled="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M6 15a2 2 0 1 1-2-2h2v2zm1 0a2 2 0 1 1 4 0v5a2 2 0 1 1-4 0v-5zM9 6a2 2 0 1 1 2-2v2H9zm0 1a2 2 0 1 1 0 4H4a2 2 0 1 1 0-4h5zm9 2a2 2 0 1 1 2 2h-2V9zm-1 0a2 2 0 1 1-4 0V4a2 2 0 1 1 4 0v5zm-2 9a2 2 0 1 1-2 2v-2h2zm0-1a2 2 0 1 1 0-4h5a2 2 0 1 1 0 4h-5z"/></svg>
+      Add to Slack
+    </a>
+    <p class="msg err" id="notConfigured" style="display:none">Slack isn't switched on for this server yet.</p>
+  </div>
+
+  <!-- 3 ─ invite ──────────────────────────────────────────────────────── -->
+  <div class="step off" id="s3">
+    <div class="step-head"><div class="num">3</div><div class="step-title">Invite it to a channel</div></div>
+    <p>It reads nothing until you do. In the channel, send:</p>
+    <div class="invite">
+      <code id="inviteCmd">/invite @GroupWisdom</code>
+      <button class="ghost" id="copyInvite" type="button">Copy</button>
+    </div>
+    <p style="margin:0">It says hello, explains what it keeps, and starts reading from that moment. Each channel you invite it to
+      becomes its own project with its own memory, so what it learns in one channel never shapes what it says in another.</p>
+  </div>
+
+  <!-- connected ───────────────────────────────────────────────────────── -->
+  <div id="connected" style="display:none">
+    <h2 class="tight">Your workspaces</h2>
+    <table>
+      <thead><tr><th>Workspace</th><th>Channels it reads</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="msg" id="rowsMsg"></p>
+  </div>
+
+  <h2>In the channel</h2>
+  <p>
+    A finding arrives as a reply to the message that completed it, and is also shown in the channel. Under each one are
+    three buttons, <b>Helpful</b>, <b>Wrong</b> and <b>Late</b>. One press tells us whether it was worth saying, which is the only
+    honest measure of whether this works.
+  </p>
+  <dl class="cmds">
+    <dt><code>/groupwisdom memory</code></dt><dd>What it has picked up in this channel, with the message each fact came from. Only you see the answer.</dd>
+    <dt><code>/groupwisdom mute</code></dt><dd>Quiet until someone unmutes it. <code>mute today</code> lifts at midnight UTC. It keeps reading.</dd>
+    <dt><code>/groupwisdom unmute</code></dt><dd>Back on.</dd>
+    <dt><code>/groupwisdom demo</code></dt><dd>A one-minute example on made-up messages, so the channel can see what it does. None of it is kept.</dd>
+  </dl>
+  <p>The same words work as a mention, <code>@GroupWisdom memory</code>, for anyone who prefers that.</p>
+
+  <h2>What it reads</h2>
+  <p>
+    Message text, the name of the person who wrote it, and the channel, from the public channels it has been invited to.
+    It does not read private channels, direct messages, files, or channels shared with people outside your workspace,
+    and it never asks Slack for a channel's history: it starts from the moment it is invited.
+  </p>
+  <p>
+    Findings are written by an AI model and can be wrong, incomplete or late. Each finding records the words it rests on,
+    and <code>/groupwisdom memory</code> shows what it believes, so a finding can always be checked rather than trusted.
+    Nothing read here trains any model. The full detail is in the <a href="/privacy">privacy policy</a>.
+  </p>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+async function j(url, opts) {
+  const r = await fetch(url, { credentials: "same-origin", ...opts });
+  const text = await r.text();
+  let body = null; try { body = text ? JSON.parse(text) : null; } catch {}
+  return { ok: r.ok, status: r.status, body };
+}
+
+// ── What Slack sent us back with ─────────────────────────────────────────
+const ERRORS = {
+  signin: "Sign in first, then add it to Slack.",
+  consent: "Tick the box to agree to what GroupWisdom keeps, then add it.",
+  cancelled: "The install was cancelled in Slack. Nothing was connected.",
+  expired: "That install link expired or was already used. Start again here.",
+  exchange: "Slack didn't finish the install. Try again in a minute.",
+  enterprise: "Organisation-wide installs on Enterprise Grid aren't supported yet. Install it into a single workspace.",
+  taken: "That workspace is already connected to another GroupWisdom account. They need to disconnect it first.",
+  not_configured: "Slack isn't switched on for this server yet.",
+};
+(() => {
+  const q = new URLSearchParams(location.search);
+  const b = $("banner");
+  if (q.has("installed")) {
+    b.className = "banner ok";
+    b.textContent = `Connected${q.get("installed") ? " to " + q.get("installed") : ""}. Now invite it to a channel with /invite @GroupWisdom.`;
+  } else if (q.has("error")) {
+    b.className = "banner err";
+    b.textContent = ERRORS[q.get("error")] || "That didn't work. Try again.";
+  }
+  if (q.has("installed") || q.has("error")) history.replaceState({}, "", location.pathname);
+})();
+
+// ── Sign in ──────────────────────────────────────────────────────────────
+const GOOGLE_MARK = '<svg viewBox="0 0 48 48" aria-hidden="true">' +
+  '<path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2 5-4.4 6.6v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.1z"/>' +
+  '<path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.1 15.4 46 24 46z"/>' +
+  '<path fill="#FBBC05" d="M11.8 28.2c-.4-1.3-.7-2.7-.7-4.2s.3-2.9.7-4.2v-5.7H4.5C3 17.1 2.2 20.4 2.2 24s.8 6.9 2.3 9.9l7.3-5.7z"/>' +
+  '<path fill="#EA4335" d="M24 10.8c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.2 29.9 2 24 2 15.4 2 8.1 6.9 4.5 14.1l7.3 5.7c1.7-5.2 6.5-9 12.2-9z"/></svg>';
+const LABEL = { google: "Google", github: "GitHub", azure: "Microsoft", apple: "Apple", gitlab: "GitLab" };
+
+async function renderProviders() {
+  const p = await j("/api/auth/providers");
+  const buttons = [];
+  for (const prov of (p.ok && p.body ? (p.body.social || []) : [])) {
+    buttons.push({ href: "/auth/supabase/" + encodeURIComponent(prov) + "?next=/slack",
+                   name: LABEL[prov] || prov, mark: prov === "google" ? GOOGLE_MARK : "" });
+  }
+  if (p.ok && p.body?.google_direct) buttons.push({ href: "/auth/google?next=/slack", name: "Google", mark: GOOGLE_MARK });
+  if (!buttons.length) { $("noProvider").style.display = ""; return; }
+  $("socialBtns").innerHTML = buttons.map(b => '<a href="' + b.href + '">' + b.mark + 'Continue with ' + esc(b.name) + '</a>').join("");
+}
+
+// ── Install ──────────────────────────────────────────────────────────────
+let signedIn = false, configured = false, consentVersion = "";
+
+function gate() {
+  const ready = signedIn && configured && $("agree").checked;
+  $("addBtn").setAttribute("aria-disabled", ready ? "false" : "true");
+  $("addBtn").href = ready ? "/slack/install?consent=" + encodeURIComponent(consentVersion) : "#";
+}
+$("agree").addEventListener("change", gate);
+
+$("copyInvite").onclick = async () => {
+  try { await navigator.clipboard.writeText("/invite @GroupWisdom"); $("copyInvite").textContent = "Copied"; }
+  catch { getSelection().selectAllChildren($("inviteCmd")); }
+  setTimeout(() => ($("copyInvite").textContent = "Copy"), 1600);
+};
+
+// ── Your workspaces ──────────────────────────────────────────────────────
+async function loadInstalls() {
+  const r = await j("/slack/installs");
+  const rows = r.ok ? (r.body?.data || []) : [];
+  $("connected").style.display = rows.length ? "" : "none";
+  $("s3").classList.toggle("off", !rows.length);
+  $("s3").classList.toggle("done", rows.some(w => w.channels.some(c => c.active)));
+  $("rows").innerHTML = rows.map(w => {
+    const chans = w.channels.length
+      ? w.channels.map(c => `<span class="chan">#${esc(c.channel_name || c.channel_id)}${c.active ? "" : '<span class="tag">removed</span>'}${c.muted ? '<span class="tag muted">muted</span>' : ""}</span>`).join("")
+      : '<span class="chan" style="color:var(--ink-3)">None yet. Invite it with /invite @GroupWisdom.</span>';
+    return `<tr><td class="name">${esc(w.team_name || w.team_id)}</td><td>${chans}</td>` +
+           `<td style="text-align:right"><button class="ghost danger" data-team="${esc(w.team_id)}" data-name="${esc(w.team_name)}">Disconnect</button></td></tr>`;
+  }).join("");
+  $("rows").querySelectorAll("button[data-team]").forEach(btn => btn.onclick = () => disconnect(btn.dataset.team, btn.dataset.name));
+}
+
+async function disconnect(teamId, name) {
+  if (!confirm(`Disconnect ${name || "this workspace"}?\n\nGroupWisdom is removed from the workspace, and every message, memory and finding it holds from there is deleted. This can't be undone.`)) return;
+  const r = await j("/slack/installs/" + encodeURIComponent(teamId), { method: "DELETE" });
+  const m = $("rowsMsg");
+  m.className = "msg " + (r.ok ? "ok" : "err");
+  m.textContent = r.ok ? `Disconnected. ${r.body.deleted_projects} channel project${r.body.deleted_projects === 1 ? "" : "s"} deleted.` : (r.body?.error || "That didn't work.");
+  await loadInstalls();
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────
+(async () => {
+  const [status, me] = await Promise.all([j("/slack/status"), j("/api/me")]);
+  configured = Boolean(status.ok && status.body?.configured);
+  consentVersion = status.body?.consent_version || "";
+  $("notConfigured").style.display = configured ? "none" : "";
+
+  signedIn = Boolean(me.ok && me.body?.email);
+  if (signedIn) {
+    $("who").innerHTML = '<span class="who-email">' + esc(me.body.email) + '</span><button id="signout">Sign out</button>';
+    $("signout").onclick = async () => { await j("/api/auth/logout", { method: "POST" }); location.reload(); };
+    $("s1").classList.add("done");
+    $("s1Title").textContent = "Signed in";
+    $("signin").style.display = "none";
+    $("signedIn").style.display = "";
+    $("signedIn").textContent = "As " + me.body.email + ". The workspace will be connected to this account.";
+    $("s2").classList.remove("off");
+    await loadInstalls();
+  } else {
+    await renderProviders();
+  }
+  gate();
+})();
+</script>
+</body>
+</html>

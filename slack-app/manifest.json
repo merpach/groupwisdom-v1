@@ -1,0 +1,48 @@
+{
+  "_metadata": { "major_version": 2, "minor_version": 1 },
+  "display_information": {
+    "name": "GroupWisdom",
+    "description": "Notices when two pieces of your team's finished work add up to something neither said alone.",
+    "background_color": "#101113",
+    "long_description": "GroupWisdom reads only the public channels you invite it to, each as its own project, and speaks when two separate pieces of finished work in a channel add up to something nobody has said. Most of the time it says nothing. Each finding quotes the message it rests on and carries Helpful, Wrong and Late buttons. Findings are written by an AI model (Anthropic's Claude, which does not train on your messages) and can be wrong. Messages are stored encrypted and the raw text is deleted after 30 days. Removing the app deletes everything it holds from your workspace."
+  },
+  "features": {
+    "bot_user": { "display_name": "GroupWisdom", "always_online": true },
+    "slash_commands": [
+      {
+        "command": "/groupwisdom",
+        "url": "https://testgroupwisdom.com/slack/commands",
+        "description": "See what GroupWisdom has picked up here, or mute it",
+        "usage_hint": "memory | mute | mute today | unmute | demo | help",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "redirect_urls": ["https://testgroupwisdom.com/slack/oauth/callback"],
+    "scopes": {
+      "bot": ["channels:history", "channels:read", "chat:write", "users:read", "commands"]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "request_url": "https://testgroupwisdom.com/slack/events",
+      "bot_events": [
+        "message.channels",
+        "member_joined_channel",
+        "member_left_channel",
+        "channel_left",
+        "channel_rename",
+        "app_uninstalled",
+        "tokens_revoked"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true,
+      "request_url": "https://testgroupwisdom.com/slack/interactions"
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

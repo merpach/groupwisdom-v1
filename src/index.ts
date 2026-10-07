@@ -9,6 +9,7 @@ import { api, setNotifier } from "./api.js";
 import { apiv1, setV1Notifier } from "./api-v1.js";
 import { buzzHook } from "./buzz-hook.js";
 import { teamsHook } from "./teams-hook.js";
+import { slackHook } from "./slack-hook.js";
 import { startBuzzSupervisor } from "./buzz-supervisor.js";
 import { runningRouter, CLUB_GROUP_ID } from "./running.js";
 import { handleMcpRequest } from "./mcp-http.js";
@@ -106,6 +107,13 @@ app.use(session({
   saveUninitialized: false,
   cookie: { httpOnly: true, sameSite: "lax", secure: inProd, maxAge: 30 * 24 * 60 * 60 * 1000 }, // 30 days
 }));
+// Slack signs each request over its raw bytes, so its routes go ahead of the
+// JSON parser and read the body themselves. Like the Teams endpoint, the
+// limiter counts rejections only: every customer's Slack traffic arrives from
+// Slack's addresses, and a caller whose signature verifies is never slowed.
+app.use(["/slack/events", "/slack/interactions", "/slack/commands"],
+  rateLimit({ name: "slack", windowMs: 60_000, max: 60, failuresOnly: true }));
+app.use("/slack", slackHook);
 app.use(express.json({ limit: "2mb" }));
 // A JSON API must answer in JSON, including when the request body is not JSON.
 // Express's default handler renders an HTML error page, which breaks every
@@ -273,6 +281,11 @@ app.get("/account", (_req, res) => {
 // channel, so it has to answer at /teams, not /teams.html.
 app.get("/teams", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "teams.html"));
+});
+
+// The Slack setup page. OAuth returns here with ?installed= or ?error=.
+app.get("/slack", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "slack.html"));
 });
 
 app.get("/privacy", (_req, res) => {

@@ -53,7 +53,7 @@
 
 <div class="nav-wrap">
   <div class="nav">
-    <a class="brand" href="/">GroupWisdom <span class="for">for Buzz</span></a>
+    <a class="brand" href="/">GroupWisdom</a>
     <a class="link" href="/terms">Terms</a>
     <a class="link" href="/docs">API</a>
   </div>
@@ -62,7 +62,7 @@
 <div class="shell">
   <div class="eyebrow">Legal</div>
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated 4 September 2026</p>
+  <p class="updated">Last updated 7 October 2026</p>
   <p class="lede">This describes what GroupWisdom collects, how long it is kept, who else processes it, and how to have it removed. It is written to match what the software actually does.</p>
 
   <div class="box">
@@ -79,8 +79,10 @@
   <ul>
     <li><strong>Through the API.</strong> Whatever you send to the ingest endpoint: text, titles, links, and the contributor name you attach to each item.</li>
     <li><strong>Through a connected Buzz community.</strong> The messages posted in the channels you select. This includes messages written by other members of that community and by any agents operating in it.</li>
+    <li><strong>Through a connected Slack workspace.</strong> The messages posted in public channels GroupWisdom has been invited to, from the moment it is invited, with the display name of each person who wrote them. We do not ask Slack for earlier history.</li>
+    <li><strong>Through a connected Microsoft Teams team.</strong> The messages posted in the standard channels of the one team you connect, with the name of each person who wrote them.</li>
   </ul>
-  <p>We do not read direct messages, and we do not read any channel you have not selected. Unticking a channel stops it being read immediately.</p>
+  <p>We do not read direct messages, private channels, or files. In Buzz we read only the channels you tick; in Slack only the public channels GroupWisdom has been invited to, never channels shared with another organisation; in Teams only the standard channels of the team you connect. Unticking a Buzz channel, or removing GroupWisdom from a Slack channel, stops it being read immediately.</p>
 
   <h3>What we derive from it</h3>
   <p>The engine keeps a compact summary of what a project knows, called its memory, along with the wisdom it has surfaced and a record of why it stayed silent. These are generated from your content and are treated the same way as it.</p>
@@ -114,6 +116,8 @@
     <tr><td>Supabase</td><td>Email address and authentication data</td><td>Sign-in, password reset</td></tr>
     <tr><td>Google</td><td>Name and verified email, only if you use Google sign-in</td><td>Optional sign-in</td></tr>
     <tr><td>Buzz relay operator</td><td>Nothing new from us; your messages already live there</td><td>The community you connect</td></tr>
+    <tr><td>Slack</td><td>The findings and replies we post into your channels; your messages already live there</td><td>The workspace you connect</td></tr>
+    <tr><td>Microsoft</td><td>The findings and replies we post into your channels; your messages already live there</td><td>The Teams team you connect</td></tr>
   </table>
   <p>An alternative analysis engine from another model provider can be enabled on a project by request. It is off by default. If you enable it, that project's content is processed by that provider under their terms instead, and we will tell you who they are before switching it on.</p>
   <p>These providers operate in the United States and elsewhere, so your information may be processed outside your country.</p>
@@ -148,6 +152,8 @@
     <tr><td>A project's memory and the wisdom surfaced</td><td>Until you delete the project</td></tr>
     <tr><td>Records of why the engine spoke or stayed silent</td><td>90 days</td></tr>
     <tr><td>Items you send through the API</td><td>Until you delete them or the project</td></tr>
+    <tr><td>Raw messages from a connected Slack workspace</td><td>30 days, then deleted automatically</td></tr>
+    <tr><td>Everything held from a Slack workspace</td><td>Until you disconnect it or remove the app in Slack, then deleted at once</td></tr>
     <tr><td>Account information</td><td>Until your account is deleted</td></tr>
     <tr><td>Server logs</td><td>As retained by our hosting provider</td></tr>
   </table>
@@ -161,13 +167,14 @@
     <li><strong>See what we hold.</strong> Your items, memory and wisdom are readable through the API at any time with your key.</li>
     <li><strong>Delete a project.</strong> Removes everything belonging to it.</li>
     <li><strong>Disconnect a community.</strong> Stops all reading immediately. Removing GroupWisdom in Buzz has the same effect.</li>
+    <li><strong>Disconnect a Slack workspace.</strong> On the Slack page, or by removing the app in Slack. Stops all reading and deletes every message, memory and finding held from that workspace at once. Removing GroupWisdom from one channel stops it reading that channel.</li>
     <li><strong>Delete your account.</strong> Write to groupwisdomsupport@gmail.com from your account address and we will delete your account and its data within 30 days.</li>
   </ul>
   <p>Depending on where you live, you may also have rights to access, correct, port, or restrict processing of your information, and to complain to a data protection authority. Write to us and we will help.</p>
 
   <h2>8. If you connect a community</h2>
   <div class="box">
-    <p>When you connect a Buzz community, messages written by <strong>other people</strong> are sent to us for analysis. Those people are not our customers and may not know this is happening.</p>
+    <p>When you connect a Buzz community, a Slack workspace or a Microsoft Teams team, messages written by <strong>other people</strong> are sent to us for analysis. Those people are not our customers and may not know this is happening. In Slack, GroupWisdom tells each channel what it keeps and for how long when it is invited.</p>
     <p>You are responsible for having the authority to do this and for telling the members of that community. Choose the channels deliberately, and do not connect channels carrying information those members would not expect to be processed by an outside service.</p>
   </div>
 

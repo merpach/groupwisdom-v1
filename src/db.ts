@@ -206,6 +206,57 @@ CREATE TABLE IF NOT EXISTS teams_posted (
   posted_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (channel_id, wisdom_id)
 );
+-- ── Slack ─────────────────────────────────────────────────────────────────
+-- One row per workspace the app is installed in, made by the OAuth callback.
+-- The bot token is the only credential and is encrypted at rest. The person
+-- who installed it owns every channel's project, and their consent to storage
+-- and analysis is recorded with the version of the words they agreed to.
+CREATE TABLE IF NOT EXISTS slack_installs (
+  team_id TEXT PRIMARY KEY,
+  team_name TEXT NOT NULL DEFAULT '',
+  bot_token TEXT NOT NULL,
+  bot_user_id TEXT NOT NULL DEFAULT '',
+  app_id TEXT NOT NULL DEFAULT '',
+  scope TEXT NOT NULL DEFAULT '',
+  installed_by TEXT NOT NULL,
+  consent_version TEXT NOT NULL DEFAULT '',
+  consent_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- One row per channel the bot has been invited to. Each channel is its own
+-- project: its own memory, its own quiet period, its own sense of what is new.
+CREATE TABLE IF NOT EXISTS slack_channels (
+  team_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  project_id TEXT NOT NULL REFERENCES groups(id),
+  channel_name TEXT NOT NULL DEFAULT '',
+  active INTEGER NOT NULL DEFAULT 1,          -- 0 once the bot is removed from the channel
+  muted_until INTEGER NOT NULL DEFAULT -1,    -- -1 open, 0 muted indefinitely, else ms when it lifts
+  joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (team_id, channel_id)
+);
+CREATE TABLE IF NOT EXISTS slack_posted (
+  team_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  wisdom_id TEXT NOT NULL,
+  message_ts TEXT DEFAULT NULL,
+  posted_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (team_id, channel_id, wisdom_id)
+);
+-- Slack retries an event it believes we missed, with the same event id.
+CREATE TABLE IF NOT EXISTS slack_seen_events (
+  event_id TEXT PRIMARY KEY,
+  seen_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- An install in progress: the state Slack hands back, bound to who started it.
+CREATE TABLE IF NOT EXISTS slack_oauth_states (
+  state TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  consent_version TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS usage_events (
   id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL,
@@ -374,6 +425,11 @@ export function deleteGroup(id: string) {
   }
   db.prepare("DELETE FROM teams_installs WHERE project_id = ?").run(id);
   db.prepare("DELETE FROM teams_pending_installs WHERE team_id NOT IN (SELECT team_id FROM teams_installs)").run();
+  // A Slack channel's project goes with its channel row and what was posted there.
+  for (const c of db.prepare("SELECT team_id, channel_id FROM slack_channels WHERE project_id = ?").all(id) as Array<{ team_id: string; channel_id: string }>) {
+    db.prepare("DELETE FROM slack_posted WHERE team_id = ? AND channel_id = ?").run(c.team_id, c.channel_id);
+  }
+  db.prepare("DELETE FROM slack_channels WHERE project_id = ?").run(id);
   db.prepare("DELETE FROM group_memory WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM gate_records WHERE group_id = ?").run(id);
   db.prepare("DELETE FROM wisdom_feedback WHERE group_id = ?").run(id);
@@ -1338,4 +1394,177 @@ export function claimTeamsPairing(rawCode: string, projectId: string): TeamsInst
     db.exec("COMMIT");
     return install;
   } catch (e) { db.exec("ROLLBACK"); throw e; }
+}
+
+
+// ── Slack ───────────────────────────────────────────────────────────────────
+// The install is made by the OAuth callback, so unlike Teams there is no
+// pairing step: the person who clicked "Add to Slack" on our site is already
+// signed in, and the install is theirs. Each channel the bot is invited to
+// becomes its own project, created on the invite.
+
+export type SlackInstall = {
+  team_id: string; team_name: string; bot_token: string; bot_user_id: string; app_id: string;
+  scope: string; installed_by: string; consent_version: string; consent_at: string;
+  created_at: string; updated_at: string;
+};
+
+export type SlackChannel = {
+  team_id: string; channel_id: string; project_id: string; channel_name: string;
+  active: number; muted_until: number; joined_at: string; updated_at: string;
+};
+
+/** The token comes back decrypted; it is never stored or logged in the clear. */
+const decryptInstall = (row: SlackInstall | undefined): SlackInstall | undefined =>
+  row ? { ...row, bot_token: decryptField(row.bot_token) } : undefined;
+
+export const getSlackInstall = (teamId: string): SlackInstall | undefined =>
+  decryptInstall(db.prepare("SELECT * FROM slack_installs WHERE team_id = ?").get(teamId) as SlackInstall | undefined);
+
+export const listSlackInstallsForUser = (userId: string): SlackInstall[] =>
+  (db.prepare("SELECT * FROM slack_installs WHERE installed_by = ? ORDER BY created_at").all(userId) as SlackInstall[])
+    .map(r => decryptInstall(r)!);
+
+/**
+ * Record an install, or refresh one. A reinstall by the same person keeps every
+ * channel and its history; the token and scope are simply replaced.
+ */
+export function upsertSlackInstall(a: {
+  teamId: string; teamName: string; botToken: string; botUserId: string; appId: string;
+  scope: string; installedBy: string; consentVersion: string;
+}): SlackInstall {
+  db.prepare(
+    `INSERT INTO slack_installs (team_id, team_name, bot_token, bot_user_id, app_id, scope, installed_by, consent_version)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(team_id) DO UPDATE SET
+       team_name = excluded.team_name, bot_token = excluded.bot_token, bot_user_id = excluded.bot_user_id,
+       app_id = excluded.app_id, scope = excluded.scope, consent_version = excluded.consent_version,
+       consent_at = datetime('now'), updated_at = datetime('now')`
+  ).run(a.teamId, a.teamName, encryptField(a.botToken), a.botUserId, a.appId, a.scope, a.installedBy, a.consentVersion);
+  return getSlackInstall(a.teamId)!;
+}
+
+export const getSlackChannel = (teamId: string, channelId: string): SlackChannel | undefined =>
+  db.prepare("SELECT * FROM slack_channels WHERE team_id = ? AND channel_id = ?").get(teamId, channelId) as SlackChannel | undefined;
+
+export const listSlackChannels = (teamId: string): SlackChannel[] =>
+  db.prepare("SELECT * FROM slack_channels WHERE team_id = ? ORDER BY joined_at").all(teamId) as SlackChannel[];
+
+/**
+ * The channel's project, made the first time the bot is invited. Inviting it
+ * again after removal reopens the same project rather than starting a second.
+ */
+export function upsertSlackChannel(a: {
+  teamId: string; channelId: string; channelName: string; ownerUserId: string; teamName: string;
+}): { channel: SlackChannel; created: boolean } {
+  const existing = getSlackChannel(a.teamId, a.channelId);
+  if (existing && getGroup(existing.project_id)) {
+    db.prepare(
+      `UPDATE slack_channels SET active = 1, channel_name = CASE WHEN ? = '' THEN channel_name ELSE ? END,
+       updated_at = datetime('now') WHERE team_id = ? AND channel_id = ?`
+    ).run(a.channelName, a.channelName, a.teamId, a.channelId);
+    return { channel: getSlackChannel(a.teamId, a.channelId)!, created: false };
+  }
+  const owner = getUserById(a.ownerUserId) as { id: string; name: string; email: string } | undefined;
+  const label = a.channelName ? `#${a.channelName}` : a.channelId;
+  const g = createGroup(`Slack: ${label} (${a.teamName || a.teamId})`);
+  if (owner) addMember(g.id, owner.name, "owner", owner.email, owner.id);
+  db.prepare(
+    `INSERT INTO slack_channels (team_id, channel_id, project_id, channel_name) VALUES (?, ?, ?, ?)
+     ON CONFLICT(team_id, channel_id) DO UPDATE SET project_id = excluded.project_id, active = 1,
+       channel_name = excluded.channel_name, updated_at = datetime('now')`
+  ).run(a.teamId, a.channelId, g.id, a.channelName);
+  return { channel: getSlackChannel(a.teamId, a.channelId)!, created: true };
+}
+
+export function setSlackChannelActive(teamId: string, channelId: string, active: boolean) {
+  db.prepare("UPDATE slack_channels SET active = ?, updated_at = datetime('now') WHERE team_id = ? AND channel_id = ?")
+    .run(active ? 1 : 0, teamId, channelId);
+}
+
+export function renameSlackChannel(teamId: string, channelId: string, name: string) {
+  db.prepare("UPDATE slack_channels SET channel_name = ?, updated_at = datetime('now') WHERE team_id = ? AND channel_id = ?")
+    .run(name, teamId, channelId);
+}
+
+export function setSlackMute(teamId: string, channelId: string, until: number) {
+  db.prepare("UPDATE slack_channels SET muted_until = ?, updated_at = datetime('now') WHERE team_id = ? AND channel_id = ?")
+    .run(until, teamId, channelId);
+}
+
+/** Claimed before posting, released if the post fails: the insert is the lock. */
+export function claimSlackPost(teamId: string, channelId: string, wisdomId: string): boolean {
+  try {
+    db.prepare("INSERT INTO slack_posted (team_id, channel_id, wisdom_id) VALUES (?, ?, ?)").run(teamId, channelId, wisdomId);
+    return true;
+  } catch { return false; }
+}
+
+export function releaseSlackPost(teamId: string, channelId: string, wisdomId: string) {
+  db.prepare("DELETE FROM slack_posted WHERE team_id = ? AND channel_id = ? AND wisdom_id = ?").run(teamId, channelId, wisdomId);
+}
+
+export function recordSlackPost(teamId: string, channelId: string, wisdomId: string, ts: string | null) {
+  db.prepare("UPDATE slack_posted SET message_ts = ? WHERE team_id = ? AND channel_id = ? AND wisdom_id = ?")
+    .run(ts, teamId, channelId, wisdomId);
+}
+
+/**
+ * Has this event been handled? Marks it in the same call, so a retry racing
+ * the original cannot both pass. Old marks are pruned on the way through.
+ */
+export function firstSightOfSlackEvent(eventId: string): boolean {
+  if (!eventId) return true;
+  db.prepare("DELETE FROM slack_seen_events WHERE seen_at < datetime('now', '-1 day')").run();
+  try {
+    db.prepare("INSERT INTO slack_seen_events (event_id) VALUES (?)").run(eventId);
+    return true;
+  } catch { return false; }
+}
+
+const SLACK_STATE_TTL_MINUTES = 10;
+
+export function createSlackOAuthState(userId: string, consentVersion: string): string {
+  db.prepare("DELETE FROM slack_oauth_states WHERE created_at < datetime('now', ?)").run(`-${SLACK_STATE_TTL_MINUTES} minutes`);
+  const state = randomBytes(24).toString("hex");
+  db.prepare("INSERT INTO slack_oauth_states (state, user_id, consent_version) VALUES (?, ?, ?)").run(state, userId, consentVersion);
+  return state;
+}
+
+/** Single use: the state is deleted whether or not it was still fresh. */
+export function consumeSlackOAuthState(state: string): { user_id: string; consent_version: string } | null {
+  if (!state) return null;
+  const row = db.prepare(
+    "SELECT user_id, consent_version, created_at > datetime('now', ?) AS fresh FROM slack_oauth_states WHERE state = ?"
+  ).get(`-${SLACK_STATE_TTL_MINUTES} minutes`, state) as { user_id: string; consent_version: string; fresh: number } | undefined;
+  db.prepare("DELETE FROM slack_oauth_states WHERE state = ?").run(state);
+  return row && row.fresh ? { user_id: row.user_id, consent_version: row.consent_version } : null;
+}
+
+/**
+ * Everything a workspace gave us, gone: every channel's project with its
+ * messages, memory and findings, then the install and its token. Slack's
+ * developer policy allows fourteen business days after an uninstall; there is
+ * no reason to keep any of it for one.
+ */
+export function deleteSlackWorkspace(teamId: string): number {
+  const channels = listSlackChannels(teamId);
+  for (const c of channels) {
+    if (getGroup(c.project_id)) deleteGroup(c.project_id);
+  }
+  db.prepare("DELETE FROM slack_posted WHERE team_id = ?").run(teamId);
+  db.prepare("DELETE FROM slack_channels WHERE team_id = ?").run(teamId);
+  db.prepare("DELETE FROM slack_installs WHERE team_id = ?").run(teamId);
+  return channels.length;
+}
+
+/**
+ * Raw Slack messages are needed only for the engine's short conversational
+ * tail; what matters has been folded into memory well before thirty days.
+ * Kept separate from the Buzz pruning so the two can be changed apart.
+ */
+export function pruneOldSlackItems(days: number): number {
+  if (!days || days <= 0) return 0;
+  return Number(db.prepare("DELETE FROM items WHERE source = 'slack' AND created_at < datetime('now', ?)")
+    .run(`-${Math.floor(days)} days`).changes);
 }

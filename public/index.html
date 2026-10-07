@@ -253,6 +253,7 @@
     <a class="brand" href="/">GroupWisdom</a>
     <a class="link" href="#wisdom">What it posts</a>
     <a class="link" href="#api">API</a>
+    <a class="link" href="#slack">Slack</a>
     <a class="link" href="#teams">Teams</a>
     <a class="link" href="#buzz">Buzz</a>
     <a class="link" href="/docs">Docs</a>
@@ -275,7 +276,7 @@
         <a class="btn" href="/account">Get an API key <span class="arr">→</span></a>
         <a class="btn ghost" href="/docs">Read the docs</a>
       </div>
-      <p class="cta-note">A REST API and SDK, plus ready-made agents for Microsoft Teams and Buzz.</p>
+      <p class="cta-note">A REST API and SDK, plus ready-made agents for Slack, Microsoft Teams and Buzz.</p>
     </div>
 
     <div class="mock" aria-label="A channel where three teammates post separately and GroupWisdom replies with the finding across all three.">
@@ -532,8 +533,89 @@ curl <span class="s">https://testgroupwisdom.com/v1/projects/:id/wisdom</span> \
   </div>
 </section>
 
+<!-- ── Slack ────────────────────────────────────────────────────────── -->
+<section id="slack">
+  <div class="shell pad-lg">
+    <div class="eyebrow">For Slack <span class="badge" style="margin-left:6px">Early access</span></div>
+    <h2 style="margin:16px 0 16px">In Slack you invite it to a channel. It reads that channel and nothing else.</h2>
+    <p class="prose">
+      Add it to your workspace from our site, then <code>/invite @GroupWisdom</code> wherever real work happens. Each
+      channel it joins becomes its own project, with its own memory, so what it learns in one channel never shapes what
+      it says in another. It never reads private channels, direct messages, or channels shared with another company,
+      and it starts from the moment it is invited rather than reading back through history.
+    </p>
+
+    <div class="buzz-split">
+      <div class="steps">
+        <div class="stp">
+          <div class="n"></div>
+          <div>
+            <h3>Add it to Slack</h3>
+            <p>Sign in on our site, agree to what it keeps, and press <em>Add to Slack</em>. The workspace is tied to your account; there is no code to type.</p>
+          </div>
+        </div>
+        <div class="stp">
+          <div class="n"></div>
+          <div>
+            <h3>Invite it to a channel</h3>
+            <p>It says hello, explains what it keeps and for how long, and starts reading. Nothing else in the workspace is read.</p>
+          </div>
+        </div>
+        <div class="stp">
+          <div class="n"></div>
+          <div>
+            <h3>Wisdom arrives as a reply</h3>
+            <p>Under the message that completed it, also shown in the channel, with <em>Helpful</em>, <em>Wrong</em> and <em>Late</em> buttons underneath.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="members" aria-label="A Slack channel's member list with GroupWisdom invited as one of the members.">
+        <div class="members-hdr"><span class="ch">#product</span><span class="ct">4</span></div>
+        <div class="member"><span class="av" style="background:#8b5cf6">SR</span><span class="nm">Sarah</span></div>
+        <div class="member"><span class="av" style="background:#0ea5e9">JM</span><span class="nm">James</span></div>
+        <div class="member"><span class="av" style="background:#f97316">PK</span><span class="nm">Priya</span></div>
+        <div class="member agent"><span class="av" style="background:var(--wisdom)">W</span><span class="nm">GroupWisdom</span><span class="tag">invited</span></div>
+        <div class="members-foot">Remove it from the channel and it stops reading there. Remove the app and everything it held from the workspace is deleted.</div>
+      </div>
+    </div>
+
+    <div class="cmds">
+      <div class="cmd">
+        <div class="lbl"><code>/groupwisdom memory</code></div>
+        <p>What it has picked up in this channel, with the message each fact came from. Only you see the answer.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl"><code>/groupwisdom mute</code></div>
+        <p>Quiet until unmuted, or <code>mute today</code> until midnight UTC. It keeps reading meanwhile.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl"><code>/groupwisdom demo</code></div>
+        <p>A one minute scripted example on invented messages. None of it is kept.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl">Helpful, Wrong, Late</div>
+        <p>One press under any finding records whether it was worth saying. That is how we find out whether it works for you.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl">One channel, one project</div>
+        <p>Separate memory, separate quiet period, separate sense of what is new. A busy channel never drowns out a quiet one.</p>
+      </div>
+      <div class="cmd">
+        <div class="lbl">Free while in early access</div>
+        <p>We're letting workspaces in a few at a time while we watch what it costs to run.</p>
+      </div>
+    </div>
+
+    <div class="cta-row">
+      <a class="btn" href="/slack">Add to Slack <span class="arr">→</span></a>
+    </div>
+    <p class="cta-note">Sign in, add it, invite it to a channel. About two minutes.</p>
+  </div>
+</section>
+
 <!-- ── Buzz ─────────────────────────────────────────────────────────── -->
-<section id="buzz">
+<section id="buzz" class="band">
   <div class="shell pad-lg">
     <div class="eyebrow">For Buzz</div>
     <h2 style="margin:16px 0 16px">In Buzz it isn't an integration. It's a member.</h2>
@@ -646,7 +728,7 @@ curl <span class="s">https://testgroupwisdom.com/v1/projects/:id/wisdom</span> \
     <div class="facts">
       <div class="fact">
         <h3>It reads only what you point it at</h3>
-        <p>In Buzz, every channel it can see is listed with a tick box. In Teams, one team, connected by its owner. In the API, the items you send and nothing else. What it says in one channel is drawn from what that channel can see.</p>
+        <p>In Slack, only the channels you invite it to. In Buzz, every channel it can see is listed with a tick box. In Teams, one team, connected by its owner. In the API, the items you send and nothing else. What it says in one channel is drawn from what that channel can see.</p>
       </div>
       <div class="fact">
         <h3>Your content stays yours</h3>
@@ -668,7 +750,7 @@ curl <span class="s">https://testgroupwisdom.com/v1/projects/:id/wisdom</span> \
 <section>
   <div class="shell closer">
     <h2>Point it at a group today.</h2>
-    <p class="lede">An API key, a Teams app, or a Buzz invite link. It stays quiet until the work adds up to something worth saying.</p>
+    <p class="lede">An API key, a Slack or Teams app, or a Buzz invite link. It stays quiet until the work adds up to something worth saying.</p>
     <div class="cta-row">
       <a class="btn" href="/account">Get an API key <span class="arr">→</span></a>
       <a class="btn ghost" href="/docs">Read the API reference</a>
@@ -682,6 +764,7 @@ curl <span class="s">https://testgroupwisdom.com/v1/projects/:id/wisdom</span> \
       <a href="#wisdom">What it posts</a>
       <a href="/docs">API reference</a>
       <a href="/account">Your API key</a>
+      <a href="#slack">Slack</a>
       <a href="#teams">Teams</a>
       <a href="#buzz">Buzz</a>
       <a href="/privacy">Privacy</a>
