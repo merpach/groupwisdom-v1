@@ -30,9 +30,13 @@ and `src/adapters/slack-client.ts` (the Web API calls). Tests: `npm run test:sla
    checklist and choose *Activate Public Distribution*. The app stays unlisted: only people
    who start the install from `testgroupwisdom.com/slack` can add it.
 
-5. **Try it.** Sign in at `/slack`, tick the consent box, add it to a workspace, then
+5. **Try it.** Sign in at `/slack`, tick the consent box, press *Add to Slack*, then
    `/invite @GroupWisdom` in a public channel. The bot posts a hello within a second or two.
    `/slack/status` reports `"configured": true` once all three variables are set.
+
+   Always start the install from `/slack`. The *Install to Workspace* button on Slack's app
+   settings page skips our page, so the install cannot be tied to an account and is refused
+   with a message saying to start from `/slack`.
 
 ## What stays true
 

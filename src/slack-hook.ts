@@ -498,9 +498,15 @@ slackHook.get("/oauth/callback", async (req: any, res) => {
     log(`install did not complete: ${why}`);           // the reason to our log, a code to the page
     res.redirect(`/slack?error=${code}`);
   };
+  if (!slackConfigured()) return fail("not_configured", "the Slack credentials are not set on this server");
   if (req.query.error) return fail("cancelled", `Slack returned ${req.query.error}`);
 
-  const st = consumeSlackOAuthState(String(req.query.state ?? ""));
+  // An install begun from Slack's own pages, such as "Install to Workspace" in
+  // the app's settings, arrives with no state of ours. It cannot be tied to an
+  // account safely, so the person is sent to start it here instead, and told so
+  // plainly rather than that a link they never had expired.
+  if (!req.query.state) return fail("start_here", "install began on Slack's side, without our state");
+  const st = consumeSlackOAuthState(String(req.query.state));
   if (!st) return fail("expired", "unknown, used or expired state");
   const user = sessionUser(req);
   if (!user || user.id !== st.user_id) return fail("signin", "the install was started in a different session");

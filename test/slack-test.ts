@@ -219,6 +219,14 @@ console.log("── installing ──");
 
   r = await get(`/slack/oauth/callback?code=good-code&state=not-a-state`, aliceCookie);
   ok(r.headers.get("location") === "/slack?error=expired", "an unknown state is refused");
+  r = await get(`/slack/oauth/callback?code=good-code`, aliceCookie);
+  ok(r.headers.get("location") === "/slack?error=start_here",
+     "THE DASHBOARD INSTALL: one begun from Slack's own settings page is sent to start here");
+  const secret = process.env.SLACK_CLIENT_SECRET;
+  delete process.env.SLACK_CLIENT_SECRET;
+  r = await get(`/slack/oauth/callback?code=good-code&state=${state}`, aliceCookie);
+  ok(r.headers.get("location") === "/slack?error=not_configured", "an unconfigured server says so instead of blaming the link");
+  process.env.SLACK_CLIENT_SECRET = secret;
 
   const bobCookie = await login(bob.id);
   r = await get(`/slack/oauth/callback?code=good-code&state=${state}`, bobCookie);
