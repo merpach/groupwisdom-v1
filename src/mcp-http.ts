@@ -13,7 +13,6 @@ import {
   getUserByApiKey,
   getGroupsForUser,
   getGroup,
-  listItems,
   listItemsWithMembers,
   listInsights,
   listMembers,
@@ -25,7 +24,7 @@ import {
   listUserContexts,
   getUserById,
 } from "./db.js";
-import { analyzeGroup, updateProjectSummary, updateUserContext, detectContributorOverlap } from "./engine.js";
+import { analyzeGroup, updateProjectSummary, updateUserContext, detectContributorOverlap, loadGroupMemory } from "./engine.js";
 
 const projectParam = z.string().optional().describe(
   "Project name (or partial name). If omitted, uses your first project."
@@ -60,13 +59,15 @@ function buildMcpServer(userId: string) {
       if (!groups.length) return text("No GroupWisdom projects yet.");
 
       const index = groups.map(g => {
-        const items = listItems(g.id);
         const summary = getProjectSummary(g.id);
         const nameWords = g.name.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-        const itemWords = items.flatMap(i =>
-          (i.title || "").toLowerCase().split(/\s+/).filter(w => w.length > 3)
+        // Keywords come from what the engine has established, never from the
+        // stored messages themselves: their text is write-only to any key.
+        const mem = loadGroupMemory(g.id);
+        const factWords = (mem?.facts ?? []).flatMap(f =>
+          String(f.fact ?? "").toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 3)
         );
-        const keywords = [...new Set([...nameWords, ...itemWords])].slice(0, 20);
+        const keywords = [...new Set([...nameWords, ...factWords])].slice(0, 20);
         return { project: g.name, id: g.id, keywords, summary };
       });
 
@@ -151,7 +152,8 @@ function buildMcpServer(userId: string) {
 
   server.tool(
     "search_group_knowledge",
-    "Search everything a project has shared (links, notes, files, thoughts).",
+    "Search what a project has established: the facts its members contributed, the decisions they made, " +
+    "the questions still open, and the wisdom the engine surfaced. The stored messages themselves are never returned.",
     {
       query: z.string().describe("Search query"),
       project: projectParam,
@@ -159,14 +161,20 @@ function buildMcpServer(userId: string) {
     async ({ query, project }) => {
       const g = resolveGroup(project);
       if (!g) return text("No projects found.");
-      const items = listItems(g.id);
+      // Searches what the engine has established rather than the stored
+      // messages: their text is write-only to any key, and a search over it
+      // would reveal what they said as surely as showing them.
       const q = query.toLowerCase();
-      const hits = items.filter(i =>
-        (i.title + " " + i.content + " " + (i.url || "")).toLowerCase().includes(q)
-      );
-      if (!hits.length) return text(`No items match "${query}" in project "${g.name}".`);
-      return text(hits.map(h =>
-        `- [${h.type}] ${h.title}${h.url ? ` (${h.url})` : ""}\n  ${h.content}`).join("\n"));
+      const mem = loadGroupMemory(g.id);
+      const lines: string[] = [];
+      for (const f of mem?.facts ?? []) if (f.fact.toLowerCase().includes(q)) lines.push(`- fact: ${f.fact}${f.by ? ` (${f.by})` : ""}`);
+      for (const d of mem?.decisions ?? []) if (d.decision.toLowerCase().includes(q)) lines.push(`- decision: ${d.decision}`);
+      for (const o of mem?.open_questions ?? []) if (o.toLowerCase().includes(q)) lines.push(`- open question: ${o}`);
+      for (const w of listInsights(g.id)) {
+        if (`${w.title} ${w.body}`.toLowerCase().includes(q)) lines.push(`- [${w.kind}] ${w.title}: ${w.body}`);
+      }
+      if (!lines.length) return text(`Nothing "${g.name}" has established matches "${query}".`);
+      return text(lines.join("\n"));
     }
   );
 
@@ -249,7 +257,8 @@ function buildMcpServer(userId: string) {
 
   server.tool(
     "list_group_items",
-    "List everything a project has shared, newest first.",
+    "List what a project has stored, newest first: who contributed each item, when, where it came from and how long it is. " +
+    "The text of stored items is write-only and is never returned; use search_group_knowledge for what the project has established.",
     { project: projectParam },
     async ({ project }) => {
       const g = resolveGroup(project);
@@ -257,7 +266,7 @@ function buildMcpServer(userId: string) {
       const items = listItemsWithMembers(g.id);
       if (!items.length) return text(`Nothing shared yet in "${g.name}".`);
       return text(items.map(i =>
-        `- [${i.type}]${i.member_name ? ` [by ${i.member_name}]` : ""} ${i.title}${i.url ? ` (${i.url})` : ""} — ${i.content}`).join("\n"));
+        `- [${i.type}]${i.member_name ? ` by ${i.member_name}` : ""} · ${i.source} · ${i.created_at.slice(0, 10)} · ${(i.content ?? "").length} characters`).join("\n"));
     }
   );
 

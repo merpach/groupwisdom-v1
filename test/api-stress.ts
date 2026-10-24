@@ -262,6 +262,16 @@ async function main() {
   ok(page1.json.total >= 8, "total counts everything");
   ok(page1.json.data.every((i: any) => isIso(i.created_at)), "item timestamps are ISO");
   ok(page1.json.data.some((i: any) => typeof i.contributed_by === "string"), "contributed_by comes back out");
+  ok(page1.json.data.every((i: any) => !("content" in i) && !("title" in i) && !("url" in i)),
+     "THE STOLEN KEY: a listing carries no message text, title or link");
+  ok(page1.json.data.every((i: any) => typeof i.chars === "number" && typeof i.source === "string" && typeof i.id === "string"),
+     "only who, when, where from and how long");
+  const forged = await call("GET", `/projects/${A}/items?limit=3`, { key: alice.api_key, headers: { "X-GroupWisdom-Internal": "guess" } });
+  ok(forged.json.data.every((i: any) => !("content" in i)), "a forged internal header reads nothing more");
+  const { internalToken } = await import("../src/internal-token.js");
+  const inside = await call("GET", `/projects/${A}/items?limit=3`, { key: alice.api_key, headers: { "X-GroupWisdom-Internal": internalToken() } });
+  ok(inside.json.data.some((i: any) => typeof i.content === "string" && i.content.length > 0),
+     "the server's own Buzz adapters, over loopback with the in-memory token, still read the text to quote it");
   const limits = await call("GET", `/projects/${A}/items?limit=99999&offset=-5`, { key: alice.api_key });
   eq(limits.json.limit, 200, "limit clamps at 200");
   eq(limits.json.offset, 0, "negative offset clamps to 0");

@@ -25,6 +25,7 @@
  * relay grants access derived from that member's own membership (NIP-AA).
  */
 import { startBuzzAdapter } from "./adapters/buzz.js";
+import { internalToken } from "./internal-token.js";
 import { parseAuthTag } from "./adapters/nip-oa.js";
 import {
   listEnabledBuzzConnections,
@@ -129,6 +130,9 @@ export function startConnection(conn: BuzzConnection): { ok: boolean; error?: st
       // attribution and budget accounting stay per-customer.
       groupwisdomApiKey: owner.api_key,
       groupwisdomBaseUrl: selfApiBase(),
+      // Over loopback to this same server, so the adapter can still quote
+      // stored messages in its memory reply; no customer key can (internal-token.ts).
+      internalToken: internalToken(),
       authTag,
       // Restrict to chosen channels when set, so a busy workspace can't be
       // ingested (and billed) in full just because the agent can see it.

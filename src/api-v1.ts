@@ -66,6 +66,7 @@ import {
   type User,
 } from "./db.js";
 import { queueIncrementalAnalysis, updateProjectSummary, analyzeGroup, cancelPendingAnalysis } from "./engine.js";
+import { isInternalCaller } from "./internal-token.js";
 
 export const apiv1 = Router();
 
@@ -589,17 +590,47 @@ apiv1.post("/projects/:id/ingest", (req, res) => {
 
 // ── Items ─────────────────────────────────────────────────────────────────────
 
+/**
+ * What was stored, without what it said.
+ *
+ * Message text is write-only: once an item is stored, its title, content and
+ * link cannot be read back through any customer key. A stolen key would
+ * otherwise be a copy of a team's whole chat; it now shows who contributed,
+ * when, from where and how long, which is all a listing or a deletion needs.
+ * The engine, memory, findings and the chat integrations read the stored text
+ * inside the server and are unaffected.
+ */
+export function storedItemView(
+  i: { id: string; group_id: string; member_id: string | null; type: string; source: string; channel: string | null; content?: string | null; created_at: string },
+  names: Map<string, string>,
+) {
+  return {
+    id: i.id,
+    group_id: i.group_id,
+    member_id: i.member_id,
+    contributed_by: i.member_id ? names.get(i.member_id) ?? null : null,
+    type: i.type,
+    source: i.source,
+    channel: i.channel ?? null,
+    chars: (i.content ?? "").length,
+    created_at: i.created_at,
+  };
+}
+
 apiv1.get("/projects/:id/items", (req, res) => {
   const a = auth(req);
   if (!a) return res.status(401).json({ error: "Invalid or missing API key." });
   const g = resolveProject(req, a);
   if (!g) return res.status(404).json({ error: "Project not found." });
   const { limit, offset } = parsePagination(req.query);
-  // contributed_by went in but never came back out, so any app showing "who
-  // contributed what" had to keep its own id-to-name map. It is data we hold.
   const page = listItemsPaginated(g.id, limit, offset);
   const names = new Map(listMembers(g.id).map(m => [m.id, m.name]));
-  res.json({ ...page, data: page.data.map(i => ({ ...i, contributed_by: i.member_id ? names.get(i.member_id) ?? null : null })) });
+  // The hosted Buzz adapters, running inside this server, still read the text
+  // so their memory reply can quote a message beside each fact (internal-token.ts).
+  if (isInternalCaller(req)) {
+    return res.json({ ...page, data: page.data.map(i => ({ ...i, contributed_by: i.member_id ? names.get(i.member_id) ?? null : null })) });
+  }
+  res.json({ ...page, data: page.data.map(i => storedItemView(i, names)) });
 });
 
 apiv1.delete("/projects/:id/items/:itemId", (req, res) => {

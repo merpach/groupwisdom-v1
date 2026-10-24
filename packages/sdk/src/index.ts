@@ -31,6 +31,11 @@ export interface IngestResponse {
   message: string;
 }
 
+/**
+ * A stored item, as the API lists it. Message text is write-only: once stored,
+ * an item's title, content and link cannot be read back with any key, so a
+ * stolen key cannot be used to read a team's chat.
+ */
 export interface Item {
   id: string;
   group_id: string;
@@ -38,13 +43,12 @@ export interface Item {
   /** The name sent in contributed_by, resolved from the member; null when none was given. */
   contributed_by: string | null;
   type: string;
-  title: string;
-  content: string;
-  url: string;
-  /** "api" for anything sent through this API; an adapter's name otherwise. */
+  /** "api" for anything sent through this API; "slack", "teams" or "buzz" for the chat integrations. */
   source: string;
   /** The channel the item was sent with, or null. */
   channel: string | null;
+  /** Length of the stored text, in characters. */
+  chars: number;
   created_at: string;
 }
 
@@ -305,7 +309,7 @@ class GroupWisdom {
 
   // ── Items ────────────────────────────────────────────────────────────────────
 
-  /** List items in a project. Returns paginated results. */
+  /** List what a project has stored, without the message text (write-only). Returns paginated results. */
   listItems(projectId: string, options?: PaginationOptions): Promise<PaginatedResult<Item>> {
     const qs = buildQS(options);
     return this.request("GET", `/projects/${projectId}/items${qs}`);

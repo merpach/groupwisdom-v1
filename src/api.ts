@@ -8,7 +8,7 @@ import {
   createGroup, getGroup, getGroupByKey, listGroups, deleteGroup,
   addMember, listMembers, getMemberByToken, getGroupsForMember, getGroupsByToken,
   createUser, getUserByEmail, getUserById, getUserByApiKey, getGroupsForUser,
-  addItem, listItems, searchItems,
+  addItem, listItems,
   listInsights, setInsightStatus,
   listConnectors, setConnectorStatus, touchConnector,
   getKnowledgeDoc,
@@ -19,6 +19,7 @@ import {
 import { analyzeGroup, previewAnalysis, acceptInsight, updateProjectSummary, queueIncrementalAnalysis } from "./engine.js";
 import { googleAuthEnabled } from "./google-auth.js";
 import { listBuzzConnectionsForUser, rotateUserApiKey } from "./db.js";
+import { storedItemView } from "./api-v1.js";
 import { restartConnection } from "./buzz-supervisor.js";
 import { supabaseAuthEnabled, supabaseProviders, supabaseSignUp, supabaseSignIn, supabaseSendReset } from "./supabase-auth.js";
 
@@ -229,11 +230,14 @@ api.post("/groups/:id/members", (req, res) => {
   res.status(201).json(addMember(g.id, name, role ?? "", email ?? ""));
 });
 
+// Message text is write-only here too (see storedItemView in api-v1.ts). The
+// text search this route once offered is gone with it: answering "which
+// messages mention layoffs?" reveals what they said as surely as showing them.
 api.get("/groups/:id/items", (req, res) => {
   const g = resolveGroup(req);
   if (!g) return res.status(404).json({ error: "group not found" });
-  const q = req.query.q as string | undefined;
-  res.json(q ? searchItems(g.id, q) : listItems(g.id));
+  const names = new Map(listMembers(g.id).map(m => [m.id, m.name]));
+  res.json(listItems(g.id).map(i => storedItemView(i, names)));
 });
 
 api.post("/groups/:id/items", async (req, res) => {

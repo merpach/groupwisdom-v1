@@ -46,6 +46,14 @@ export interface BuzzConfig {
   authTag?: AuthTag;
   groupwisdomBaseUrl?: string;   // default: the production GroupWisdom API
   /**
+   * Set only by the server for the adapters it runs itself (buzz-supervisor).
+   * Stored message text is write-only to customer keys; this lets an in-server
+   * adapter still read it back, so its memory reply can quote the message each
+   * fact came from. A self-run adapter has none, and its memory replies list
+   * the facts without quotes.
+   */
+  internalToken?: string;
+  /**
    * Restrict to these channel uuids. When set, discovery is used only to learn
    * channel names — nothing outside the list is watched, ingested, or billed.
    * When omitted, every channel the identity can see is watched.
@@ -365,6 +373,7 @@ export function startBuzzAdapter(cfg: BuzzConfig): { stop: () => void } {
           headers: {
             Authorization: `Bearer ${cfg.groupwisdomApiKey}`,
             "Content-Type": "application/json",
+            ...(cfg.internalToken ? { "X-GroupWisdom-Internal": cfg.internalToken } : {}),
             ...(init?.headers ?? {}),
           },
         });

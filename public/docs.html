@@ -408,7 +408,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
     <tr><td>gw.getProject(projectId)</td><td>Get a single project by ID.</td></tr>
     <tr><td>gw.updateProject(projectId, { webhook_url })</td><td>Update a project's webhook URL.</td></tr>
     <tr><td>gw.ingest(projectId, item | item[])</td><td>Send one or more items. Triggers analysis. Each item can include <code>contributed_by</code>.</td></tr>
-    <tr><td>gw.listItems(projectId)</td><td>List all items in a project.</td></tr>
+    <tr><td>gw.listItems(projectId)</td><td>List what a project has stored, without the message text.</td></tr>
     <tr><td>gw.listWisdom(projectId, kind?, { format? })</td><td>Get the project's wisdom. Default returns <code>{ id, title, body }</code>. Pass <code>format: "full"</code> to include <code>kind</code>, <code>status</code>, <code>created_at</code>, <code>confidence</code>, <code>do_next</code>, <code>caveat</code>, <code>missing_voice</code>, and <code>stated_in</code>.</td></tr>
     <tr><td>gw.listInsights(...)</td><td>The former name for <code>listWisdom</code>. Still present and returns identical data, so existing code needs no change.</td></tr>
     <tr><td>gw.deleteItem(projectId, itemId)</td><td>Remove one item.</td></tr>
@@ -563,7 +563,8 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   <!-- List items -->
   <h2 id="list-items">List items</h2>
   <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/projects/:id/items</span></div>
-  <p>Returns items in a project, newest first. Paginated — default 50 per page, max 200.</p>
+  <p>Returns what a project has stored, newest first: who contributed each item, when, where it came from and how long it is. Paginated — default 50 per page, max 200.</p>
+  <p class="note"><b>Message text is write-only.</b> Once an item is stored, its title, content and link cannot be read back with any key, so a stolen key cannot be used to read a team's chat. The engine still reads every item, and what it has made of them is readable as <a href="#memory">memory</a> and <a href="#list-wisdom">wisdom</a>.</p>
   <table>
     <tr><th>Query param</th><th>Default</th><th>Description</th></tr>
     <tr><td>limit</td><td>50</td><td>Items per page (max 200)</td></tr>
@@ -579,11 +580,9 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
       "member_id": "d208d22e-7089-41be-b3a5-2c263496488a",
       "contributed_by": "Ada",
       "type": "note",
-      "title": "Shipped the onboarding rewrite: nine screens down to four. C",
-      "content": "Shipped the onboarding rewrite: nine screens down to four. Completion went from 41% to 68% in the two weeks since.",
-      "url": "",
       "source": "api",
       "channel": null,
+      "chars": 113,
       "created_at": "2026-09-21T05:12:04Z"
     }
   ],
@@ -592,7 +591,7 @@ wisdom.data.forEach(w => console.log(w.title, "—", w.body))</pre>
   "offset": 0,
   "has_more": true
 }</pre>
-  <p>An item sent with <code>content</code> and no <code>title</code> gets the first sixty characters of its content as its title, which is what you see above. <code>contributed_by</code> is the name you sent; <code>source</code> is <code>api</code> for anything that arrived through this API and the adapter's name otherwise.</p>
+  <p><code>contributed_by</code> is the name sent with the item. <code>source</code> is <code>api</code> for anything sent through this API, and <code>slack</code>, <code>teams</code> or <code>buzz</code> for the chat integrations. <code>chars</code> is the length of the stored text.</p>
 
   <h2 id="delete-item">Delete item</h2>
   <div class="endpoint"><span class="method delete">DELETE</span><span class="path">/v1/projects/:id/items/:itemId</span></div>
@@ -846,7 +845,7 @@ curl "https://testgroupwisdom.com/v1/projects/5d96994a-9164-44bb-891c-caf57eb676
 
   <h2 id="project-keys">Project API keys</h2>
   <p>Project keys (<code>gw_proj_...</code>) are scoped to a single project. Use them in production apps instead of your personal key — if a project key leaks, you revoke just that key without touching your account or other projects.</p>
-  <p>Project keys can ingest data, read items, and read wisdom. They cannot create new projects or manage other keys — that requires your personal key.</p>
+  <p>Project keys can ingest data, list stored items (without their text), and read memory and wisdom. They cannot create new projects or manage other keys — that requires your personal key.</p>
 
   <h2 id="create-key">Create a project key</h2>
   <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/projects/:id/keys</span></div>
